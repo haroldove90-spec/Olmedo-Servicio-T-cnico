@@ -131,7 +131,7 @@ export const BottomBar: React.FC = () => {
           },
           {
             id: 'servicios',
-            label: 'Servicios',
+            label: 'Productos',
             icon: <Wrench className="w-5 h-5" />,
             badge: services.length > 0 ? services.length : undefined,
           },

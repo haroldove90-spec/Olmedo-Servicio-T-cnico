@@ -80,14 +80,14 @@ export const GerenciaPortal: React.FC = () => {
   const [expensesAndTowing, setExpensesAndTowing] = useState(0);
   const [quoteNotes, setQuoteNotes] = useState('');
 
-  // Quotation Consultation & PDF States
+  // Quotation Consultation & New Quote States
   const [quoteSubTab, setQuoteSubTab] = useState<'consultar' | 'pendientes'>('consultar');
   const [quoteSearchTerm, setQuoteSearchTerm] = useState('');
   const [quoteStatusFilter, setQuoteStatusFilter] = useState<'todas' | 'enviada' | 'aprobada' | 'rechazada'>('todas');
   const [viewQuoteDocOrder, setViewQuoteDocOrder] = useState<ServiceOrder | null>(null);
-  const [targetOrderForPdfImport, setTargetOrderForPdfImport] = useState<ServiceOrder | null>(null);
   const [showCatalogPickerInQuote, setShowCatalogPickerInQuote] = useState(false);
-  const pdfFileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [showNewQuotationSelector, setShowNewQuotationSelector] = useState(false);
+  const [newQuoteSearchTerm, setNewQuoteSearchTerm] = useState('');
 
   // Invoice Emission Modal
   const [invoiceOrder, setInvoiceOrder] = useState<ServiceOrder | null>(null);
@@ -157,34 +157,6 @@ export const GerenciaPortal: React.FC = () => {
 
     addToast('success', 'Cotización lista para WhatsApp', 'Desglose copiado al portapapeles y enlace de WhatsApp abierto.');
     window.open(url, '_blank');
-  };
-
-  const handleTriggerImportPdf = (order: ServiceOrder) => {
-    setTargetOrderForPdfImport(order);
-    if (pdfFileInputRef.current) {
-      pdfFileInputRef.current.value = '';
-      pdfFileInputRef.current.click();
-    }
-  };
-
-  const handlePdfFileUploaded = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !targetOrderForPdfImport) return;
-
-    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-      addToast('error', 'Formato Inválido', 'El archivo debe ser un documento PDF (.pdf).');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (loadEvent) => {
-      const dataUrl = loadEvent.target?.result as string;
-      if (dataUrl) {
-        attachQuotationPdf(targetOrderForPdfImport.id, dataUrl, file.name);
-        setTargetOrderForPdfImport(null);
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleOpenInspect = (order: ServiceOrder) => {
@@ -283,18 +255,82 @@ export const GerenciaPortal: React.FC = () => {
 
   const handleOpenQuotation = (order: ServiceOrder) => {
     setQuoteOrder(order);
+    setShowNewQuotationSelector(false);
     if (order.quotation) {
-      setLaborHours(order.quotation.laborHours);
-      setLaborRate(order.quotation.laborRatePerHour);
-      setQuoteParts([...order.quotation.parts]);
-      setExpensesAndTowing(order.quotation.expensesAndTowing);
-      setQuoteNotes(order.quotation.notes || '');
+      const q = order.quotation;
+      const initialParts: PartUsed[] = [...q.parts];
+
+      // Si cotizaciones anteriores no tenían mano de obra en parts, sintetizarla dentro de productos
+      const hasLabor = initialParts.some(p => p.category === 'mano_obra');
+      if (!hasLabor && (q.laborHours || 0) > 0) {
+        initialParts.unshift({
+          id: `qp-mo-${Date.now()}`,
+          partNumber: 'MO-ESP-01',
+          description: `Mano de Obra Especializada en ${order.vehicle.type.toUpperCase()}`,
+          quantity: q.laborHours,
+          unitPrice: q.laborRatePerHour || 650,
+          category: 'mano_obra',
+        });
+      }
+
+      // Si cotizaciones anteriores no tenían viáticos en parts, sintetizarlos dentro de productos
+      const hasViaticos = initialParts.some(p => p.category === 'viaticos');
+      if (!hasViaticos && (q.expensesAndTowing || 0) > 0) {
+        initialParts.push({
+          id: `qp-via-${Date.now()}`,
+          partNumber: 'VIA-ASIS-01',
+          description: 'Viáticos de Desplazamiento en Carretera / Asistencia en Sitio',
+          quantity: 1,
+          unitPrice: q.expensesAndTowing,
+          category: 'viaticos',
+        });
+      }
+
+      setQuoteParts(initialParts);
+      setQuoteNotes(q.notes || '');
     } else {
-      // Default from technician parts
-      setLaborHours(order.serviceType === 'rescate' ? 4.0 : 2.5);
-      setLaborRate(650);
-      setQuoteParts([...order.partsUsed]);
-      setExpensesAndTowing(order.serviceType === 'rescate' ? 1200 : order.serviceType === 'asistencia' ? 500 : 0);
+      // Inicialización con conceptos dentro de la tabla de productos
+      const defaultParts: PartUsed[] = [];
+
+      // 1. Partida de Mano de Obra dentro de la tabla de productos
+      defaultParts.push({
+        id: `qp-mo-${Date.now()}`,
+        partNumber: 'MO-ESP-01',
+        description: `Mano de Obra Especializada Diésel en ${order.vehicle.type.toUpperCase()}`,
+        quantity: order.serviceType === 'rescate' ? 4.0 : 2.5,
+        unitPrice: 650,
+        category: 'mano_obra',
+      });
+
+      // 2. Partidas de Refacciones / Insumos reportados por técnico
+      if (order.partsUsed && order.partsUsed.length > 0) {
+        order.partsUsed.forEach((pu, idx) => {
+          defaultParts.push({
+            id: `qp-pu-${Date.now()}-${idx}`,
+            partNumber: pu.partNumber,
+            description: pu.description,
+            quantity: pu.quantity,
+            unitPrice: pu.unitPrice,
+            category: 'producto',
+            position: pu.position,
+            providedByClient: pu.providedByClient,
+          });
+        });
+      }
+
+      // 3. Viáticos si aplica rescate o asistencia
+      if (order.serviceType === 'rescate' || order.serviceType === 'asistencia') {
+        defaultParts.push({
+          id: `qp-via-${Date.now()}`,
+          partNumber: 'VIA-ASIS-01',
+          description: 'Viáticos de Desplazamiento en Carretera / Grúa y Asistencia en Sitio',
+          quantity: 1,
+          unitPrice: order.serviceType === 'rescate' ? 1200 : 500,
+          category: 'viaticos',
+        });
+      }
+
+      setQuoteParts(defaultParts);
       setQuoteNotes(`Garantía de servicio por 90 días en mano de obra técnica para unidad ${order.vehicle.plates}.`);
     }
   };
@@ -303,11 +339,26 @@ export const GerenciaPortal: React.FC = () => {
     e.preventDefault();
     if (!quoteOrder) return;
 
+    if (quoteParts.length === 0) {
+      addToast('warning', 'Cotización Vacía', 'Agrega al menos un producto, servicio o mano de obra a la cotización.');
+      return;
+    }
+
+    const laborItems = quoteParts.filter(p => p.category === 'mano_obra');
+    const calcLaborHours = laborItems.reduce((acc, p) => acc + (typeof p.quantity === 'number' ? p.quantity : (parseFloat(String(p.quantity)) || 1)), 0);
+    const calcLaborRate = laborItems.length > 0 ? laborItems[0].unitPrice : 650;
+
+    const viaticosItems = quoteParts.filter(p => p.category === 'viaticos');
+    const calcViaticos = viaticosItems.reduce((acc, p) => {
+      const q = typeof p.quantity === 'number' ? p.quantity : (parseFloat(String(p.quantity)) || 1);
+      return acc + (q * (p.unitPrice || 0));
+    }, 0);
+
     saveQuotation(quoteOrder.id, {
-      laborHours: Number(laborHours),
-      laborRatePerHour: Number(laborRate),
+      laborHours: calcLaborHours,
+      laborRatePerHour: calcLaborRate,
       parts: quoteParts,
-      expensesAndTowing: Number(expensesAndTowing) || 0,
+      expensesAndTowing: calcViaticos,
       notes: quoteNotes,
     });
 
@@ -318,9 +369,10 @@ export const GerenciaPortal: React.FC = () => {
     const newPart: PartUsed = {
       id: `qp-${Date.now()}`,
       partNumber: `REF-${Math.floor(1000 + Math.random() * 9000)}`,
-      description: 'Refacción adicional / Insumo lubricante',
+      description: 'Refacción adicional / Producto',
       quantity: 1,
       unitPrice: 500,
+      category: 'producto',
     };
     setQuoteParts(prev => [...prev, newPart]);
   };
@@ -943,8 +995,8 @@ export const GerenciaPortal: React.FC = () => {
         </div>
       )}
 
-      {/* MÓDULO SERVICIOS: CATÁLOGO Y TARIFAS OFICIALES */}
-      {activeModule === 'servicios' && (
+      {/* MÓDULO SERVICIOS / PRODUCTOS: CATÁLOGO Y TARIFAS OFICIALES */}
+      {(activeModule === 'servicios' || activeModule === 'productos') && (
         <ServicesCatalogManager />
       )}
 
@@ -958,46 +1010,59 @@ export const GerenciaPortal: React.FC = () => {
                 <span>Gestor, Consulta y Registro de Cotizaciones</span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Consulta cotizaciones registradas, compártelas al WhatsApp del cliente, importa cotizaciones en PDF o genera nuevos presupuestos desglosados.
+                Genera presupuestos oficiales a tamaño carta con desglose de productos, mano de obra y viáticos, consúltalos y compártelos al WhatsApp del cliente.
               </p>
             </div>
 
-            {/* Pestañas de Sub-Navegación */}
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-auto shrink-0">
+            {/* Acciones Principales: Botón Prominente + Nueva Cotización y Pestañas */}
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => setQuoteSubTab('consultar')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                  quoteSubTab === 'consultar'
-                    ? 'bg-[#040057] text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                onClick={() => { setNewQuoteSearchTerm(''); setShowNewQuotationSelector(true); }}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-800 hover:to-indigo-800 text-white font-bold text-xs shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer shrink-0"
+                title="Crear una nueva cotización para cualquier vehículo u orden"
               >
-                <FileCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Consultar Cotizaciones</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                  quoteSubTab === 'consultar' ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-700'
-                }`}>
-                  {registeredQuotationOrders.length}
-                </span>
+                <Plus className="w-4 h-4 text-emerald-300" />
+                <span>+ Nueva Cotización</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setQuoteSubTab('pendientes')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                  quoteSubTab === 'pendientes'
-                    ? 'bg-[#040057] text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>Por Cotizar</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                  quoteSubTab === 'pendientes' ? 'bg-amber-400 text-slate-900' : 'bg-slate-200 text-slate-700'
-                }`}>
-                  {pendingQuotationCreationOrders.length}
-                </span>
-              </button>
+              {/* Pestañas de Sub-Navegación */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl self-start sm:self-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setQuoteSubTab('consultar')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    quoteSubTab === 'consultar'
+                      ? 'bg-[#040057] text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FileCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Consultar Cotizaciones</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                    quoteSubTab === 'consultar' ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {registeredQuotationOrders.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setQuoteSubTab('pendientes')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    quoteSubTab === 'pendientes'
+                      ? 'bg-[#040057] text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>Por Cotizar</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                    quoteSubTab === 'pendientes' ? 'bg-amber-400 text-slate-900' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {pendingQuotationCreationOrders.length}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1031,11 +1096,11 @@ export const GerenciaPortal: React.FC = () => {
                 </div>
 
                 <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block mb-1">PDFs Importados</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Órdenes Por Cotizar</span>
                   <div className="text-lg sm:text-xl font-black text-indigo-700">
-                    {registeredQuotationOrders.filter(o => Boolean(o.quotation?.pdfUrl)).length}
+                    {pendingQuotationCreationOrders.length}
                   </div>
-                  <span className="text-[10px] text-slate-400">Adjuntos en la orden</span>
+                  <span className="text-[10px] text-slate-400">Pendientes de presupuesto</span>
                 </div>
               </div>
 
@@ -1201,30 +1266,6 @@ export const GerenciaPortal: React.FC = () => {
                             </div>
 
                             <div className="flex items-center gap-2">
-                              {/* Botón Importar Cotización en PDF */}
-                              <button
-                                type="button"
-                                onClick={() => handleTriggerImportPdf(order)}
-                                className="px-3 py-1.5 rounded-xl border border-indigo-200 hover:bg-indigo-50 text-indigo-700 font-semibold text-xs transition flex items-center gap-1 cursor-pointer"
-                                title="Importar o adjuntar archivo PDF de la cotización externa"
-                              >
-                                <FileUp className="w-3.5 h-3.5" />
-                                <span>{q.pdfUrl ? 'Reemplazar PDF' : 'Importar PDF'}</span>
-                              </button>
-
-                              {/* Descargar PDF importado si existe */}
-                              {q.pdfUrl && (
-                                <a
-                                  href={q.pdfUrl}
-                                  download={`Cotizacion_${order.folio}.pdf`}
-                                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1"
-                                  title="Descargar archivo PDF importado"
-                                >
-                                  <Download className="w-3.5 h-3.5" />
-                                  <span>Descargar</span>
-                                </a>
-                              )}
-
                               {/* Botón Editar Cotización */}
                               <button
                                 type="button"
@@ -1281,15 +1322,6 @@ export const GerenciaPortal: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleTriggerImportPdf(order)}
-                          className="px-3.5 py-2 rounded-xl border border-indigo-300 hover:bg-indigo-50 text-indigo-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <FileUp className="w-4 h-4" />
-                          <span>Importar Cotización en PDF</span>
-                        </button>
-
                         <button
                           onClick={() => handleOpenQuotation(order)}
                           className="px-4 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
@@ -1704,69 +1736,46 @@ export const GerenciaPortal: React.FC = () => {
 
             <form onSubmit={handleSaveQuotationSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
               
-              {/* Mano de obra */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <span className="font-bold text-[#040057] uppercase text-[11px]">1. Mano de Obra Técnica Especializada</span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Sección Unificada: Productos, Refacciones, Mano de Obra y Viáticos */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200">
                   <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Horas Invertidas:</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0.5"
-                      required
-                      value={laborHours}
-                      onChange={(e) => setLaborHours(Number(e.target.value))}
-                      className="w-full px-3 py-2 border rounded-lg bg-white"
-                    />
+                    <span className="font-extrabold text-[#040057] uppercase text-xs flex items-center gap-1.5">
+                      <Wrench className="w-4 h-4 text-indigo-600" />
+                      <span>Partidas de la Cotización (Productos, Mano de Obra y Viáticos)</span>
+                    </span>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Las horas de mano de obra y viáticos están integrados como partidas oficiales dentro del catálogo de productos.
+                    </p>
                   </div>
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Tarifa por Hora ($ MXN):</label>
-                    <input
-                      type="number"
-                      step="50"
-                      min="100"
-                      required
-                      value={laborRate}
-                      onChange={(e) => setLaborRate(Number(e.target.value))}
-                      className="w-full px-3 py-2 border rounded-lg bg-white"
-                    />
-                  </div>
-                </div>
-                <div className="text-right font-bold text-slate-700 pt-1">
-                  Subtotal Mano de Obra: ${(laborHours * laborRate).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                </div>
-              </div>
 
-              {/* Refacciones */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="font-bold text-[#040057] uppercase text-[11px]">2. Refacciones e Insumos</span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setShowCatalogPickerInQuote(!showCatalogPickerInQuote)}
-                      className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold text-[11px] hover:bg-indigo-100 border border-indigo-200 flex items-center gap-1 cursor-pointer"
+                      className="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 font-bold text-xs hover:bg-indigo-100 border border-indigo-200 flex items-center gap-1.5 cursor-pointer shadow-2xs"
                     >
                       <Wrench className="w-3.5 h-3.5" />
-                      <span>⚡ Cargar del Catálogo</span>
+                      <span>⚡ Cargar del Catálogo de Productos</span>
                     </button>
+
                     <button
                       type="button"
                       onClick={handleAddPartToQuote}
-                      className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800 font-semibold text-[11px] hover:bg-slate-300 cursor-pointer"
+                      className="px-3 py-1.5 rounded-xl bg-[#040057] text-white font-bold text-xs hover:bg-[#070085] flex items-center gap-1 cursor-pointer shadow-2xs"
                     >
-                      + Agregar Manual
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Agregar Partida</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Desplegable interactivo para elegir servicios del catálogo */}
+                {/* Desplegable interactivo para elegir productos / servicios / mano de obra / viáticos del catálogo */}
                 {showCatalogPickerInQuote && (
-                  <div className="p-3 rounded-xl bg-indigo-50/90 border border-indigo-200 space-y-2 animate-fadeIn">
-                    <div className="flex items-center justify-between text-[11px]">
+                  <div className="p-3.5 rounded-xl bg-indigo-50/95 border border-indigo-200 space-y-2.5 animate-fadeIn">
+                    <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-[#040057]">
-                        Haz clic en cualquier servicio para cargarlo a la cotización con su precio oficial:
+                        Haz clic en cualquier producto, mano de obra o viático para agregarlo a la cotización:
                       </span>
                       <button
                         type="button"
@@ -1777,142 +1786,202 @@ export const GerenciaPortal: React.FC = () => {
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                      {services.filter(s => s.isActive).map(s => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => {
-                            const newPart: PartUsed = {
-                              id: `qp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-                              partNumber: s.code,
-                              description: s.name,
-                              quantity: 1,
-                              unitPrice: s.basePrice,
-                            };
-                            setQuoteParts(prev => [...prev, newPart]);
-                            addToast('success', 'Servicio Agregado a Cotización', `"${s.name}" cargado con precio $${s.basePrice.toLocaleString('es-MX')}`);
-                          }}
-                          className="p-2 rounded-lg bg-white border border-indigo-200 hover:border-indigo-500 hover:bg-indigo-50/50 text-left transition flex items-start justify-between gap-2 cursor-pointer shadow-2xs"
-                        >
-                          <div className="min-w-0">
-                            <span className="font-mono text-[10px] text-indigo-700 font-bold block">{s.code}</span>
-                            <span className="font-semibold text-slate-800 line-clamp-1 text-[11px]">{s.name}</span>
-                          </div>
-                          <span className="font-bold text-[#040057] text-xs shrink-0">
-                            ${s.basePrice.toLocaleString('es-MX')}
-                          </span>
-                        </button>
-                      ))}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-1">
+                      {services.filter(s => s.isActive).map(s => {
+                        const isMo = s.category === 'mano_obra';
+                        const isVia = s.category === 'viaticos' || s.category === 'rescate_asistencia';
+                        const isSrv = s.category === 'servicio';
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => {
+                              const newPart: PartUsed = {
+                                id: `qp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                                partNumber: s.code,
+                                description: s.name,
+                                quantity: s.suggestedLaborHours || 1,
+                                unitPrice: s.basePrice,
+                                category: isMo ? 'mano_obra' : isVia ? 'viaticos' : isSrv ? 'servicio' : 'producto',
+                              };
+                              setQuoteParts(prev => [...prev, newPart]);
+                              addToast('success', 'Partida Agregada', `"${s.name}" cargado con precio $${s.basePrice.toLocaleString('es-MX')}`);
+                            }}
+                            className="p-2.5 rounded-xl bg-white border border-indigo-200 hover:border-indigo-500 hover:bg-indigo-50/50 text-left transition flex items-start justify-between gap-2 cursor-pointer shadow-2xs"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-[10px] text-indigo-700 font-bold">{s.code}</span>
+                                <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                                  isMo ? 'bg-amber-100 text-amber-800' :
+                                  isVia ? 'bg-indigo-100 text-indigo-800' :
+                                  isSrv ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
+                                }`}>
+                                  {isMo ? 'M.O.' : isVia ? 'Viáticos' : isSrv ? 'Servicio' : 'Producto'}
+                                </span>
+                              </div>
+                              <span className="font-semibold text-slate-800 line-clamp-1 text-[11px] mt-0.5">{s.name}</span>
+                            </div>
+                            <span className="font-bold text-[#040057] text-xs shrink-0">
+                              ${s.basePrice.toLocaleString('es-MX')}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  {quoteParts.map(p => (
-                    <div key={p.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-lg border min-w-0">
-                      <div className="sm:col-span-3 min-w-0">
-                        <input
-                          type="text"
-                          value={p.partNumber}
-                          onChange={(e) => handleUpdateQuotePart(p.id, 'partNumber', e.target.value)}
-                          placeholder="No. Parte"
-                          className="w-full px-2 py-1.5 border rounded text-[11px]"
-                        />
+                {/* Listado de partidas en la cotización */}
+                {quoteParts.length === 0 ? (
+                  <div className="p-6 text-center bg-white rounded-xl border border-dashed border-slate-300 text-slate-400">
+                    No hay partidas en la cotización. Usa los botones superiores para agregar productos, mano de obra o viáticos.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {quoteParts.map((p, idx) => {
+                      const qty = typeof p.quantity === 'number' ? p.quantity : (parseFloat(String(p.quantity)) || 1);
+                      const rowTotal = qty * (p.unitPrice || 0);
+                      return (
+                        <div key={p.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          {/* Partida & Tipo */}
+                          <div className="sm:col-span-2 min-w-0 flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 w-4 text-center">#{idx + 1}</span>
+                            <select
+                              value={p.category || 'producto'}
+                              onChange={(e) => handleUpdateQuotePart(p.id, 'category', e.target.value)}
+                              className="w-full px-1.5 py-1.5 border border-slate-300 rounded-lg text-[10px] font-bold bg-slate-50 text-slate-800"
+                            >
+                              <option value="producto">📦 Producto</option>
+                              <option value="mano_obra">🛠️ Mano Obra</option>
+                              <option value="viaticos">🚗 Viáticos</option>
+                              <option value="servicio">⚙️ Servicio</option>
+                            </select>
+                          </div>
+
+                          {/* Código */}
+                          <div className="sm:col-span-2 min-w-0">
+                            <input
+                              type="text"
+                              value={p.partNumber}
+                              onChange={(e) => handleUpdateQuotePart(p.id, 'partNumber', e.target.value)}
+                              placeholder="Código"
+                              className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-[11px] font-mono"
+                            />
+                          </div>
+
+                          {/* Descripción */}
+                          <div className="sm:col-span-4 min-w-0">
+                            <input
+                              type="text"
+                              value={p.description}
+                              onChange={(e) => handleUpdateQuotePart(p.id, 'description', e.target.value)}
+                              placeholder="Descripción del concepto"
+                              className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-[11px] font-semibold text-slate-800"
+                            />
+                          </div>
+
+                          {/* Cantidad, Precio Unitario, Total & Borrar */}
+                          <div className="grid grid-cols-12 gap-2 sm:col-span-4 items-center min-w-0">
+                            <div className="col-span-4 min-w-0">
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0.5"
+                                value={p.quantity}
+                                onChange={(e) => handleUpdateQuotePart(p.id, 'quantity', Number(e.target.value))}
+                                placeholder="Cant"
+                                title="Cantidad u horas invertidas"
+                                className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-[11px] text-center"
+                              />
+                            </div>
+                            <div className="col-span-4 min-w-0">
+                              <input
+                                type="number"
+                                min="0"
+                                step="10"
+                                value={p.unitPrice}
+                                onChange={(e) => handleUpdateQuotePart(p.id, 'unitPrice', Number(e.target.value))}
+                                placeholder="$ Unit"
+                                title="Precio unitario en pesos"
+                                className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-[11px] text-right font-medium"
+                              />
+                            </div>
+                            <div className="col-span-3 text-right font-bold text-[#040057] text-[11px] truncate">
+                              ${rowTotal.toLocaleString('es-MX')}
+                            </div>
+                            <div className="col-span-1 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveQuotePart(p.id)}
+                                className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer font-bold text-xs"
+                                title="Eliminar partida"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Subtotales calculados de las partidas */}
+                {(() => {
+                  const laborSub = quoteParts
+                    .filter(p => p.category === 'mano_obra')
+                    .reduce((a, b) => a + ((typeof b.quantity === 'number' ? b.quantity : parseFloat(String(b.quantity)) || 1) * (b.unitPrice || 0)), 0);
+                  const prodSub = quoteParts
+                    .filter(p => p.category !== 'mano_obra' && p.category !== 'viaticos')
+                    .reduce((a, b) => a + ((typeof b.quantity === 'number' ? b.quantity : parseFloat(String(b.quantity)) || 1) * (b.unitPrice || 0)), 0);
+                  const viaSub = quoteParts
+                    .filter(p => p.category === 'viaticos')
+                    .reduce((a, b) => a + ((typeof b.quantity === 'number' ? b.quantity : parseFloat(String(b.quantity)) || 1) * (b.unitPrice || 0)), 0);
+
+                  const sub = laborSub + prodSub + viaSub;
+                  const tax = +(sub * 0.16).toFixed(2);
+                  const total = +(sub + tax).toFixed(2);
+
+                  return (
+                    <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-xs space-y-1.5 mt-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pb-2 border-b border-blue-200 text-slate-700 text-[11px]">
+                        <div>Mano de Obra: <strong>${laborSub.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong></div>
+                        <div>Productos/Refacciones: <strong>${prodSub.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong></div>
+                        <div>Viáticos/Traslados: <strong>${viaSub.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</strong></div>
                       </div>
-                      <div className="sm:col-span-5 min-w-0">
-                        <input
-                          type="text"
-                          value={p.description}
-                          onChange={(e) => handleUpdateQuotePart(p.id, 'description', e.target.value)}
-                          placeholder="Descripción"
-                          className="w-full px-2 py-1.5 border rounded text-[11px]"
-                        />
+
+                      <div className="flex justify-between pt-1">
+                        <span>Subtotal Neto:</span>
+                        <span>${sub.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
                       </div>
-                      <div className="grid grid-cols-12 gap-2 sm:col-span-4 items-center min-w-0">
-                        <div className="col-span-5 min-w-0">
-                          <input
-                            type="number"
-                            min="1"
-                            value={p.quantity}
-                            onChange={(e) => handleUpdateQuotePart(p.id, 'quantity', Number(e.target.value))}
-                            placeholder="Cant"
-                            className="w-full px-2 py-1.5 border rounded text-[11px]"
-                          />
-                        </div>
-                        <div className="col-span-5 min-w-0">
-                          <input
-                            type="number"
-                            min="0"
-                            value={p.unitPrice}
-                            onChange={(e) => handleUpdateQuotePart(p.id, 'unitPrice', Number(e.target.value))}
-                            placeholder="$ Unit"
-                            className="w-full px-2 py-1.5 border rounded text-[11px]"
-                          />
-                        </div>
-                        <div className="col-span-2 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveQuotePart(p.id)}
-                            className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer font-bold text-xs"
-                          >
-                            ✕
-                          </button>
-                        </div>
+                      <div className="flex justify-between">
+                        <span>IVA Trasladado (16%):</span>
+                        <span>${tax.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between font-extrabold text-sm text-[#040057] pt-1.5 border-t border-blue-200">
+                        <span>Total Presupuesto Oficial:</span>
+                        <span>${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</span>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
 
-                <div className="text-right font-bold text-slate-700 pt-1">
-                  Subtotal Refacciones: ${quoteParts.reduce((a, b) => {
-                    const q = typeof b.quantity === 'number' ? b.quantity : (parseFloat(String(b.quantity)) || 1);
-                    return a + (q * b.unitPrice);
-                  }, 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                </div>
               </div>
 
-              {/* Viáticos / Grúa */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                <span className="font-bold text-[#040057] uppercase text-[11px]">3. Viáticos / Asistencia / Servicio de Grúa</span>
+              {/* Notas de la cotización */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Términos y Notas de la Cotización
+                </label>
                 <input
-                  type="number"
-                  min="0"
-                  step="100"
-                  value={expensesAndTowing}
-                  onChange={(e) => setExpensesAndTowing(Number(e.target.value))}
-                  placeholder="0.00"
-                  className="w-full px-3 py-2 border rounded-lg bg-white"
+                  type="text"
+                  value={quoteNotes}
+                  onChange={(e) => setQuoteNotes(e.target.value)}
+                  placeholder="Ej. Garantía de 90 días en mano de obra técnica..."
+                  className="w-full px-3 py-2 border rounded-xl bg-white"
                 />
               </div>
-
-              {/* Totales calculados */}
-              {(() => {
-                const laborSub = laborHours * laborRate;
-                const partsSub = quoteParts.reduce((a, b) => {
-                  const q = typeof b.quantity === 'number' ? b.quantity : (parseFloat(String(b.quantity)) || 1);
-                  return a + (q * b.unitPrice);
-                }, 0);
-                const sub = laborSub + partsSub + Number(expensesAndTowing || 0);
-                const tax = +(sub * 0.16).toFixed(2);
-                const total = +(sub + tax).toFixed(2);
-                return (
-                  <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-xs space-y-1">
-                    <div className="flex justify-between">
-                      <span>Subtotal Neto:</span>
-                      <span>${sub.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>IVA Trasladado (16%):</span>
-                      <span>${tax.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between font-extrabold text-sm text-[#040057] pt-1 border-t border-blue-200">
-                      <span>Total Presupuesto:</span>
-                      <span>${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</span>
-                    </div>
-                  </div>
-                );
-              })()}
 
               <div className="flex justify-end gap-3 pt-2">
                 <button
@@ -2082,19 +2151,123 @@ export const GerenciaPortal: React.FC = () => {
         </div>
       )}
 
-      {/* INPUT OCULTO PARA IMPORTAR COTIZACIONES EN PDF */}
-      <input
-        type="file"
-        ref={pdfFileInputRef}
-        onChange={handlePdfFileUploaded}
-        accept=".pdf,application/pdf"
-        className="hidden"
-      />
+      {/* MODAL SELECTOR: CREAR NUEVA COTIZACIÓN */}
+      {showNewQuotationSelector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto animate-fadeIn">
+          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 sm:p-5 bg-[#040057] text-white flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-white/10 text-emerald-400">
+                  <DollarSign className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold">Crear Nueva Cotización Oficial</h3>
+                  <p className="text-xs text-blue-200">Selecciona el vehículo o servicio al que deseas emitir el presupuesto</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowNewQuotationSelector(false)} 
+                className="text-slate-300 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3.5 sm:p-4 border-b border-slate-200 bg-slate-50/70 shrink-0">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={newQuoteSearchTerm}
+                  onChange={(e) => setNewQuoteSearchTerm(e.target.value)}
+                  placeholder="Buscar por folio, cliente, placas (ej. 44-TY-88) o económico..."
+                  className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-[#040057]"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-2.5 flex-1">
+              {(() => {
+                const search = newQuoteSearchTerm.toLowerCase().trim();
+                const filtered = orders.filter(o => 
+                  !search ||
+                  o.folio.toLowerCase().includes(search) ||
+                  o.clientName.toLowerCase().includes(search) ||
+                  o.vehicle.plates.toLowerCase().includes(search) ||
+                  o.vehicle.economicNumber.toLowerCase().includes(search) ||
+                  o.vehicle.type.toLowerCase().includes(search)
+                );
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-slate-400 space-y-1">
+                      <p className="font-semibold text-xs text-slate-600">No se encontraron órdenes coincidentes.</p>
+                      <p className="text-[11px]">Intenta buscar con otro término o folio de orden.</p>
+                    </div>
+                  );
+                }
+
+                return filtered.map(order => {
+                  const hasQuote = Boolean(order.quotation);
+                  return (
+                    <div
+                      key={order.id}
+                      className="p-3.5 rounded-xl border border-slate-200 hover:border-indigo-400 bg-white hover:bg-indigo-50/20 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                    >
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-extrabold text-[#040057] text-sm">{order.folio}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                            hasQuote ? 'bg-indigo-100 text-indigo-800' : 'bg-emerald-100 text-emerald-800'
+                          }`}>
+                            {hasQuote ? `Cotización Registrada ($${order.quotation?.total.toLocaleString('es-MX')})` : 'Por Cotizar'}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
+                            {order.status.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-800 font-medium truncate">
+                          {order.clientName} {order.clientCompany ? `(${order.clientCompany})` : ''}
+                        </div>
+
+                        <div className="text-[11px] text-slate-500">
+                          {order.vehicle.type.toUpperCase()} • Placas: <strong className="font-mono text-slate-700">{order.vehicle.plates}</strong> (Económico: {order.vehicle.economicNumber})
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenQuotation(order)}
+                        className="px-4 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                      >
+                        <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{hasQuote ? 'Editar / Reemitir' : 'Cotizar Esta Unidad'}</span>
+                      </button>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            <div className="p-3 bg-slate-50 border-t border-slate-200 text-right shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowNewQuotationSelector(false)}
+                className="px-4 py-1.5 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-100 cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL PARA CONSULTAR E IMPRIMIR DOCUMENTO OFICIAL DE COTIZACIÓN */}
       {viewQuoteDocOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto animate-fadeIn">
-          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[94vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 md:p-6 overflow-hidden animate-fadeIn print:fixed print:inset-0 print:p-0 print:bg-white print:z-[999999]">
+          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden h-[92vh] max-h-[92vh] flex flex-col print:h-auto print:max-h-none print:shadow-none print:border-none print:rounded-none">
             <QuotationDocument
               order={viewQuoteDocOrder}
               onClose={() => setViewQuoteDocOrder(null)}

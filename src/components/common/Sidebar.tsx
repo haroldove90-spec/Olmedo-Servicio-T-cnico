@@ -185,7 +185,7 @@ export const Sidebar: React.FC = () => {
             items: [
               {
                 id: 'servicios',
-                label: 'Catálogo de Servicios y Precios',
+                label: 'Productos (Catálogo)',
                 icon: <Wrench className="w-5 h-5" />,
                 badge: services.length > 0 ? services.length : undefined,
                 badgeColor: 'bg-indigo-600',

@@ -558,22 +558,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     expensesAndTowing: number;
     notes?: string;
   }) => {
-    const laborSubtotal = quotationData.laborHours * quotationData.laborRatePerHour;
+    const hasLaborInParts = quotationData.parts.some(p => p.category === 'mano_obra');
+    const hasViaticosInParts = quotationData.parts.some(p => p.category === 'viaticos');
+
+    const laborSubtotal = hasLaborInParts 
+      ? 0 
+      : (quotationData.laborHours || 0) * (quotationData.laborRatePerHour || 0);
+    const expensesTowing = hasViaticosInParts 
+      ? 0 
+      : (quotationData.expensesAndTowing || 0);
+
     const partsSubtotal = quotationData.parts.reduce((acc, p) => {
       const q = typeof p.quantity === 'number' ? p.quantity : (parseFloat(String(p.quantity)) || 1);
-      return acc + (q * p.unitPrice);
+      return acc + (q * (p.unitPrice || 0));
     }, 0);
-    const subtotal = laborSubtotal + partsSubtotal + (quotationData.expensesAndTowing || 0);
+
+    const subtotal = laborSubtotal + partsSubtotal + expensesTowing;
     const tax = +(subtotal * 0.16).toFixed(2);
     const total = +(subtotal + tax).toFixed(2);
+
+    const laborItems = quotationData.parts.filter(p => p.category === 'mano_obra');
+    const calculatedLaborHours = hasLaborInParts 
+      ? laborItems.reduce((acc, p) => acc + (typeof p.quantity === 'number' ? p.quantity : (parseFloat(String(p.quantity)) || 1)), 0)
+      : quotationData.laborHours;
+    const calculatedLaborRate = hasLaborInParts && laborItems.length > 0
+      ? laborItems[0].unitPrice
+      : quotationData.laborRatePerHour;
+
+    const viaticosItems = quotationData.parts.filter(p => p.category === 'viaticos');
+    const calculatedViaticos = hasViaticosInParts
+      ? viaticosItems.reduce((acc, p) => {
+          const q = typeof p.quantity === 'number' ? p.quantity : (parseFloat(String(p.quantity)) || 1);
+          return acc + (q * (p.unitPrice || 0));
+        }, 0)
+      : (quotationData.expensesAndTowing || 0);
 
     const quotation: Quotation = {
       id: `cot-${Date.now()}`,
       createdAt: new Date().toISOString(),
-      laborHours: quotationData.laborHours,
-      laborRatePerHour: quotationData.laborRatePerHour,
+      laborHours: calculatedLaborHours || 0,
+      laborRatePerHour: calculatedLaborRate || 0,
       parts: quotationData.parts,
-      expensesAndTowing: quotationData.expensesAndTowing || 0,
+      expensesAndTowing: calculatedViaticos || 0,
       notes: quotationData.notes,
       subtotal,
       tax,

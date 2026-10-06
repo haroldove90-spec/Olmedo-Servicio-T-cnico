@@ -49,6 +49,7 @@ export interface PartUsed {
   description: string;
   quantity: number | string;
   unitPrice: number;
+  category?: 'producto' | 'mano_obra' | 'viaticos' | 'servicio';
   providedByClient?: boolean; // ej. PROPORCIONADAS POR CLIENTE
   position?: string; // ej. POS 3y4, POS 5y6
 }
@@ -151,9 +152,9 @@ export interface SupabaseConfig {
 
 export interface ServiceCatalogItem {
   id: string;
-  code: string; // ej. "SRV-FRE-01"
-  name: string; // ej. "Cambio de Balatas y Rectificado de Tambor"
-  category: 'frenos' | 'mecanica_general' | 'electrico' | 'suspension' | 'rescate_asistencia' | 'diagnostico' | 'insumos';
+  code: string; // ej. "SRV-FRE-01" o "MO-01"
+  name: string; // ej. "Cambio de Balatas" o "Mano de Obra Especializada"
+  category: 'frenos' | 'mecanica_general' | 'electrico' | 'suspension' | 'rescate_asistencia' | 'diagnostico' | 'insumos' | 'mano_obra' | 'viaticos' | 'producto' | 'servicio';
   description: string;
   suggestedLaborHours: number;
   basePrice: number; // Precio sugerido ($ MXN)

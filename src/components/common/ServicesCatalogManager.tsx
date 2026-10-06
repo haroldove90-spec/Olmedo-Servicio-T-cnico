@@ -16,7 +16,11 @@ import { useApp } from '../../context/AppContext';
 import { ServiceCatalogItem } from '../../types';
 
 const CATEGORIES: { id: 'todas' | ServiceCatalogItem['category']; label: string }[] = [
-  { id: 'todas', label: 'Todas las Categorías' },
+  { id: 'todas', label: 'Todos los Productos y Servicios' },
+  { id: 'mano_obra', label: '🛠️ Mano de Obra' },
+  { id: 'viaticos', label: '🚗 Viáticos y Traslados' },
+  { id: 'producto', label: '📦 Refacciones y Productos' },
+  { id: 'servicio', label: '⚙️ Servicios Integrales' },
   { id: 'frenos', label: 'Frenos y Aire' },
   { id: 'mecanica_general', label: 'Mecánica General' },
   { id: 'electrico', label: 'Sistema Eléctrico' },
@@ -128,11 +132,11 @@ export const ServicesCatalogManager: React.FC = () => {
               <Wrench className="w-5 h-5" />
             </span>
             <h2 className="text-xl font-bold text-[#040057]">
-              Catálogo de Servicios y Precios
+              Módulo: Productos, Refacciones y Servicios
             </h2>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Administra los servicios ofrecidos por Olemdo Servicio Técnico con sus tarifas y descripciones oficiales para agilizar la captura en campo y la cotización fiscal.
+            Administra todos los productos, refacciones, conceptos de mano de obra y viáticos ofrecidos por Olemdo Servicio Técnico con sus tarifas oficiales para agilizar la cotización.
           </p>
         </div>
 
@@ -141,7 +145,7 @@ export const ServicesCatalogManager: React.FC = () => {
           className="px-4 py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs sm:text-sm shadow-xs transition flex items-center justify-center gap-2 cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4 text-emerald-400" />
-          <span>Dar de Alta Nuevo Servicio</span>
+          <span>+ Dar de Alta Producto / Servicio</span>
         </button>
       </div>
 
