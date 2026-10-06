@@ -74,15 +74,15 @@ export const JefeTallerPortal: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-20 lg:pb-8">
+    <div className="space-y-6 pb-24 lg:pb-8 w-full max-w-full min-w-0 overflow-x-hidden">
       
       {/* Resumen Superior de Operaciones */}
-      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs">
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#040057]">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0"></span>
+              <h1 className="text-xl sm:text-2xl font-bold text-[#040057] truncate">
                 Jefe de Taller y Operaciones
               </h1>
             </div>
@@ -91,7 +91,7 @@ export const JefeTallerPortal: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <span className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold flex items-center gap-1.5">
               <AlertCircle className="w-4 h-4 text-amber-600" />
               {incomingOrders.length} por Asignar

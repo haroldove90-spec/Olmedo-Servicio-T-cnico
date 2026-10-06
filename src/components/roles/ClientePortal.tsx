@@ -15,10 +15,13 @@ import {
   Car,
   Bus,
   Search,
-  Filter
+  Filter,
+  PenTool,
+  Printer
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceType, VehicleType, ServiceOrder } from '../../types';
+import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
 
 export const ClientePortal: React.FC = () => {
   const { 
@@ -26,7 +29,8 @@ export const ClientePortal: React.FC = () => {
     setActiveModule, 
     orders, 
     createServiceOrder, 
-    clientRespondQuotation 
+    clientRespondQuotation,
+    clientSignReport
   } = useApp();
 
   // Form states
@@ -54,6 +58,11 @@ export const ClientePortal: React.FC = () => {
 
   // Invoice viewer modal
   const [viewInvoiceOrder, setViewInvoiceOrder] = useState<ServiceOrder | null>(null);
+
+  // Technical Report modal & signature
+  const [selectedReportOrder, setSelectedReportOrder] = useState<ServiceOrder | null>(null);
+  const [showSignDialog, setShowSignDialog] = useState(false);
+  const [clientSignName, setClientSignName] = useState('Omar Balderas (Operador)');
 
   const handleSubmitNewOrder = (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,15 +136,15 @@ export const ClientePortal: React.FC = () => {
   const quotesPending = orders.filter(o => o.quotation && o.quotation.status === 'enviada');
 
   return (
-    <div className="space-y-6 pb-20 lg:pb-8">
+    <div className="space-y-6 pb-24 lg:pb-8 w-full max-w-full min-w-0 overflow-x-hidden">
       
       {/* Resumen del Cliente y Selector de Empresa */}
-      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs">
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#040057]">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+              <h1 className="text-xl sm:text-2xl font-bold text-[#040057] truncate">
                 Portal del Cliente
               </h1>
             </div>
@@ -144,7 +153,7 @@ export const ClientePortal: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setActiveModule('nueva_solicitud')}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs sm:text-sm font-semibold shadow-xs transition cursor-pointer"
@@ -566,7 +575,22 @@ export const ClientePortal: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        {/* Botón para ver Reporte Técnico Oficial (Hoja de Servicio) */}
+                        <button
+                          onClick={() => {
+                            setSelectedReportOrder(order);
+                            setClientSignName(order.userOperatorName || order.vehicle.driverContact || 'Omar Balderas (Operador)');
+                          }}
+                          className="px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-[#040057]" />
+                          <span>Reporte Técnico {order.reportNumber ? `#${order.reportNumber}` : ''}</span>
+                          {order.clientSignature && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          )}
+                        </button>
+
                         {/* Botón de acción para revisar cotización */}
                         {order.quotation && order.quotation.status === 'enviada' && (
                           <button
@@ -651,7 +675,10 @@ export const ClientePortal: React.FC = () => {
                     <div className="flex justify-between">
                       <span className="text-slate-600">Refacciones e Insumos ({order.quotation?.parts.length} partidas):</span>
                       <span className="font-semibold text-slate-800">
-                        ${order.quotation?.parts.reduce((a, b) => a + (b.quantity * b.unitPrice), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        ${order.quotation?.parts.reduce((a, b) => {
+                          const q = typeof b.quantity === 'number' ? b.quantity : (parseFloat(String(b.quantity)) || 1);
+                          return a + (q * b.unitPrice);
+                        }, 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
 
@@ -918,6 +945,90 @@ export const ClientePortal: React.FC = () => {
                 <span>Descargar PDF / XML</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE VISUALIZACIÓN DEL REPORTE TÉCNICO OFICIAL */}
+      {selectedReportOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto animate-fadeIn">
+          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[94vh] flex flex-col">
+            <div className="p-4 sm:p-5 bg-[#040057] text-white flex justify-between items-center print:hidden">
+              <div>
+                <h3 className="text-base font-bold">REPORTE TÉCNICO {selectedReportOrder.reportNumber || '023'}</h3>
+                <p className="text-xs text-blue-200">Hoja oficial de servicio • {selectedReportOrder.clientName}</p>
+              </div>
+              <button onClick={() => setSelectedReportOrder(null)} className="text-slate-300 hover:text-white">✕</button>
+            </div>
+
+            <div className="p-4 sm:p-6 overflow-y-auto">
+              <TechnicalReportDocument
+                order={selectedReportOrder}
+                showSignButton={true}
+                onSignClient={() => setShowSignDialog(true)}
+              />
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t flex justify-end print:hidden">
+              <button
+                onClick={() => setSelectedReportOrder(null)}
+                className="px-5 py-2 rounded-xl bg-slate-200 text-slate-800 font-semibold text-xs hover:bg-slate-300"
+              >
+                Cerrar Reporte
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE FIRMA DIGITAL DEL CLIENTE */}
+      {showSignDialog && selectedReportOrder && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center gap-2 mb-2 text-[#040057]">
+              <PenTool className="w-5 h-5 text-emerald-600" />
+              <h3 className="text-base font-bold">Firma de Conformidad del Cliente</h3>
+            </div>
+            <p className="text-xs text-slate-500 mb-4">
+              Al estampar tu firma, confirmas la recepción y conformidad con los trabajos y refacciones asentados en el <strong>REPORTE TÉCNICO {selectedReportOrder.reportNumber || '023'}</strong>.
+            </p>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!clientSignName.trim()) return;
+              clientSignReport(selectedReportOrder.id, clientSignName.trim());
+              setShowSignDialog(false);
+            }} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Nombre Completo / Firma de Quien Recibe la Unidad *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={clientSignName}
+                  onChange={(e) => setClientSignName(e.target.value)}
+                  placeholder="Ej. Omar Balderas (Operador) / Ing. Arturo Ramírez"
+                  className="w-full px-3 py-2 border rounded-lg font-serif italic text-sm focus:ring-2 focus:ring-[#040057]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowSignDialog(false)}
+                  className="px-4 py-2 rounded-xl border text-slate-700 font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
+                >
+                  Confirmar y Firmar Documento
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

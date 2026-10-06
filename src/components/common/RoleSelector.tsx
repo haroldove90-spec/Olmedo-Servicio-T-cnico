@@ -36,7 +36,7 @@ export const RoleSelector: React.FC = () => {
         <img
           src="https://appdesignproyectos.com/olmedologo.png"
           alt="Olemdo Servicio Técnico"
-          className="h-16 sm:h-20 md:h-24 w-auto object-contain max-w-full drop-shadow-xs"
+          className="h-24 sm:h-28 md:h-36 w-auto object-contain max-w-full drop-shadow-xs"
         />
       </div>
 

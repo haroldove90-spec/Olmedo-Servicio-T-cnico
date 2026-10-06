@@ -56,7 +56,7 @@ const DashboardContent: React.FC = () => {
 
   // Dashboard del rol activo
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col text-[#282829]">
+    <div className="min-h-screen bg-slate-50 flex flex-col text-[#282829] w-full max-w-full overflow-x-hidden">
       
       {/* Cabecera Institucional Unificada */}
       <Header
@@ -65,14 +65,14 @@ const DashboardContent: React.FC = () => {
       />
 
       {/* Cuerpo principal con Sidebar en escritorio */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden w-full max-w-full min-w-0">
         
         {/* Menú Lateral Desplegable en Escritorio */}
         <Sidebar />
 
         {/* Área de Trabajo Principal - Sin Pestañas Horizontales Repetitivas */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 bg-slate-50/80">
-          <div className="max-w-7xl mx-auto">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-6 lg:p-8 bg-slate-50/80 min-w-0 max-w-full">
+          <div className="max-w-7xl mx-auto w-full min-w-0 overflow-x-hidden">
             {currentRole === 'cliente' && <ClientePortal />}
             {currentRole === 'jefe_taller' && <JefeTallerPortal />}
             {currentRole === 'tecnico' && <TecnicoPortal />}

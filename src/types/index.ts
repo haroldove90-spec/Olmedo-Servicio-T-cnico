@@ -25,6 +25,11 @@ export interface VehicleInfo {
   location: string;
   failureDescription: string;
   driverContact?: string;
+  // Campos del formato oficial de reporte técnico
+  chassisSerialNumber?: string; // Número de Serie de Chasis
+  engineModelTransmission?: string; // Modelo de Motor/Transmisión
+  engineSeriesTransmission?: string; // Serie del Motor/Transmisión
+  odometerReading?: string; // Odómetro / Horómetro (ej. 130618 KM)
 }
 
 export interface EvidencePhoto {
@@ -40,8 +45,10 @@ export interface PartUsed {
   id: string;
   partNumber: string;
   description: string;
-  quantity: number;
+  quantity: number | string;
   unitPrice: number;
+  providedByClient?: boolean; // ej. PROPORCIONADAS POR CLIENTE
+  position?: string; // ej. POS 3y4, POS 5y6
 }
 
 export interface Quotation {
@@ -99,6 +106,16 @@ export interface ServiceOrder {
   physicalReleaseDate?: string;
   releasedBy?: string;
   receivedByDriver?: string;
+
+  // Datos del formato oficial de Reporte Técnico
+  reportNumber?: string; // ej. "023" -> REPORTE TÉCNICO 023
+  userOperatorName?: string; // ej. "OMAR BALDERAS"
+  maintenanceNature?: 'correctivo' | 'preventivo'; // [X] CORRECTIVO / [ ] PREVENTIVO
+  preventiveInspectionNotes?: string; // INSPECCIÓN PREVENTIVA
+  workPerformedDetail?: string; // SERVICIO REALIZADO
+  technicianSignature?: string; // FIRMA DEL TÉCNICO
+  clientSignature?: string; // FIRMA DEL CLIENTE
+  clientSignatureDate?: string;
 
   // Validación administrativa
   adminReviewNotes?: string;

@@ -61,6 +61,23 @@ interface AppContextType {
   clientRespondQuotation: (orderId: string, approved: boolean, approvedBy: string, notes?: string) => void;
   emitInvoice: (orderId: string, notes?: string) => void;
   
+  // Formato oficial de Reporte Técnico
+  updateTechnicalReport: (orderId: string, reportData: {
+    maintenanceNature?: 'correctivo' | 'preventivo';
+    preventiveInspectionNotes?: string;
+    workPerformedDetail?: string;
+    technicianSignature?: string;
+    userOperatorName?: string;
+    vehicleUpdates?: {
+      chassisSerialNumber?: string;
+      engineModelTransmission?: string;
+      engineSeriesTransmission?: string;
+      odometerReading?: string;
+      brandModel?: string;
+    };
+  }) => void;
+  clientSignReport: (orderId: string, clientNameSignature: string) => void;
+  
   // Gestión de datos de muestra y Supabase
   isSampleDataCleared: boolean;
   clearAllSampleData: () => void;
@@ -461,7 +478,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     notes?: string;
   }) => {
     const laborSubtotal = quotationData.laborHours * quotationData.laborRatePerHour;
-    const partsSubtotal = quotationData.parts.reduce((acc, p) => acc + (p.quantity * p.unitPrice), 0);
+    const partsSubtotal = quotationData.parts.reduce((acc, p) => {
+      const q = typeof p.quantity === 'number' ? p.quantity : (parseFloat(String(p.quantity)) || 1);
+      return acc + (q * p.unitPrice);
+    }, 0);
     const subtotal = laborSubtotal + partsSubtotal + (quotationData.expensesAndTowing || 0);
     const tax = +(subtotal * 0.16).toFixed(2);
     const total = +(subtotal + tax).toFixed(2);
@@ -555,6 +575,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast('success', 'Factura Emitida Exitosamente', `Folio fiscal: ${invoice.fiscalFolio} por $${invoice.total.toLocaleString('es-MX')}`);
   };
 
+  // Actualizar datos del formato oficial de Reporte Técnico
+  const updateTechnicalReport = (orderId: string, reportData: {
+    maintenanceNature?: 'correctivo' | 'preventivo';
+    preventiveInspectionNotes?: string;
+    workPerformedDetail?: string;
+    technicianSignature?: string;
+    userOperatorName?: string;
+    vehicleUpdates?: {
+      chassisSerialNumber?: string;
+      engineModelTransmission?: string;
+      engineSeriesTransmission?: string;
+      odometerReading?: string;
+      brandModel?: string;
+    };
+  }) => {
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        return {
+          ...o,
+          maintenanceNature: reportData.maintenanceNature || o.maintenanceNature || 'correctivo',
+          preventiveInspectionNotes: reportData.preventiveInspectionNotes ?? o.preventiveInspectionNotes,
+          workPerformedDetail: reportData.workPerformedDetail ?? o.workPerformedDetail,
+          technicianSignature: reportData.technicianSignature ?? o.technicianSignature,
+          userOperatorName: reportData.userOperatorName ?? o.userOperatorName,
+          vehicle: {
+            ...o.vehicle,
+            ...(reportData.vehicleUpdates || {}),
+          },
+        };
+      }
+      return o;
+    }));
+    addToast('success', 'Formato de Reporte Actualizado', 'Ficha técnica y detalle del servicio guardados.');
+  };
+
+  // Firma del cliente de conformidad
+  const clientSignReport = (orderId: string, clientNameSignature: string) => {
+    const now = new Date().toISOString();
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        return {
+          ...o,
+          clientSignature: clientNameSignature,
+          clientSignatureDate: now,
+        };
+      }
+      return o;
+    }));
+    addToast('success', 'Reporte Técnico Firmado de Conformidad', `Firma registrada para ${clientNameSignature}.`);
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -578,6 +649,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveQuotation,
         clientRespondQuotation,
         emitInvoice,
+        updateTechnicalReport,
+        clientSignReport,
         isSampleDataCleared,
         clearAllSampleData,
         restoreSampleData,

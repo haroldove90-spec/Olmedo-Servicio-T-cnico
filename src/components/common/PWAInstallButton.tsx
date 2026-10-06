@@ -32,10 +32,11 @@ export const PWAInstallButton: React.FC = () => {
       <button
         onClick={handleInstallClick}
         title="Instalar Olemdo Servicio Técnico en tu dispositivo"
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-[#040057] text-white hover:bg-[#070085] shadow-xs hover:shadow transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+        className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-[#040057] text-white hover:bg-[#070085] shadow-xs hover:shadow transition-all active:scale-95 cursor-pointer whitespace-nowrap"
       >
-        <Download className="w-4 h-4 text-emerald-400" />
-        <span>Instalar App</span>
+        <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
+        <span className="hidden xs:inline">Instalar</span>
+        <span className="hidden sm:inline"> App</span>
       </button>
 
       {/* Modal Guía iOS */}

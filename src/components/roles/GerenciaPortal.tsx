@@ -16,10 +16,12 @@ import {
   ShieldCheck, 
   AlertTriangle,
   Building2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Printer
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, PartUsed, Quotation } from '../../types';
+import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
 
 export const GerenciaPortal: React.FC = () => {
   const { 
@@ -158,7 +160,10 @@ export const GerenciaPortal: React.FC = () => {
   // Generador real de archivo Excel (.csv con UTF-8 BOM para soporte completo en Microsoft Excel)
   const handleExportToExcel = (order: ServiceOrder) => {
     const laborSubtotal = (order.quotation?.laborHours || 0) * (order.quotation?.laborRatePerHour || 0);
-    const partsSubtotal = (order.quotation?.parts || []).reduce((acc, p) => acc + (p.quantity * p.unitPrice), 0);
+    const partsSubtotal = (order.quotation?.parts || []).reduce((acc, p) => {
+      const q = typeof p.quantity === 'number' ? p.quantity : (parseFloat(String(p.quantity)) || 1);
+      return acc + (q * p.unitPrice);
+    }, 0);
     const expenses = order.quotation?.expensesAndTowing || 0;
     const subtotal = order.quotation?.subtotal || (laborSubtotal + partsSubtotal + expenses);
     const tax = order.quotation?.tax || +(subtotal * 0.16).toFixed(2);
@@ -189,7 +194,8 @@ export const GerenciaPortal: React.FC = () => {
     csvContent += 'No. Parte,Descripción de Refacción,Cantidad,Precio Unitario,Total MXN\n';
     if (order.partsUsed.length > 0) {
       order.partsUsed.forEach(p => {
-        csvContent += `"${p.partNumber}","${p.description.replace(/"/g, '""')}",${p.quantity},${p.unitPrice},${p.quantity * p.unitPrice}\n`;
+        const q = typeof p.quantity === 'number' ? p.quantity : (parseFloat(String(p.quantity)) || 1);
+        csvContent += `"${p.partNumber}","${p.description.replace(/"/g, '""')}",${p.quantity},${p.unitPrice},${q * p.unitPrice}\n`;
       });
     } else {
       csvContent += 'N/A,Sin refacciones facturadas,0,0,0\n';
@@ -221,15 +227,15 @@ export const GerenciaPortal: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-20 lg:pb-8">
+    <div className="space-y-6 pb-24 lg:pb-8 w-full max-w-full min-w-0 overflow-x-hidden">
       
       {/* Encabezado del Portal de Gerencia */}
-      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs">
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#040057]">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0"></span>
+              <h1 className="text-xl sm:text-2xl font-bold text-[#040057] truncate">
                 Gerencia Administrativa y Facturación
               </h1>
             </div>
@@ -238,7 +244,7 @@ export const GerenciaPortal: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <span className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold flex items-center gap-1.5">
               <CheckSquare className="w-4 h-4 text-amber-600" />
               {pendingReviewOrders.length} por Validar
@@ -781,58 +787,65 @@ export const GerenciaPortal: React.FC = () => {
 
                 <div className="space-y-2">
                   {quoteParts.map(p => (
-                    <div key={p.id} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-lg border">
-                      <div className="col-span-3">
+                    <div key={p.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-lg border min-w-0">
+                      <div className="sm:col-span-3 min-w-0">
                         <input
                           type="text"
                           value={p.partNumber}
                           onChange={(e) => handleUpdateQuotePart(p.id, 'partNumber', e.target.value)}
                           placeholder="No. Parte"
-                          className="w-full px-2 py-1 border rounded text-[11px]"
+                          className="w-full px-2 py-1.5 border rounded text-[11px]"
                         />
                       </div>
-                      <div className="col-span-5">
+                      <div className="sm:col-span-5 min-w-0">
                         <input
                           type="text"
                           value={p.description}
                           onChange={(e) => handleUpdateQuotePart(p.id, 'description', e.target.value)}
                           placeholder="Descripción"
-                          className="w-full px-2 py-1 border rounded text-[11px]"
+                          className="w-full px-2 py-1.5 border rounded text-[11px]"
                         />
                       </div>
-                      <div className="col-span-2">
-                        <input
-                          type="number"
-                          min="1"
-                          value={p.quantity}
-                          onChange={(e) => handleUpdateQuotePart(p.id, 'quantity', Number(e.target.value))}
-                          placeholder="Cant"
-                          className="w-full px-2 py-1 border rounded text-[11px]"
-                        />
-                      </div>
-                      <div className="col-span-2 flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="0"
-                          value={p.unitPrice}
-                          onChange={(e) => handleUpdateQuotePart(p.id, 'unitPrice', Number(e.target.value))}
-                          placeholder="$ Unit"
-                          className="w-full px-2 py-1 border rounded text-[11px]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveQuotePart(p.id)}
-                          className="text-rose-500 hover:text-rose-700"
-                        >
-                          ✕
-                        </button>
+                      <div className="grid grid-cols-12 gap-2 sm:col-span-4 items-center min-w-0">
+                        <div className="col-span-5 min-w-0">
+                          <input
+                            type="number"
+                            min="1"
+                            value={p.quantity}
+                            onChange={(e) => handleUpdateQuotePart(p.id, 'quantity', Number(e.target.value))}
+                            placeholder="Cant"
+                            className="w-full px-2 py-1.5 border rounded text-[11px]"
+                          />
+                        </div>
+                        <div className="col-span-5 min-w-0">
+                          <input
+                            type="number"
+                            min="0"
+                            value={p.unitPrice}
+                            onChange={(e) => handleUpdateQuotePart(p.id, 'unitPrice', Number(e.target.value))}
+                            placeholder="$ Unit"
+                            className="w-full px-2 py-1.5 border rounded text-[11px]"
+                          />
+                        </div>
+                        <div className="col-span-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveQuotePart(p.id)}
+                            className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer font-bold text-xs"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
                 <div className="text-right font-bold text-slate-700 pt-1">
-                  Subtotal Refacciones: ${quoteParts.reduce((a, b) => a + (b.quantity * b.unitPrice), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                  Subtotal Refacciones: ${quoteParts.reduce((a, b) => {
+                    const q = typeof b.quantity === 'number' ? b.quantity : (parseFloat(String(b.quantity)) || 1);
+                    return a + (q * b.unitPrice);
+                  }, 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                 </div>
               </div>
 
@@ -853,7 +866,10 @@ export const GerenciaPortal: React.FC = () => {
               {/* Totales calculados */}
               {(() => {
                 const laborSub = laborHours * laborRate;
-                const partsSub = quoteParts.reduce((a, b) => a + (b.quantity * b.unitPrice), 0);
+                const partsSub = quoteParts.reduce((a, b) => {
+                  const q = typeof b.quantity === 'number' ? b.quantity : (parseFloat(String(b.quantity)) || 1);
+                  return a + (q * b.unitPrice);
+                }, 0);
                 const sub = laborSub + partsSub + Number(expensesAndTowing || 0);
                 const tax = +(sub * 0.16).toFixed(2);
                 const total = +(sub + tax).toFixed(2);
@@ -899,53 +915,33 @@ export const GerenciaPortal: React.FC = () => {
       {/* MODAL DE REPORTE FORMAL */}
       {reportOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto animate-fadeIn">
-          <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col">
-            <div className="p-4 sm:p-5 bg-[#040057] text-white flex justify-between items-center">
+          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[95vh] flex flex-col">
+            <div className="p-4 sm:p-5 bg-[#040057] text-white flex justify-between items-center print:hidden">
               <div>
-                <h3 className="text-base font-bold">Reporte Técnico Formal de Servicio</h3>
+                <h3 className="text-base font-bold">REPORTE TÉCNICO {reportOrder.reportNumber || '023'} (Formato Oficial)</h3>
                 <p className="text-xs text-blue-200">{reportOrder.folio} • {reportOrder.clientName}</p>
               </div>
               <button onClick={() => setReportOrder(null)} className="text-slate-300 hover:text-white">✕</button>
             </div>
 
-            <div className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className="text-sm font-bold text-[#040057]">Ficha de la Unidad y Dictamen</div>
-                <div className="grid grid-cols-2 gap-2 text-slate-700">
-                  <div>Unidad: {reportOrder.vehicle.type.toUpperCase()}</div>
-                  <div>Placas: {reportOrder.vehicle.plates} (Económico {reportOrder.vehicle.economicNumber})</div>
-                  <div>Ubicación: {reportOrder.vehicle.location}</div>
-                  <div>Técnico: {reportOrder.assignedTechnicianName}</div>
-                </div>
-              </div>
-
-              <div>
-                <div className="font-bold text-slate-800 mb-2">Evidencias Fotográficas Consolidadas:</div>
-                <div className="grid grid-cols-3 gap-3">
-                  {reportOrder.evidences.map(ev => (
-                    <div key={ev.id} className="border rounded-lg p-2 text-center">
-                      <img src={ev.url} alt={ev.title} className="w-full h-24 object-cover rounded mb-1" />
-                      <span className="font-bold uppercase text-[10px] text-slate-700">{ev.phase}</span>
-                      <p className="text-[10px] text-slate-500 truncate">{ev.title}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="p-4 sm:p-6 overflow-y-auto">
+              <TechnicalReportDocument order={reportOrder} />
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
-              <button
-                onClick={() => setReportOrder(null)}
-                className="px-4 py-2 rounded-xl border text-slate-700 font-semibold text-xs"
-              >
-                Cerrar
-              </button>
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center print:hidden">
               <button
                 onClick={() => handleExportToExcel(reportOrder)}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                <span>Descargar en Excel</span>
+                <span>Exportar Consolidado a Excel (.CSV)</span>
+              </button>
+
+              <button
+                onClick={() => setReportOrder(null)}
+                className="px-5 py-2 rounded-xl bg-slate-200 text-slate-800 hover:bg-slate-300 font-semibold text-xs cursor-pointer"
+              >
+                Cerrar
               </button>
             </div>
           </div>
