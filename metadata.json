@@ -1,0 +1,6 @@
+{
+  "name": "Olemdo Servicio Técnico",
+  "description": "Sistema integral de gestión de servicio técnico, taller, asistencia vial y rescate en carretera con portales para cliente, operaciones, técnicos y gerencia administrativa.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
