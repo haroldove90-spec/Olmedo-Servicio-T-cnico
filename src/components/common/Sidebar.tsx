@@ -29,7 +29,7 @@ interface SidebarItem {
 }
 
 export const Sidebar: React.FC = () => {
-  const { currentRole, setCurrentRole, activeModule, setActiveModule, orders, technicians } = useApp();
+  const { currentRole, setCurrentRole, activeModule, setActiveModule, orders, technicians, services } = useApp();
   const [collapsed, setCollapsed] = useState(false);
 
   if (!currentRole) return null;
@@ -181,11 +181,18 @@ export const Sidebar: React.FC = () => {
             ],
           },
           {
-            section: 'Facturación y Finanzas',
+            section: 'Catálogo y Cotizaciones',
             items: [
               {
+                id: 'servicios',
+                label: 'Catálogo de Servicios y Precios',
+                icon: <Wrench className="w-5 h-5" />,
+                badge: services.length > 0 ? services.length : undefined,
+                badgeColor: 'bg-indigo-600',
+              },
+              {
                 id: 'cotizaciones',
-                label: 'Generador de Cotizaciones',
+                label: 'Cotizaciones y Presupuestos',
                 icon: <DollarSign className="w-5 h-5" />,
                 badge: pendingQuoteCreate > 0 ? pendingQuoteCreate : undefined,
                 badgeColor: 'bg-blue-600',

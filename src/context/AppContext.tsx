@@ -9,9 +9,10 @@ import {
   Invoice,
   SupabaseConfig,
   ServiceType,
-  VehicleInfo
+  VehicleInfo,
+  ServiceCatalogItem
 } from '../types';
-import { INITIAL_ORDERS, INITIAL_TECHNICIANS } from '../data/mockData';
+import { INITIAL_ORDERS, INITIAL_TECHNICIANS, INITIAL_SERVICES } from '../data/mockData';
 
 interface ToastMessage {
   id: string;
@@ -81,6 +82,15 @@ interface AppContextType {
   }) => void;
   clientSignReport: (orderId: string, clientNameSignature: string) => void;
   
+  // Catálogo de Servicios y Precios
+  services: ServiceCatalogItem[];
+  addServiceItem: (item: Omit<ServiceCatalogItem, 'id'>) => void;
+  updateServiceItem: (id: string, updates: Partial<ServiceCatalogItem>) => void;
+  deleteServiceItem: (id: string) => void;
+
+  // Importar y adjuntar cotización en PDF
+  attachQuotationPdf: (orderId: string, pdfUrl: string, fileName: string) => void;
+
   // Gestión de datos de muestra y Supabase
   isSampleDataCleared: boolean;
   clearAllSampleData: () => void;
@@ -99,6 +109,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_ORDERS_KEY = 'olmedo_orders_data';
 const STORAGE_TECHS_KEY = 'olmedo_technicians_data';
+const STORAGE_SERVICES_KEY = 'olmedo_services_catalog';
 const STORAGE_HIDE_SAMPLE_KEY = 'olmedo_hide_sample_data';
 const STORAGE_SUPABASE_KEY = 'olmedo_supabase_config';
 const STORAGE_ROLE_KEY = 'olmedo_current_role';
@@ -115,6 +126,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeModule, setActiveModule] = useState<string>('inicio');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Initialize services catalog
+  const [services, setServices] = useState<ServiceCatalogItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_SERVICES_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // fallback
+    }
+    return INITIAL_SERVICES;
+  });
 
   // Initialize orders
   const [orders, setOrders] = useState<ServiceOrder[]>(() => {
@@ -164,6 +186,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(STORAGE_TECHS_KEY, JSON.stringify(technicians));
   }, [technicians]);
+
+  // Persist services catalog
+  useEffect(() => {
+    localStorage.setItem(STORAGE_SERVICES_KEY, JSON.stringify(services));
+  }, [services]);
 
   // Persist role
   const setCurrentRole = (role: UserRole | null) => {
@@ -680,6 +707,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast('success', 'Reporte Técnico Firmado de Conformidad', `Firma registrada para ${clientNameSignature}.`);
   };
 
+  // Catálogo de Servicios y Precios
+  const addServiceItem = (item: Omit<ServiceCatalogItem, 'id'>) => {
+    const newItem: ServiceCatalogItem = {
+      ...item,
+      id: `srv-${Date.now()}`,
+    };
+    setServices(prev => [newItem, ...prev]);
+    addToast('success', 'Servicio Registrado', `"${newItem.name}" agregado al catálogo con precio $${newItem.basePrice.toLocaleString('es-MX')}.`);
+  };
+
+  const updateServiceItem = (id: string, updates: Partial<ServiceCatalogItem>) => {
+    setServices(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    addToast('info', 'Servicio Actualizado', 'Los datos y precio del servicio han sido actualizados.');
+  };
+
+  const deleteServiceItem = (id: string) => {
+    setServices(prev => prev.filter(s => s.id !== id));
+    addToast('warning', 'Servicio Eliminado', 'El servicio ha sido removido del catálogo.');
+  };
+
+  // Importar y adjuntar cotización en PDF
+  const attachQuotationPdf = (orderId: string, pdfUrl: string, fileName: string) => {
+    const now = new Date().toISOString();
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        const existingQuote = o.quotation || {
+          id: `quote-${Date.now()}`,
+          createdAt: now,
+          laborHours: 2,
+          laborRatePerHour: 650,
+          parts: [],
+          expensesAndTowing: 0,
+          notes: 'Cotización importada en formato PDF.',
+          subtotal: 1300,
+          tax: 208,
+          total: 1508,
+          status: 'enviada' as const,
+        };
+        return {
+          ...o,
+          quotation: {
+            ...existingQuote,
+            pdfUrl,
+            importedPdfName: fileName,
+            importedPdfDate: now,
+          },
+        };
+      }
+      return o;
+    }));
+    addToast('success', 'Cotización en PDF Importada', `Se adjuntó exitosamente el archivo "${fileName}" a la orden.`);
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -689,6 +769,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveModule,
         orders,
         technicians,
+        services,
+        addServiceItem,
+        updateServiceItem,
+        deleteServiceItem,
+        attachQuotationPdf,
         createServiceOrder,
         assignTechnician,
         startTechnicianWork,

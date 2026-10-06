@@ -22,24 +22,33 @@ import {
   Search,
   Sparkles,
   Layers,
-  Wrench
+  Wrench,
+  FileUp,
+  Share2,
+  FileCheck,
+  Upload
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { ServiceOrder, PartUsed, Quotation, EvidencePhoto } from '../../types';
+import { ServiceOrder, PartUsed, Quotation, EvidencePhoto, ServiceCatalogItem } from '../../types';
 import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
 import { GerenciaEvidenceEditModal } from '../common/GerenciaEvidenceEditModal';
+import { ServicesCatalogManager } from '../common/ServicesCatalogManager';
+import { QuotationDocument } from '../common/QuotationDocument';
 
 export const GerenciaPortal: React.FC = () => {
   const { 
     activeModule, 
     setActiveModule, 
     orders, 
+    services,
     reviewEvidences, 
     saveQuotation, 
     emitInvoice,
     updateEvidencePhoto,
     updateOrderGeneral,
-    updateTechnicalReport
+    updateTechnicalReport,
+    attachQuotationPdf,
+    addToast
   } = useApp();
 
   // Modal inspection of evidences
@@ -71,6 +80,15 @@ export const GerenciaPortal: React.FC = () => {
   const [expensesAndTowing, setExpensesAndTowing] = useState(0);
   const [quoteNotes, setQuoteNotes] = useState('');
 
+  // Quotation Consultation & PDF States
+  const [quoteSubTab, setQuoteSubTab] = useState<'consultar' | 'pendientes'>('consultar');
+  const [quoteSearchTerm, setQuoteSearchTerm] = useState('');
+  const [quoteStatusFilter, setQuoteStatusFilter] = useState<'todas' | 'enviada' | 'aprobada' | 'rechazada'>('todas');
+  const [viewQuoteDocOrder, setViewQuoteDocOrder] = useState<ServiceOrder | null>(null);
+  const [targetOrderForPdfImport, setTargetOrderForPdfImport] = useState<ServiceOrder | null>(null);
+  const [showCatalogPickerInQuote, setShowCatalogPickerInQuote] = useState(false);
+  const pdfFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
   // Invoice Emission Modal
   const [invoiceOrder, setInvoiceOrder] = useState<ServiceOrder | null>(null);
   const [invoiceNotes, setInvoiceNotes] = useState('Factura generada conforme a cotización aprobada por el cliente.');
@@ -85,11 +103,89 @@ export const GerenciaPortal: React.FC = () => {
     o.status === 'cotizacion_pendiente'
   );
 
+  // Orders with quotation registered (for consultation)
+  const registeredQuotationOrders = orders.filter(o => Boolean(o.quotation));
+
+  // Orders waiting for quotation (no quotation yet)
+  const pendingQuotationCreationOrders = orders.filter(o => 
+    (o.status === 'liberacion_autorizada' || o.status === 'unidad_liberada' || o.status === 'cotizacion_pendiente') &&
+    !o.quotation
+  );
+
   // Orders approved by client ready for invoice
   const readyForInvoiceOrders = orders.filter(o => 
     o.status === 'cotizacion_aprobada' || 
     o.status === 'facturado'
   );
+
+  const handleShareQuotationWhatsApp = (order: ServiceOrder) => {
+    if (!order.quotation) return;
+    const q = order.quotation;
+    const laborSub = q.laborHours * q.laborRatePerHour;
+    const partsSub = q.parts.reduce((acc, p) => {
+      const qty = typeof p.quantity === 'number' ? p.quantity : (parseFloat(String(p.quantity)) || 1);
+      return acc + (qty * p.unitPrice);
+    }, 0);
+
+    const cleanPhone = (order.clientContact || '').replace(/[^0-9]/g, '');
+
+    const message = `*OLEMDO SERVICIO TÉCNICO AUTOMOTRIZ Y DIÉSEL* 🚛\n` +
+      `*COTIZACIÓN OFICIAL:* ${order.folio}\n` +
+      `*Cliente:* ${order.clientName}\n` +
+      `*Unidad:* ${order.vehicle.type.toUpperCase()} • Placas: ${order.vehicle.plates} (Económico: ${order.vehicle.economicNumber})\n` +
+      `*Servicio:* ${order.serviceType.toUpperCase()}\n\n` +
+      `📋 *DESGLOSE DE COTIZACIÓN:*\n` +
+      `• *Mano de Obra Calificada:* ${q.laborHours} hrs x $${q.laborRatePerHour.toLocaleString('es-MX')} = $${laborSub.toLocaleString('es-MX')} MXN\n` +
+      `• *Refacciones e Insumos (${q.parts.length} partidas):* $${partsSub.toLocaleString('es-MX')} MXN\n` +
+      (q.parts.length > 0 ? q.parts.map(p => `   - ${p.quantity}x ${p.description} ($${p.unitPrice})`).join('\n') + '\n' : '') +
+      (q.expensesAndTowing > 0 ? `• *Viáticos / Asistencia Carretera:* $${q.expensesAndTowing.toLocaleString('es-MX')} MXN\n` : '') +
+      `\n` +
+      `💵 *SUBTOTAL:* $${q.subtotal.toLocaleString('es-MX')} MXN\n` +
+      `🏷️ *IVA (16%):* $${q.tax.toLocaleString('es-MX')} MXN\n` +
+      `⭐ *TOTAL GENERAL:* $${q.total.toLocaleString('es-MX')} MXN\n\n` +
+      `🛡️ *Garantía:* 90 días naturales en mano de obra. Aprobada por Gerencia Administrativa Olemdo.\n` +
+      `Quedamos atentos a su confirmación de orden de servicio.`;
+
+    const encoded = encodeURIComponent(message);
+    const url = cleanPhone.length >= 10
+      ? `https://wa.me/${cleanPhone.startsWith('52') ? cleanPhone : '52' + cleanPhone}?text=${encoded}`
+      : `https://wa.me/?text=${encoded}`;
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(message);
+    }
+
+    addToast('success', 'Cotización lista para WhatsApp', 'Desglose copiado al portapapeles y enlace de WhatsApp abierto.');
+    window.open(url, '_blank');
+  };
+
+  const handleTriggerImportPdf = (order: ServiceOrder) => {
+    setTargetOrderForPdfImport(order);
+    if (pdfFileInputRef.current) {
+      pdfFileInputRef.current.value = '';
+      pdfFileInputRef.current.click();
+    }
+  };
+
+  const handlePdfFileUploaded = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !targetOrderForPdfImport) return;
+
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      addToast('error', 'Formato Inválido', 'El archivo debe ser un documento PDF (.pdf).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      const dataUrl = loadEvent.target?.result as string;
+      if (dataUrl) {
+        attachQuotationPdf(targetOrderForPdfImport.id, dataUrl, file.name);
+        setTargetOrderForPdfImport(null);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleOpenInspect = (order: ServiceOrder) => {
     setInspectOrder(order);
@@ -847,56 +943,368 @@ export const GerenciaPortal: React.FC = () => {
         </div>
       )}
 
-      {/* MÓDULO 3: GENERADOR DE COTIZACIONES (Paso H en Graph TD) */}
+      {/* MÓDULO SERVICIOS: CATÁLOGO Y TARIFAS OFICIALES */}
+      {activeModule === 'servicios' && (
+        <ServicesCatalogManager />
+      )}
+
+      {/* MÓDULO 3: GESTOR Y CONSULTA DE COTIZACIONES (Paso H en Graph TD) */}
       {activeModule === 'cotizaciones' && (
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200">
-            <h2 className="text-lg font-bold text-[#040057] flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-indigo-600" />
-              Generador de Cotizaciones y Presupuestos (Paso H)
-            </h2>
-            <p className="text-xs text-slate-500">
-              Elabora presupuestos desglosados (Mano de obra + Refacciones + Viáticos/Grúa + IVA 16%) y envíalos digitalmente al cliente para su autorización.
-            </p>
+          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-[#040057] flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-indigo-600" />
+                <span>Gestor, Consulta y Registro de Cotizaciones</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Consulta cotizaciones registradas, compártelas al WhatsApp del cliente, importa cotizaciones en PDF o genera nuevos presupuestos desglosados.
+              </p>
+            </div>
+
+            {/* Pestañas de Sub-Navegación */}
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => setQuoteSubTab('consultar')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  quoteSubTab === 'consultar'
+                    ? 'bg-[#040057] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Consultar Cotizaciones</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  quoteSubTab === 'consultar' ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {registeredQuotationOrders.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setQuoteSubTab('pendientes')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  quoteSubTab === 'pendientes'
+                    ? 'bg-[#040057] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Por Cotizar</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  quoteSubTab === 'pendientes' ? 'bg-amber-400 text-slate-900' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {pendingQuotationCreationOrders.length}
+                </span>
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            {readyForQuoteOrders.map((order) => (
-              <div key={order.id} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-[#040057] text-base">{order.folio}</span>
-                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
-                      order.quotation?.status === 'aprobada' ? 'bg-emerald-100 text-emerald-800' :
-                      order.quotation?.status === 'enviada' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-[#040057]'
-                    }`}>
-                      {order.quotation ? `Cotización ${order.quotation.status.toUpperCase()}` : 'Sin Cotización'}
-                    </span>
+          {/* SUB-PESTAÑA 1: CONSULTA DE COTIZACIONES REGISTRADAS */}
+          {quoteSubTab === 'consultar' && (
+            <div className="space-y-4">
+              {/* Tarjetas Resumen de Cotizaciones */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Monto Presupuestado</span>
+                  <div className="text-lg sm:text-xl font-black text-[#040057]">
+                    ${registeredQuotationOrders.reduce((acc, o) => acc + (o.quotation?.total || 0), 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                   </div>
+                  <span className="text-[10px] text-slate-400">{registeredQuotationOrders.length} cotizaciones totales</span>
+                </div>
 
-                  <div className="text-xs text-slate-700">
-                    Cliente: <strong>{order.clientName}</strong> • {order.vehicle.type.toUpperCase()} ({order.vehicle.plates})
+                <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Aprobadas por Cliente</span>
+                  <div className="text-lg sm:text-xl font-black text-emerald-700">
+                    {registeredQuotationOrders.filter(o => o.quotation?.status === 'aprobada').length}
                   </div>
+                  <span className="text-[10px] text-emerald-600 font-semibold">Listas para facturación</span>
+                </div>
 
-                  {order.quotation && (
-                    <div className="text-xs font-semibold text-slate-800">
-                      Total presupuestado: ${order.quotation.total.toLocaleString('es-MX')} MXN
-                    </div>
+                <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block mb-1">Pendientes de Aprobación</span>
+                  <div className="text-lg sm:text-xl font-black text-amber-600">
+                    {registeredQuotationOrders.filter(o => o.quotation?.status === 'enviada').length}
+                  </div>
+                  <span className="text-[10px] text-slate-400">Enviadas al cliente</span>
+                </div>
+
+                <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block mb-1">PDFs Importados</span>
+                  <div className="text-lg sm:text-xl font-black text-indigo-700">
+                    {registeredQuotationOrders.filter(o => Boolean(o.quotation?.pdfUrl)).length}
+                  </div>
+                  <span className="text-[10px] text-slate-400">Adjuntos en la orden</span>
+                </div>
+              </div>
+
+              {/* Filtro y Búsqueda */}
+              <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="relative w-full sm:max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={quoteSearchTerm}
+                    onChange={(e) => setQuoteSearchTerm(e.target.value)}
+                    placeholder="Buscar por folio, cliente, placas o económico..."
+                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs bg-slate-50/50"
+                  />
+                  {quoteSearchTerm && (
+                    <button
+                      onClick={() => setQuoteSearchTerm('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold"
+                    >
+                      ✕
+                    </button>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleOpenQuotation(order)}
-                    className="px-4 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <DollarSign className="w-4 h-4 text-emerald-400" />
-                    <span>{order.quotation ? 'Editar / Reenviar Cotización' : 'Generar Cotización Desglosada'}</span>
-                  </button>
+                {/* Filtro de Estado */}
+                <div className="flex items-center gap-1.5 self-start sm:self-auto overflow-x-auto no-scrollbar w-full sm:w-auto">
+                  {(['todas', 'enviada', 'aprobada', 'rechazada'] as const).map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setQuoteStatusFilter(st)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition uppercase cursor-pointer shrink-0 ${
+                        quoteStatusFilter === st
+                          ? 'bg-[#040057] text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {st === 'todas' ? 'Todas' : st}
+                    </button>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
+
+              {/* Listado de Cotizaciones Registradas */}
+              {(() => {
+                const list = registeredQuotationOrders.filter(order => {
+                  const q = order.quotation;
+                  if (!q) return false;
+                  const matchesStatus = quoteStatusFilter === 'todas' || q.status === quoteStatusFilter;
+                  const search = quoteSearchTerm.toLowerCase().trim();
+                  const matchesSearch = !search ||
+                    order.folio.toLowerCase().includes(search) ||
+                    order.clientName.toLowerCase().includes(search) ||
+                    order.vehicle.plates.toLowerCase().includes(search) ||
+                    order.vehicle.economicNumber.toLowerCase().includes(search);
+                  return matchesStatus && matchesSearch;
+                });
+
+                if (list.length === 0) {
+                  return (
+                    <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 space-y-2">
+                      <FileCheck className="w-10 h-10 text-slate-300 mx-auto" />
+                      <h3 className="font-bold text-slate-700 text-sm">No se encontraron cotizaciones</h3>
+                      <p className="text-xs text-slate-500">
+                        {registeredQuotationOrders.length === 0 
+                          ? 'Aún no se han generado cotizaciones. Ve a la pestaña "Por Cotizar" para crear una o importar un PDF.'
+                          : 'Prueba ajustando el término de búsqueda o el filtro de estado.'}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 gap-4">
+                    {list.map((order) => {
+                      const q = order.quotation!;
+                      const laborSub = q.laborHours * q.laborRatePerHour;
+                      const partsCount = q.parts.length;
+                      return (
+                        <div
+                          key={order.id}
+                          className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs hover:border-indigo-200 transition space-y-3"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-base font-extrabold text-[#040057]">{order.folio}</span>
+                              <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                                q.status === 'aprobada' ? 'bg-emerald-100 text-emerald-800' :
+                                q.status === 'enviada' ? 'bg-amber-100 text-amber-800' :
+                                q.status === 'rechazada' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'
+                              }`}>
+                                Cotización {q.status}
+                              </span>
+
+                              {q.importedPdfName && (
+                                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold flex items-center gap-1">
+                                  <FileUp className="w-3.5 h-3.5 text-blue-600" />
+                                  <span>PDF Importado</span>
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-xs text-slate-500">
+                              Emitida el: {new Date(q.createdAt).toLocaleDateString('es-MX')}
+                            </div>
+                          </div>
+
+                          {/* Ficha Cliente & Desglose Financiero */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-slate-400 block">Cliente y Unidad</span>
+                              <div className="font-bold text-slate-800">{order.clientName}</div>
+                              <div className="text-slate-600">{order.vehicle.type.toUpperCase()} • Placas: {order.vehicle.plates} (Eco: {order.vehicle.economicNumber})</div>
+                              <div className="text-[11px] text-slate-500">{order.clientContact}</div>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-slate-400 block">Desglose de Conceptos</span>
+                              <div className="text-slate-700">M.O.: {q.laborHours} hrs (${laborSub.toLocaleString('es-MX')})</div>
+                              <div className="text-slate-700">Refacciones: {partsCount} partida(s)</div>
+                              {q.expensesAndTowing > 0 && (
+                                <div className="text-slate-700">Viáticos / Grúa: ${q.expensesAndTowing.toLocaleString('es-MX')}</div>
+                              )}
+                              <div className="text-slate-500 text-[11px]">Subtotal: ${q.subtotal.toLocaleString('es-MX')} + IVA: ${q.tax.toLocaleString('es-MX')}</div>
+                            </div>
+
+                            <div className="sm:text-right">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Cotizado</span>
+                              <div className="text-xl font-black text-[#040057]">
+                                ${q.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN
+                              </div>
+                              {q.approvedBy && (
+                                <div className="text-[11px] text-emerald-700 font-semibold mt-1">
+                                  ✓ Aprobado por: {q.approvedBy}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Barra de Acciones: WHATSAPP, VER PDF, IMPORTAR PDF, EDITAR */}
+                          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              {/* Botón WhatsApp */}
+                              <button
+                                type="button"
+                                onClick={() => handleShareQuotationWhatsApp(order)}
+                                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                                title="Enviar o copiar cotización completa al WhatsApp del cliente"
+                              >
+                                <span className="text-sm">📲</span>
+                                <span>Compartir a WhatsApp</span>
+                              </button>
+
+                              {/* Botón Ver PDF Oficial */}
+                              <button
+                                type="button"
+                                onClick={() => setViewQuoteDocOrder(order)}
+                                className="px-3.5 py-1.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                                title="Ver e imprimir documento oficial de cotización"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-blue-200" />
+                                <span>Ver / Imprimir PDF</span>
+                              </button>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {/* Botón Importar Cotización en PDF */}
+                              <button
+                                type="button"
+                                onClick={() => handleTriggerImportPdf(order)}
+                                className="px-3 py-1.5 rounded-xl border border-indigo-200 hover:bg-indigo-50 text-indigo-700 font-semibold text-xs transition flex items-center gap-1 cursor-pointer"
+                                title="Importar o adjuntar archivo PDF de la cotización externa"
+                              >
+                                <FileUp className="w-3.5 h-3.5" />
+                                <span>{q.pdfUrl ? 'Reemplazar PDF' : 'Importar PDF'}</span>
+                              </button>
+
+                              {/* Descargar PDF importado si existe */}
+                              {q.pdfUrl && (
+                                <a
+                                  href={q.pdfUrl}
+                                  download={`Cotizacion_${order.folio}.pdf`}
+                                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1"
+                                  title="Descargar archivo PDF importado"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  <span>Descargar</span>
+                                </a>
+                              )}
+
+                              {/* Botón Editar Cotización */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenQuotation(order)}
+                                className="px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition flex items-center gap-1 cursor-pointer"
+                              >
+                                <Edit3 className="w-3.5 h-3.5 text-amber-500" />
+                                <span>Editar</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* SUB-PESTAÑA 2: ÓRDENES PENDIENTES DE COTIZAR */}
+          {quoteSubTab === 'pendientes' && (
+            <div className="space-y-4">
+              {pendingQuotationCreationOrders.length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 space-y-2">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+                  <h3 className="font-bold text-slate-700 text-sm">Al día: Sin órdenes pendientes de cotizar</h3>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Todas las unidades liberadas o con servicio completado ya cuentan con presupuesto formal.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {pendingQuotationCreationOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-[#040057] text-base">{order.folio}</span>
+                          <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-[#040057] font-bold">
+                            Servicio Concluido • Por Cotizar
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-700">
+                          Cliente: <strong>{order.clientName}</strong> • {order.vehicle.type.toUpperCase()} ({order.vehicle.plates})
+                        </div>
+
+                        <div className="text-xs text-slate-500">
+                          Técnico responsable: {order.assignedTechnicianName || 'N/A'} • {order.partsUsed.length} refacciones reportadas
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerImportPdf(order)}
+                          className="px-3.5 py-2 rounded-xl border border-indigo-300 hover:bg-indigo-50 text-indigo-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <FileUp className="w-4 h-4" />
+                          <span>Importar Cotización en PDF</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenQuotation(order)}
+                          className="px-4 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <DollarSign className="w-4 h-4 text-emerald-400" />
+                          <span>Generar Cotización Desglosada</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       )}
 
@@ -1332,16 +1740,73 @@ export const GerenciaPortal: React.FC = () => {
 
               {/* Refacciones */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="font-bold text-[#040057] uppercase text-[11px]">2. Refacciones e Insumos</span>
-                  <button
-                    type="button"
-                    onClick={handleAddPartToQuote}
-                    className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800 font-semibold text-[11px] hover:bg-slate-300"
-                  >
-                    + Agregar Partida
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCatalogPickerInQuote(!showCatalogPickerInQuote)}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold text-[11px] hover:bg-indigo-100 border border-indigo-200 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Wrench className="w-3.5 h-3.5" />
+                      <span>⚡ Cargar del Catálogo</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddPartToQuote}
+                      className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800 font-semibold text-[11px] hover:bg-slate-300 cursor-pointer"
+                    >
+                      + Agregar Manual
+                    </button>
+                  </div>
                 </div>
+
+                {/* Desplegable interactivo para elegir servicios del catálogo */}
+                {showCatalogPickerInQuote && (
+                  <div className="p-3 rounded-xl bg-indigo-50/90 border border-indigo-200 space-y-2 animate-fadeIn">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-[#040057]">
+                        Haz clic en cualquier servicio para cargarlo a la cotización con su precio oficial:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowCatalogPickerInQuote(false)}
+                        className="text-slate-500 hover:text-slate-800 font-bold cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {services.filter(s => s.isActive).map(s => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => {
+                            const newPart: PartUsed = {
+                              id: `qp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                              partNumber: s.code,
+                              description: s.name,
+                              quantity: 1,
+                              unitPrice: s.basePrice,
+                            };
+                            setQuoteParts(prev => [...prev, newPart]);
+                            addToast('success', 'Servicio Agregado a Cotización', `"${s.name}" cargado con precio $${s.basePrice.toLocaleString('es-MX')}`);
+                          }}
+                          className="p-2 rounded-lg bg-white border border-indigo-200 hover:border-indigo-500 hover:bg-indigo-50/50 text-left transition flex items-start justify-between gap-2 cursor-pointer shadow-2xs"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-mono text-[10px] text-indigo-700 font-bold block">{s.code}</span>
+                            <span className="font-semibold text-slate-800 line-clamp-1 text-[11px]">{s.name}</span>
+                          </div>
+                          <span className="font-bold text-[#040057] text-xs shrink-0">
+                            ${s.basePrice.toLocaleString('es-MX')}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   {quoteParts.map(p => (
@@ -1613,6 +2078,28 @@ export const GerenciaPortal: React.FC = () => {
                 <span>{zoomPhoto.notes}</span>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* INPUT OCULTO PARA IMPORTAR COTIZACIONES EN PDF */}
+      <input
+        type="file"
+        ref={pdfFileInputRef}
+        onChange={handlePdfFileUploaded}
+        accept=".pdf,application/pdf"
+        className="hidden"
+      />
+
+      {/* MODAL PARA CONSULTAR E IMPRIMIR DOCUMENTO OFICIAL DE COTIZACIÓN */}
+      {viewQuoteDocOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto animate-fadeIn">
+          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[94vh] flex flex-col">
+            <QuotationDocument
+              order={viewQuoteDocOrder}
+              onClose={() => setViewQuoteDocOrder(null)}
+              onShareWhatsApp={handleShareQuotationWhatsApp}
+            />
           </div>
         </div>
       )}

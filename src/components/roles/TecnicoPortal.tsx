@@ -41,7 +41,8 @@ export const TecnicoPortal: React.FC = () => {
     submitEvidencesForReview, 
     correctAndResubmitEvidences, 
     releaseVehiclePhysical,
-    updateTechnicalReport
+    updateTechnicalReport,
+    services
   } = useApp();
 
   // Selected active order for working on
@@ -996,6 +997,32 @@ export const TecnicoPortal: React.FC = () => {
             </p>
 
             <form onSubmit={handleAddPartSubmit} className="space-y-4 text-xs">
+              {/* Selector del Catálogo de Servicios */}
+              <div className="p-2.5 rounded-xl bg-blue-50/80 border border-blue-200 space-y-1">
+                <span className="font-bold text-[#040057] text-[11px] block">
+                  ⚡ Seleccionar del Catálogo de Servicios y Refacciones
+                </span>
+                <select
+                  onChange={(e) => {
+                    const srv = services.find(s => s.id === e.target.value);
+                    if (srv) {
+                      setPartNumber(srv.code);
+                      setPartDescription(srv.name);
+                      setPartPrice(srv.basePrice);
+                    }
+                  }}
+                  defaultValue=""
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-blue-300 bg-white text-xs font-semibold text-slate-800"
+                >
+                  <option value="">-- Elige servicio para no capturar a mano --</option>
+                  {services.filter(s => s.isActive).map(s => (
+                    <option key={s.id} value={s.id}>
+                      [{s.code}] {s.name} — ${s.basePrice.toLocaleString('es-MX')} MXN
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   Número de Parte / Código
@@ -1247,13 +1274,40 @@ export const TecnicoPortal: React.FC = () => {
               </div>
 
               {/* Servicio Realizado Detallado */}
-              <div>
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between mb-1">
                   <label className="block font-semibold text-slate-700">
                     Servicio Realizado Detallado *
                   </label>
                   <span className="text-[10px] text-slate-400">Incluye posiciones (POS 3y4, POS 5y6, etc.)</span>
                 </div>
+
+                {/* Autollenado desde Catálogo */}
+                <div className="p-2 rounded-lg bg-indigo-50/70 border border-indigo-200">
+                  <div className="flex items-center justify-between text-[11px] mb-1 font-bold text-[#040057]">
+                    <span>⚡ Insertar Servicio desde Catálogo:</span>
+                    <span className="text-[10px] text-slate-500 font-normal">Autocompleta descripción</span>
+                  </div>
+                  <select
+                    onChange={(e) => {
+                      const srv = services.find(s => s.id === e.target.value);
+                      if (srv) {
+                        const addition = `CORRECTIVO REALIZADO: ${srv.name}. ${srv.description}`;
+                        setReportWorkDetail(prev => prev ? `${prev}\n\n• ${addition}` : addition);
+                      }
+                    }}
+                    defaultValue=""
+                    className="w-full px-2 py-1 rounded border border-indigo-300 bg-white text-xs text-slate-800"
+                  >
+                    <option value="">-- Seleccionar servicio ofrecido para insertar --</option>
+                    {services.filter(s => s.isActive).map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <textarea
                   rows={4}
                   required

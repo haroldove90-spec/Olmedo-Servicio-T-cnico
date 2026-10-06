@@ -71,7 +71,7 @@ const DashboardContent: React.FC = () => {
         <Sidebar />
 
         {/* Área de Trabajo Principal - Sin Pestañas Horizontales Repetitivas */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-6 lg:p-8 bg-slate-50/80 min-w-0 max-w-full">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-6 lg:p-8 pb-24 lg:pb-8 bg-slate-50/80 min-w-0 max-w-full">
           <div className="max-w-7xl mx-auto w-full min-w-0 overflow-x-hidden">
             {currentRole === 'cliente' && <ClientePortal />}
             {currentRole === 'jefe_taller' && <JefeTallerPortal />}

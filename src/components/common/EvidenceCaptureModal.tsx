@@ -10,10 +10,12 @@ import {
   Sparkles, 
   Lock,
   Layers,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Wrench
 } from 'lucide-react';
 import { EvidencePhoto, ServiceOrder } from '../../types';
 import { compressImageFile } from '../../utils/imageUtils';
+import { useApp } from '../../context/AppContext';
 
 interface DraftEvidenceCard {
   id: string;
@@ -57,6 +59,8 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
   initialPhase = 'antes',
   onSave,
 }) => {
+  const { services } = useApp();
+
   // Count existing evidences in "1. Antes"
   const existingAntesCount = order.evidences.filter(e => e.phase === 'antes').length;
 
@@ -541,6 +545,38 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
 
                   {/* Título de la Foto / Componente */}
                   <div>
+                    {/* Selector de Servicios Ofrecidos por Olemdo */}
+                    <div className="mb-2.5 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200/90 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-[#040057] flex items-center gap-1.5">
+                          <Wrench className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Servicios Ofrecidos (Autollenado con 1 Clic)</span>
+                        </span>
+                        <span className="text-[10px] text-blue-700 font-semibold bg-blue-100 px-1.5 py-0.5 rounded">
+                          Sin escribir a mano
+                        </span>
+                      </div>
+
+                      <select
+                        onChange={(e) => {
+                          const srv = services.find(s => s.id === e.target.value);
+                          if (srv) {
+                            handleUpdateCard(idx, 'title', srv.name);
+                            handleUpdateCard(idx, 'notes', `${srv.description} [Código: ${srv.code} | Precio Catálogo: $${srv.basePrice.toLocaleString('es-MX')} MXN]`);
+                          }
+                        }}
+                        defaultValue=""
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-blue-300 bg-white text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#040057] cursor-pointer"
+                      >
+                        <option value="">⚡ Seleccionar servicio del catálogo para autocompletar...</option>
+                        {services.filter(s => s.isActive).map(s => (
+                          <option key={s.id} value={s.id}>
+                            [{s.code}] {s.name} — ${s.basePrice.toLocaleString('es-MX')} MXN
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     <label className="block font-semibold text-slate-700 mb-1">
                       Título de la Foto / Componente *
                     </label>

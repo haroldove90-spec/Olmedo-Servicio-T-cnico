@@ -11,6 +11,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { EvidencePhoto, ServiceOrder } from '../../types';
+import { useApp } from '../../context/AppContext';
 
 interface GerenciaEvidenceEditModalProps {
   isOpen: boolean;
@@ -37,6 +38,8 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
   onSaveEvidence,
   onSaveTechnicalData,
 }) => {
+  const { services } = useApp();
+
   // Mode: 'evidence' or 'technical_data'
   const isEditingSingleEvidence = Boolean(evidenceToEdit);
 
@@ -248,10 +251,40 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
             </div>
 
             {/* Servicio Realizado Detallado */}
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">
-                Servicio Realizado Detallado *
-              </label>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block font-bold text-slate-700">
+                  Servicio Realizado Detallado *
+                </label>
+                <span className="text-[10px] text-slate-400">Corrige redacción o añade servicios</span>
+              </div>
+
+              {/* Selector del Catálogo */}
+              <div className="p-2 rounded-lg bg-indigo-50 border border-indigo-200">
+                <div className="flex items-center justify-between text-[11px] mb-1 font-bold text-[#040057]">
+                  <span>⚡ Insertar Servicio desde Catálogo de Olemdo:</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Autocompleta texto</span>
+                </div>
+                <select
+                  onChange={(e) => {
+                    const srv = services.find(s => s.id === e.target.value);
+                    if (srv) {
+                      const addition = `CORRECTIVO REALIZADO: ${srv.name}. ${srv.description}`;
+                      setWorkText(prev => prev ? `${prev}\n\n• ${addition}` : addition);
+                    }
+                  }}
+                  defaultValue=""
+                  className="w-full px-2 py-1 rounded border border-indigo-300 bg-white text-xs text-slate-800"
+                >
+                  <option value="">-- Seleccionar servicio ofrecido --</option>
+                  {services.filter(s => s.isActive).map(s => (
+                    <option key={s.id} value={s.id}>
+                      [{s.code}] {s.name} — ${s.basePrice.toLocaleString('es-MX')} MXN
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <textarea
                 rows={4}
                 required

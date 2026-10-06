@@ -23,11 +23,11 @@ interface NavItem {
 }
 
 export const BottomBar: React.FC = () => {
-  const { currentRole, activeModule, setActiveModule, orders } = useApp();
+  const { currentRole, activeModule, setActiveModule, orders, technicians, services } = useApp();
 
   if (!currentRole) return null;
 
-  // Items según el rol
+  // Items según el rol con todos sus módulos correspondientes
   const getNavItems = (role: UserRole): NavItem[] => {
     switch (role) {
       case 'cliente':
@@ -75,6 +75,12 @@ export const BottomBar: React.FC = () => {
             label: 'Monitoreo',
             icon: <Clock className="w-5 h-5" />,
           },
+          {
+            id: 'catalogo_tecnicos',
+            label: 'Técnicos',
+            icon: <Users className="w-5 h-5" />,
+            badge: technicians.length,
+          },
         ];
 
       case 'tecnico':
@@ -84,6 +90,8 @@ export const BottomBar: React.FC = () => {
           o.status === 'evidencias_rechazadas' ||
           o.status === 'liberacion_autorizada'
         ).length;
+        const rejected = orders.filter(o => o.status === 'evidencias_rechazadas').length;
+        const authorized = orders.filter(o => o.status === 'liberacion_autorizada').length;
         return [
           {
             id: 'mis_tareas',
@@ -95,16 +103,20 @@ export const BottomBar: React.FC = () => {
             id: 'evidencias',
             label: 'Evidencias',
             icon: <Camera className="w-5 h-5" />,
+            badge: rejected > 0 ? rejected : undefined,
           },
           {
             id: 'liberacion',
             label: 'Liberación',
             icon: <Key className="w-5 h-5" />,
+            badge: authorized > 0 ? authorized : undefined,
           },
         ];
 
       case 'gerencia':
         const pendingReview = orders.filter(o => o.status === 'evidencias_en_revision').length;
+        const pendingQuoteCreate = orders.filter(o => o.status === 'liberacion_autorizada' && !o.quotation).length;
+        const approvedQuotes = orders.filter(o => o.status === 'cotizacion_aprobada' && !o.invoice).length;
         return [
           {
             id: 'validacion_evidencias',
@@ -113,19 +125,32 @@ export const BottomBar: React.FC = () => {
             badge: pendingReview > 0 ? pendingReview : undefined,
           },
           {
-            id: 'reportes_excel',
-            label: 'Reportes',
-            icon: <FileText className="w-5 h-5" />,
+            id: 'registros_tecnicos',
+            label: 'Registros',
+            icon: <Camera className="w-5 h-5" />,
+          },
+          {
+            id: 'servicios',
+            label: 'Servicios',
+            icon: <Wrench className="w-5 h-5" />,
+            badge: services.length > 0 ? services.length : undefined,
           },
           {
             id: 'cotizaciones',
             label: 'Cotizador',
             icon: <DollarSign className="w-5 h-5" />,
+            badge: pendingQuoteCreate > 0 ? pendingQuoteCreate : undefined,
           },
           {
             id: 'facturacion',
             label: 'Facturas',
             icon: <Receipt className="w-5 h-5" />,
+            badge: approvedQuotes > 0 ? approvedQuotes : undefined,
+          },
+          {
+            id: 'reportes_excel',
+            label: 'Reportes',
+            icon: <FileText className="w-5 h-5" />,
           },
         ];
 
@@ -138,32 +163,32 @@ export const BottomBar: React.FC = () => {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/90 shadow-2xl lg:hidden safe-area-bottom">
-      <div className="flex items-center justify-around h-16 px-1">
+      <div className="flex items-center justify-start sm:justify-around h-16 px-1 overflow-x-auto no-scrollbar scroll-smooth">
         {navItems.map((item) => {
-          const isActive = activeModule === item.id || (item.id === 'validacion_evidencias' && activeModule === 'registros_tecnicos');
+          const isActive = activeModule === item.id;
           return (
             <button
               key={item.id}
               onClick={() => setActiveModule(item.id)}
-              className={`relative flex flex-col items-center justify-center flex-1 h-full py-1 text-center transition-all cursor-pointer ${
+              className={`relative flex flex-col items-center justify-center min-w-[60px] sm:min-w-0 flex-1 h-full py-1 px-1 text-center transition-all cursor-pointer shrink-0 ${
                 isActive 
-                  ? 'text-[#040057] font-bold' 
+                  ? 'text-[#040057] font-bold bg-blue-50/50 sm:bg-transparent' 
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               <div className="relative">
                 {item.icon}
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2 flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-rose-600 text-[10px] font-bold text-white leading-none">
+                  <span className="absolute -top-1.5 -right-2 flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-rose-600 text-[10px] font-bold text-white leading-none shadow-xs">
                     {item.badge}
                   </span>
                 )}
               </div>
-              <span className="text-[11px] mt-1 leading-tight tracking-tight">
+              <span className="text-[10px] sm:text-[11px] mt-1 leading-tight tracking-tight truncate max-w-[68px] sm:max-w-none">
                 {item.label}
               </span>
               {isActive && (
-                <div className="absolute top-0 w-8 h-1 bg-[#040057] rounded-b-full"></div>
+                <div className="absolute top-0 w-8 sm:w-12 h-1 bg-[#040057] rounded-b-full"></div>
               )}
             </button>
           );

@@ -68,6 +68,9 @@ export interface Quotation {
   rejectionReason?: string;
   approvedAt?: string;
   approvedBy?: string;
+  pdfUrl?: string;
+  importedPdfName?: string;
+  importedPdfDate?: string;
 }
 
 export interface Invoice {
@@ -144,4 +147,15 @@ export interface SupabaseConfig {
   supabaseAnonKey: string;
   isConnected: boolean;
   lastSync?: string;
+}
+
+export interface ServiceCatalogItem {
+  id: string;
+  code: string; // ej. "SRV-FRE-01"
+  name: string; // ej. "Cambio de Balatas y Rectificado de Tambor"
+  category: 'frenos' | 'mecanica_general' | 'electrico' | 'suspension' | 'rescate_asistencia' | 'diagnostico' | 'insumos';
+  description: string;
+  suggestedLaborHours: number;
+  basePrice: number; // Precio sugerido ($ MXN)
+  isActive: boolean;
 }
