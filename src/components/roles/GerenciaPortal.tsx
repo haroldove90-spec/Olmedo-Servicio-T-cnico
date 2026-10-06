@@ -17,11 +17,17 @@ import {
   AlertTriangle,
   Building2,
   FileSpreadsheet,
-  Printer
+  Printer,
+  Edit3,
+  Search,
+  Sparkles,
+  Layers,
+  Wrench
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { ServiceOrder, PartUsed, Quotation } from '../../types';
+import { ServiceOrder, PartUsed, Quotation, EvidencePhoto } from '../../types';
 import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
+import { GerenciaEvidenceEditModal } from '../common/GerenciaEvidenceEditModal';
 
 export const GerenciaPortal: React.FC = () => {
   const { 
@@ -30,7 +36,10 @@ export const GerenciaPortal: React.FC = () => {
     orders, 
     reviewEvidences, 
     saveQuotation, 
-    emitInvoice 
+    emitInvoice,
+    updateEvidencePhoto,
+    updateOrderGeneral,
+    updateTechnicalReport
   } = useApp();
 
   // Modal inspection of evidences
@@ -39,6 +48,17 @@ export const GerenciaPortal: React.FC = () => {
   const [approvalNotes, setApprovalNotes] = useState('Servicio y evidencias validados satisfactoriamente. Se autoriza la liberación de la unidad.');
   const [rejectionNotes, setRejectionNotes] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
+
+  // Editor and Correction states (Editorial de Gerencia para ortografía y datos técnicos)
+  const [editingEvidencePhoto, setEditingEvidencePhoto] = useState<EvidencePhoto | null>(null);
+  const [editingTargetOrder, setEditingTargetOrder] = useState<ServiceOrder | null>(null);
+  const [showEditTechDataModal, setShowEditTechDataModal] = useState<boolean>(false);
+  const [zoomPhoto, setZoomPhoto] = useState<{ url: string; title: string; notes?: string; phase: string } | null>(null);
+
+  // Sub-tab de Validación y Registros del Técnico
+  const [activeValidationTab, setActiveValidationTab] = useState<'inspecciones' | 'registros_tecnicos'>('inspecciones');
+  const [recordSearchTerm, setRecordSearchTerm] = useState('');
+  const [selectedRecordOrderId, setSelectedRecordOrderId] = useState<string>('');
 
   // Formal Report & Excel Modal
   const [reportOrder, setReportOrder] = useState<ServiceOrder | null>(null);
@@ -75,6 +95,78 @@ export const GerenciaPortal: React.FC = () => {
     setInspectOrder(order);
     setShowRejectForm(false);
     setRejectionNotes('');
+  };
+
+  const handleOpenEditEvidence = (order: ServiceOrder, ev: EvidencePhoto) => {
+    setEditingTargetOrder(order);
+    setEditingEvidencePhoto(ev);
+  };
+
+  const handleOpenEditTechData = (order: ServiceOrder) => {
+    setEditingTargetOrder(order);
+    setShowEditTechDataModal(true);
+  };
+
+  const handleSaveEditedEvidence = (photoId: string, updates: Partial<EvidencePhoto>) => {
+    if (!editingTargetOrder) return;
+    updateEvidencePhoto(editingTargetOrder.id, photoId, updates);
+
+    // Update in memory if inspecting
+    if (inspectOrder && inspectOrder.id === editingTargetOrder.id) {
+      setInspectOrder({
+        ...inspectOrder,
+        evidences: inspectOrder.evidences.map(e => e.id === photoId ? { ...e, ...updates } : e)
+      });
+    }
+
+    setEditingEvidencePhoto(null);
+  };
+
+  const handleSaveEditedTechData = (updates: any) => {
+    if (!editingTargetOrder) return;
+
+    updateOrderGeneral(editingTargetOrder.id, {
+      initialDiagnosis: updates.initialDiagnosis,
+      workPerformedDetail: updates.workPerformedDetail,
+      preventiveInspectionNotes: updates.preventiveInspectionNotes,
+      vehicle: {
+        ...editingTargetOrder.vehicle,
+        chassisSerialNumber: updates.chassisSerialNumber,
+        engineModelTransmission: updates.engineModelTransmission,
+        engineSeriesTransmission: updates.engineSeriesTransmission,
+        odometerReading: updates.odometerReading,
+      }
+    });
+
+    updateTechnicalReport(editingTargetOrder.id, {
+      workPerformedDetail: updates.workPerformedDetail,
+      preventiveInspectionNotes: updates.preventiveInspectionNotes,
+      vehicleUpdates: {
+        chassisSerialNumber: updates.chassisSerialNumber,
+        engineModelTransmission: updates.engineModelTransmission,
+        engineSeriesTransmission: updates.engineSeriesTransmission,
+        odometerReading: updates.odometerReading,
+      }
+    });
+
+    // Update in memory if inspecting
+    if (inspectOrder && inspectOrder.id === editingTargetOrder.id) {
+      setInspectOrder({
+        ...inspectOrder,
+        initialDiagnosis: updates.initialDiagnosis,
+        workPerformedDetail: updates.workPerformedDetail,
+        preventiveInspectionNotes: updates.preventiveInspectionNotes,
+        vehicle: {
+          ...inspectOrder.vehicle,
+          chassisSerialNumber: updates.chassisSerialNumber,
+          engineModelTransmission: updates.engineModelTransmission,
+          engineSeriesTransmission: updates.engineSeriesTransmission,
+          odometerReading: updates.odometerReading,
+        }
+      });
+    }
+
+    setShowEditTechDataModal(false);
   };
 
   const handleApproveInspection = () => {
@@ -258,98 +350,444 @@ export const GerenciaPortal: React.FC = () => {
         </div>
       </div>
 
-      {/* MÓDULO 1: VALIDACIÓN DE EVIDENCIAS Y SERVICIO (Paso E en Graph TD) */}
-      {(activeModule === 'validacion_evidencias' || activeModule === 'inicio') && (
+      {/* MÓDULO 1: VALIDACIÓN DE EVIDENCIAS Y SERVICIO + REGISTROS DEL TÉCNICO */}
+      {(activeModule === 'validacion_evidencias' || activeModule === 'inicio' || activeModule === 'registros_tecnicos') && (
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-[#040057] flex items-center gap-2">
                 <CheckSquare className="w-5 h-5 text-indigo-600" />
-                Módulo de Inspección y Validación de Evidencias (Paso E)
+                <span>Inspección, Validación y Edición Editorial de Evidencias</span>
               </h2>
-              <p className="text-xs text-slate-500">
-                Revisa exhaustivamente las fotos subidas por el técnico antes de autorizar la liberación física de la unidad o regresar la orden con observaciones.
+              <p className="text-xs text-slate-500 mt-0.5">
+                Valida servicios de campo, aprueba o rechaza órdenes, y corrige faltas de ortografía o redacción en los reportes del técnico antes de facturar.
               </p>
             </div>
 
-            <div className="text-xs text-slate-500 font-semibold">
-              {pendingReviewOrders.length} esperando resolución
+            {/* Pestañas de Navegación del Módulo */}
+            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl self-start sm:self-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveValidationTab('inspecciones')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  activeValidationTab === 'inspecciones'
+                    ? 'bg-[#040057] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Inspecciones Pendientes</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  activeValidationTab === 'inspecciones' ? 'bg-amber-400 text-slate-900' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {pendingReviewOrders.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveValidationTab('registros_tecnicos')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  activeValidationTab === 'registros_tecnicos'
+                    ? 'bg-[#040057] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                <span>Registros y Evidencias del Técnico</span>
+              </button>
             </div>
           </div>
 
-          {pendingReviewOrders.length === 0 ? (
-            <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
-              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-              <h3 className="text-base font-bold text-slate-700">Sin inspecciones pendientes</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                Todas las evidencias han sido aprobadas o los técnicos aún están ejecutando labores en sitio.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {pendingReviewOrders.map((order) => (
-                <div key={order.id} className="bg-white rounded-2xl p-5 border-2 border-amber-300 shadow-xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
-                    <div className="flex items-center gap-3">
-                      <span className="text-base font-extrabold text-[#040057]">{order.folio}</span>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">
-                        En Revisión de Gerencia
-                      </span>
-                      <span className="text-xs font-semibold text-slate-600">
-                        Técnico: <strong>{order.assignedTechnicianName}</strong>
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-slate-500">
-                      Terminado el: {order.technicianCompletedAt ? new Date(order.technicianCompletedAt).toLocaleTimeString('es-MX') : 'Recién notificado'}
-                    </div>
-                  </div>
-
-                  {/* Ficha y resumen de evidencias */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 py-3 text-xs">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400">Cliente y Unidad</span>
-                      <div className="font-bold text-slate-800">{order.clientName}</div>
-                      <div className="text-slate-600">{order.vehicle.type.toUpperCase()} • Placas: {order.vehicle.plates}</div>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400">Diagnóstico Técnico</span>
-                      <div className="text-slate-700 italic">{order.initialDiagnosis || 'Diagnóstico reportado'}</div>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400">Conteo de Evidencias</span>
-                      <div className="font-semibold text-slate-800">
-                        {order.evidences.length} fotografías • {order.partsUsed.length} refacciones instaladas
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Vistas previas de las fotos */}
-                  <div className="flex gap-2 py-2 overflow-x-auto">
-                    {order.evidences.map((ev) => (
-                      <div key={ev.id} className="w-24 shrink-0 bg-slate-50 p-1 rounded-lg border text-[10px]">
-                        <img src={ev.url} alt={ev.title} className="w-full h-16 object-cover rounded" />
-                        <span className="font-bold uppercase text-[9px] block text-slate-600 mt-0.5">{ev.phase}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Botones de Inspección */}
-                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                    <button
-                      onClick={() => handleOpenInspect(order)}
-                      className="px-5 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                    >
-                      <Eye className="w-4 h-4" />
-                      <span>Abrir Módulo de Inspección y Dictamen (Aprobar / Rechazar)</span>
-                    </button>
-                  </div>
+          {/* SUB-PESTAÑA 1: INSPECCIONES PENDIENTES DE DICTAMEN (PASO E) */}
+          {activeValidationTab === 'inspecciones' && (
+            <div>
+              {pendingReviewOrders.length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                  <h3 className="text-base font-bold text-slate-700">Sin inspecciones pendientes de dictamen</h3>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                    Todas las evidencias han sido aprobadas o los técnicos aún están ejecutando labores en sitio.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveValidationTab('registros_tecnicos')}
+                    className="mt-3 px-4 py-2 rounded-xl bg-blue-50 text-[#040057] border border-blue-200 hover:bg-blue-100 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Edit3 className="w-4 h-4 text-amber-500" />
+                    <span>Explorar Todos los Registros Técnicos y Corregir Ortografía</span>
+                  </button>
                 </div>
-              ))}
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {pendingReviewOrders.map((order) => (
+                    <div key={order.id} className="bg-white rounded-2xl p-5 border-2 border-amber-300 shadow-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-base font-extrabold text-[#040057]">{order.folio}</span>
+                          <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">
+                            En Revisión de Gerencia
+                          </span>
+                          <span className="text-xs font-semibold text-slate-600">
+                            Técnico: <strong>{order.assignedTechnicianName}</strong>
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-500">
+                          Terminado el: {order.technicianCompletedAt ? new Date(order.technicianCompletedAt).toLocaleTimeString('es-MX') : 'Recién notificado'}
+                        </div>
+                      </div>
+
+                      {/* Ficha y resumen de evidencias */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 py-3 text-xs">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400">Cliente y Unidad</span>
+                          <div className="font-bold text-slate-800">{order.clientName}</div>
+                          <div className="text-slate-600">{order.vehicle.type.toUpperCase()} • Placas: {order.vehicle.plates}</div>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400">Diagnóstico Técnico</span>
+                          <div className="text-slate-700 italic">{order.initialDiagnosis || 'Diagnóstico reportado'}</div>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400">Conteo de Evidencias</span>
+                          <div className="font-semibold text-slate-800">
+                            {order.evidences.length} fotografías • {order.partsUsed.length} refacciones instaladas
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Vistas previas de las fotos con botón rápido de zoom y edición */}
+                      <div className="flex gap-2 py-2 overflow-x-auto">
+                        {order.evidences.map((ev) => (
+                          <div 
+                            key={ev.id} 
+                            className="w-28 shrink-0 bg-slate-50 p-1.5 rounded-xl border border-slate-200 text-[10px] space-y-1 hover:border-indigo-300 transition"
+                          >
+                            <img 
+                              src={ev.url} 
+                              alt={ev.title} 
+                              className="w-full h-16 object-cover rounded-lg cursor-pointer bg-slate-900" 
+                              onClick={() => setZoomPhoto(ev)}
+                            />
+                            <div className="font-bold truncate text-slate-800" title={ev.title}>{ev.title}</div>
+                            <div className="flex items-center justify-between">
+                              <span className="font-extrabold uppercase text-[9px] text-[#040057]">
+                                {ev.phase === 'antes' ? '1. Antes' : '2. Correctivo'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditEvidence(order, ev)}
+                                className="text-blue-600 hover:text-blue-800 p-0.5"
+                                title="Corregir ortografía"
+                              >
+                                <Edit3 className="w-3 h-3 text-amber-500" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Botones de Inspección */}
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditTechData(order)}
+                          className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Corregir Ficha y Ortografía</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInspect(order)}
+                          className="px-5 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span>Abrir Módulo de Inspección y Dictamen (Aprobar / Rechazar)</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+
+          {/* SUB-PESTAÑA 2: REGISTROS Y EVIDENCIAS DEL TÉCNICO (EXPLORADOR Y EDICIÓN EDITORIAL) */}
+          {activeValidationTab === 'registros_tecnicos' && (
+            <div className="space-y-4">
+              {/* Buscador de Órdenes */}
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="relative w-full sm:w-96">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={recordSearchTerm}
+                    onChange={(e) => setRecordSearchTerm(e.target.value)}
+                    placeholder="Buscar por Folio, Cliente, Placas o Técnico..."
+                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-[#040057] bg-slate-50/50"
+                  />
+                </div>
+
+                <div className="text-xs text-slate-500 font-medium self-start sm:self-auto">
+                  {orders.filter(o => o.evidences.length > 0 || o.initialDiagnosis).length} órdenes con registro técnico
+                </div>
+              </div>
+
+              {/* Contenedor Principal: Selector de Orden y Ficha Detallada */}
+              {(() => {
+                const filteredOrders = orders.filter(o => {
+                  if (!recordSearchTerm.trim()) return true;
+                  const term = recordSearchTerm.toLowerCase();
+                  return (
+                    o.folio.toLowerCase().includes(term) ||
+                    o.clientName.toLowerCase().includes(term) ||
+                    o.vehicle.plates.toLowerCase().includes(term) ||
+                    (o.assignedTechnicianName && o.assignedTechnicianName.toLowerCase().includes(term))
+                  );
+                });
+
+                const targetOrder = filteredOrders.find(o => o.id === selectedRecordOrderId) || filteredOrders[0];
+
+                if (!targetOrder) {
+                  return (
+                    <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 text-slate-500">
+                      No se encontraron órdenes con registros técnicos que coincidan con la búsqueda.
+                    </div>
+                  );
+                }
+
+                const antesPhotos = targetOrder.evidences.filter(e => e.phase === 'antes');
+                const correctivoPhotos = targetOrder.evidences.filter(e => 
+                  e.phase === 'correctivo_realizado' || e.phase === 'durante' || e.phase === 'despues'
+                );
+
+                return (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    
+                    {/* Columna Izquierda: Lista de Órdenes */}
+                    <div className="lg:col-span-4 space-y-2.5 max-h-[680px] overflow-y-auto pr-1">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block px-1">
+                        Selecciona una Orden ({filteredOrders.length})
+                      </span>
+
+                      {filteredOrders.map(o => (
+                        <div
+                          key={o.id}
+                          onClick={() => setSelectedRecordOrderId(o.id)}
+                          className={`p-3 rounded-xl border-2 transition cursor-pointer text-xs space-y-1.5 ${
+                            (selectedRecordOrderId === o.id || (!selectedRecordOrderId && filteredOrders[0]?.id === o.id))
+                              ? 'bg-blue-50/70 border-[#040057] shadow-xs'
+                              : 'bg-white border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-[#040057]">{o.folio}</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-700">
+                              {o.evidences.length} fotos
+                            </span>
+                          </div>
+
+                          <div className="font-bold text-slate-800 truncate">{o.clientName}</div>
+                          <div className="text-slate-500 text-[11px] flex justify-between">
+                            <span>{o.vehicle.type.toUpperCase()} ({o.vehicle.plates})</span>
+                            <span className="font-semibold text-slate-700">{o.assignedTechnicianName || 'Sin técnico'}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Columna Derecha: Ficha Editorial Completa de la Orden Seleccionada */}
+                    <div className="lg:col-span-8 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-5 text-xs">
+                      
+                      {/* Cabecera de la Orden Seleccionada */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-200 gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-base font-bold text-[#040057]">
+                              Expediente Técnico: {targetOrder.folio}
+                            </h3>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-[#040057] font-bold">
+                              {targetOrder.status.replace(/_/g, ' ').toUpperCase()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Cliente: <strong>{targetOrder.clientName}</strong> • {targetOrder.vehicle.type.toUpperCase()} ({targetOrder.vehicle.plates}) • Técnico: <strong>{targetOrder.assignedTechnicianName || 'N/A'}</strong>
+                          </p>
+                        </div>
+
+                        {/* Botón para abrir edición general */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditTechData(targetOrder)}
+                          className="px-3.5 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+                        >
+                          <Edit3 className="w-4 h-4 text-amber-400" />
+                          <span>Corregir Información / Ficha Técnica (Ortografía)</span>
+                        </button>
+                      </div>
+
+                      {/* Resumen de Datos Técnicos Editables */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                        <div>
+                          <span className="font-bold text-[#040057] uppercase text-[10px] block">
+                            Diagnóstico Técnico en Sitio:
+                          </span>
+                          <p className="text-slate-800 mt-0.5 leading-relaxed">
+                            {targetOrder.initialDiagnosis || <span className="text-slate-400 italic">Sin diagnóstico capturado</span>}
+                          </p>
+                        </div>
+
+                        <div>
+                          <span className="font-bold text-[#040057] uppercase text-[10px] block">
+                            Servicio Realizado Detallado (Técnico):
+                          </span>
+                          <p className="text-slate-800 mt-0.5 leading-relaxed">
+                            {targetOrder.workPerformedDetail || targetOrder.vehicle.failureDescription || <span className="text-slate-400 italic">Sin detalle capturado</span>}
+                          </p>
+                        </div>
+
+                        <div className="md:col-span-2 pt-2 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                          <div>
+                            <span className="text-slate-500 block">Serie VIN:</span>
+                            <strong className="font-mono">{targetOrder.vehicle.chassisSerialNumber || 'No registrada'}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block">Odómetro:</span>
+                            <strong>{targetOrder.vehicle.odometerReading || 'No registrado'}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block">Modelo Motor:</span>
+                            <strong>{targetOrder.vehicle.engineModelTransmission || 'No registrado'}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block">Serie Motor:</span>
+                            <strong className="font-mono">{targetOrder.vehicle.engineSeriesTransmission || 'No registrada'}</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Galería Fotográfica 1. Antes y 2. Correctivo Realizado */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-slate-800 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5">
+                            <Camera className="w-4 h-4 text-[#040057]" />
+                            <span>Evidencias Fotográficas ({targetOrder.evidences.length} en total)</span>
+                          </h4>
+                          <span className="text-[11px] text-slate-500">
+                            Haz clic en "✏️ Corregir" en cualquier foto para arreglar faltas de ortografía o notas.
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          
+                          {/* Columna: 1. Antes */}
+                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3">
+                            <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                              <span className="font-bold text-slate-800 text-xs uppercase flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                                <span>1. ANTES ({antesPhotos.length} fotos)</span>
+                              </span>
+                            </div>
+
+                            <div className="space-y-2.5">
+                              {antesPhotos.map(p => (
+                                <div key={p.id} className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs space-y-2">
+                                  <div className="relative group rounded-lg overflow-hidden bg-slate-900 cursor-pointer" onClick={() => setZoomPhoto(p)}>
+                                    <img src={p.url} alt={p.title} className="w-full h-32 object-contain bg-slate-950 rounded-lg" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
+                                      <Eye className="w-4 h-4" />
+                                      <span>Ver en tamaño completo</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-bold text-slate-900 line-clamp-1">{p.title}</div>
+                                      {p.notes && <p className="text-[11px] text-slate-600 line-clamp-2 mt-0.5">{p.notes}</p>}
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditEvidence(targetOrder, p)}
+                                      className="px-2 py-1 rounded-md bg-blue-50 text-[#040057] hover:bg-blue-100 font-bold text-[10px] border border-blue-200 flex items-center gap-1 cursor-pointer shrink-0"
+                                      title="Editar título y notas para corregir ortografía"
+                                    >
+                                      <Edit3 className="w-3 h-3 text-amber-500" />
+                                      <span>Corregir</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+
+                              {antesPhotos.length === 0 && (
+                                <div className="p-4 text-center text-slate-400 text-xs border border-dashed rounded-lg bg-white">
+                                  Sin fotografías en la fase 1. Antes
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Columna: 2. Correctivo Realizado */}
+                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3">
+                            <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                              <span className="font-bold text-slate-800 text-xs uppercase flex items-center gap-1.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                                <span>2. CORRECTIVO REALIZADO ({correctivoPhotos.length} fotos)</span>
+                              </span>
+                            </div>
+
+                            <div className="space-y-2.5">
+                              {correctivoPhotos.map(p => (
+                                <div key={p.id} className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs space-y-2">
+                                  <div className="relative group rounded-lg overflow-hidden bg-slate-900 cursor-pointer" onClick={() => setZoomPhoto(p)}>
+                                    <img src={p.url} alt={p.title} className="w-full h-32 object-contain bg-slate-950 rounded-lg" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
+                                      <Eye className="w-4 h-4" />
+                                      <span>Ver en tamaño completo</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-bold text-slate-900 line-clamp-1">{p.title}</div>
+                                      {p.notes && <p className="text-[11px] text-slate-600 line-clamp-2 mt-0.5">{p.notes}</p>}
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditEvidence(targetOrder, p)}
+                                      className="px-2 py-1 rounded-md bg-blue-50 text-[#040057] hover:bg-blue-100 font-bold text-[10px] border border-blue-200 flex items-center gap-1 cursor-pointer shrink-0"
+                                      title="Editar título y notas para corregir ortografía"
+                                    >
+                                      <Edit3 className="w-3 h-3 text-amber-500" />
+                                      <span>Corregir</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+
+                              {correctivoPhotos.length === 0 && (
+                                <div className="p-4 text-center text-slate-400 text-xs border border-dashed rounded-lg bg-white">
+                                  Sin fotografías en la fase 2. Correctivo realizado
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
         </div>
       )}
 
@@ -551,51 +989,171 @@ export const GerenciaPortal: React.FC = () => {
             {/* Body */}
             <div className="p-4 sm:p-6 overflow-y-auto space-y-6 text-xs">
               
-              {/* Resumen de servicio */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <div>
-                  <span className="font-bold text-[#040057]">Falla Reportada Inicial:</span>
-                  <p className="text-slate-700">{inspectOrder.vehicle.failureDescription}</p>
+              {/* Resumen de servicio con botón editorial */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
+                  <span className="font-bold text-[#040057] uppercase tracking-wider text-xs flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-indigo-600" />
+                    <span>Datos y Diagnóstico Reportados por el Técnico</span>
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditTechData(inspectOrder)}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-[#040057] font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer self-start sm:self-auto"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Corregir Ortografía y Datos Técnicos</span>
+                  </button>
                 </div>
-                <div>
-                  <span className="font-bold text-[#040057]">Diagnóstico Registrado por Técnico:</span>
-                  <p className="text-slate-700">{inspectOrder.initialDiagnosis || 'Diagnóstico de taller'}</p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="font-bold text-slate-700 block text-[11px] uppercase text-slate-400">Falla Reportada Inicial:</span>
+                    <p className="text-slate-800 mt-0.5">{inspectOrder.vehicle.failureDescription}</p>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-700 block text-[11px] uppercase text-slate-400">Diagnóstico en Sitio (Técnico):</span>
+                    <p className="text-slate-800 mt-0.5 font-medium">{inspectOrder.initialDiagnosis || 'Diagnóstico de taller'}</p>
+                  </div>
                 </div>
+
+                {inspectOrder.workPerformedDetail && (
+                  <div className="pt-2 border-t border-slate-200 text-xs">
+                    <span className="font-bold text-slate-700 block text-[11px] uppercase text-slate-400">Servicio Realizado Detallado:</span>
+                    <p className="text-slate-800 mt-0.5 leading-relaxed">{inspectOrder.workPerformedDetail}</p>
+                  </div>
+                )}
               </div>
 
-              {/* Galería completa clasificada: ANTES / DURANTE / DESPUÉS */}
+              {/* Galería completa clasificada: 1. ANTES y 2. CORRECTIVO REALIZADO */}
               <div className="space-y-4">
-                <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-1.5">
-                  <Camera className="w-4 h-4 text-indigo-600" />
-                  Inspección Fotográfica Obligatoria
-                </h4>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-indigo-600" />
+                    <span>Inspección Fotográfica Obligatoria (2 Pasos)</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-500">
+                    Puedes hacer clic en "✏️ Corregir" en cualquier foto para rectificar errores ortográficos en el título y notas.
+                  </span>
+                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {['antes', 'durante', 'despues'].map((phaseKey) => {
-                    const photos = inspectOrder.evidences.filter(e => e.phase === phaseKey);
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Fase 1: 1. ANTES */}
+                  {(() => {
+                    const antesPhotos = inspectOrder.evidences.filter(e => e.phase === 'antes');
                     return (
-                      <div key={phaseKey} className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                        <div className="font-bold text-slate-800 uppercase flex items-center justify-between pb-1 border-b border-slate-200">
-                          <span>Fase: {phaseKey}</span>
-                          <span className="text-[10px] text-slate-500">{photos.length} fotos</span>
+                      <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
+                        <div className="font-bold text-slate-800 uppercase flex items-center justify-between pb-1.5 border-b border-slate-200">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                            <span>1. ANTES (Falla Inicial)</span>
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            antesPhotos.length > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {antesPhotos.length > 0 ? `${antesPhotos.length} fotos` : '⚠️ Sin evidencias'}
+                          </span>
                         </div>
 
-                        {photos.map(p => (
-                          <div key={p.id} className="bg-white p-2 rounded-lg border border-slate-200 space-y-1">
-                            <img src={p.url} alt={p.title} className="w-full h-32 object-cover rounded" />
-                            <div className="font-bold text-slate-800">{p.title}</div>
-                            {p.notes && <div className="text-slate-500 text-[11px]">{p.notes}</div>}
-                          </div>
-                        ))}
+                        <div className="space-y-2">
+                          {antesPhotos.map(p => (
+                            <div key={p.id} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                              <div className="relative group rounded-lg overflow-hidden bg-slate-900 cursor-pointer" onClick={() => setZoomPhoto(p)}>
+                                <img src={p.url} alt={p.title} className="w-full h-36 object-contain bg-slate-950 rounded-lg" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
+                                  <Eye className="w-4 h-4" />
+                                  <span>Ver en tamaño completo</span>
+                                </div>
+                              </div>
 
-                        {photos.length === 0 && (
-                          <div className="py-6 text-center text-rose-500 border border-dashed border-rose-300 rounded-lg">
-                            ⚠️ Falta evidencia en esta fase
-                          </div>
-                        )}
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-bold text-slate-900 line-clamp-1">{p.title}</div>
+                                  {p.notes && <div className="text-slate-600 text-[11px] line-clamp-2 mt-0.5">{p.notes}</div>}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditEvidence(inspectOrder, p)}
+                                  className="px-2 py-1 rounded-md bg-blue-50 text-[#040057] hover:bg-blue-100 font-bold text-[10px] border border-blue-200 flex items-center gap-1 cursor-pointer shrink-0"
+                                  title="Corregir ortografía de la evidencia"
+                                >
+                                  <Edit3 className="w-3 h-3 text-amber-500" />
+                                  <span>Corregir</span>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+
+                          {antesPhotos.length === 0 && (
+                            <div className="py-8 text-center text-rose-500 border border-dashed border-rose-300 rounded-xl bg-white">
+                              ⚠️ Falta evidencia obligatoria en fase "1. Antes"
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
-                  })}
+                  })()}
+
+                  {/* Fase 2: 2. CORRECTIVO REALIZADO */}
+                  {(() => {
+                    const correctivoPhotos = inspectOrder.evidences.filter(e => 
+                      e.phase === 'correctivo_realizado' || e.phase === 'durante' || e.phase === 'despues'
+                    );
+                    return (
+                      <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
+                        <div className="font-bold text-slate-800 uppercase flex items-center justify-between pb-1.5 border-b border-slate-200">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                            <span>2. CORRECTIVO REALIZADO</span>
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            correctivoPhotos.length > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {correctivoPhotos.length > 0 ? `${correctivoPhotos.length} fotos` : '⚠️ Sin evidencias'}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2">
+                          {correctivoPhotos.map(p => (
+                            <div key={p.id} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                              <div className="relative group rounded-lg overflow-hidden bg-slate-900 cursor-pointer" onClick={() => setZoomPhoto(p)}>
+                                <img src={p.url} alt={p.title} className="w-full h-36 object-contain bg-slate-950 rounded-lg" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
+                                  <Eye className="w-4 h-4" />
+                                  <span>Ver en tamaño completo</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-bold text-slate-900 line-clamp-1">{p.title}</div>
+                                  {p.notes && <div className="text-slate-600 text-[11px] line-clamp-2 mt-0.5">{p.notes}</div>}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditEvidence(inspectOrder, p)}
+                                  className="px-2 py-1 rounded-md bg-blue-50 text-[#040057] hover:bg-blue-100 font-bold text-[10px] border border-blue-200 flex items-center gap-1 cursor-pointer shrink-0"
+                                  title="Corregir ortografía de la evidencia"
+                                >
+                                  <Edit3 className="w-3 h-3 text-amber-500" />
+                                  <span>Corregir</span>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+
+                          {correctivoPhotos.length === 0 && (
+                            <div className="py-8 text-center text-rose-500 border border-dashed border-rose-300 rounded-xl bg-white">
+                              ⚠️ Falta evidencia obligatoria en fase "2. Correctivo realizado"
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -998,6 +1556,63 @@ export const GerenciaPortal: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITORIAL PARA GERENCIA (Corregir ortografía y evidencias del técnico) */}
+      {editingTargetOrder && (editingEvidencePhoto || showEditTechDataModal) && (
+        <GerenciaEvidenceEditModal
+          isOpen={Boolean(editingEvidencePhoto || showEditTechDataModal)}
+          onClose={() => {
+            setEditingEvidencePhoto(null);
+            setShowEditTechDataModal(false);
+          }}
+          order={editingTargetOrder}
+          evidenceToEdit={editingEvidencePhoto}
+          onSaveEvidence={handleSaveEditedEvidence}
+          onSaveTechnicalData={handleSaveEditedTechData}
+        />
+      )}
+
+      {/* MODAL LIGHTBOX PARA VISUALIZACIÓN EN ALTA RESOLUCIÓN */}
+      {zoomPhoto && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xs p-3 sm:p-5 animate-fadeIn"
+          onClick={() => setZoomPhoto(null)}
+        >
+          <div 
+            className="relative max-w-4xl max-h-[92vh] w-full bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-700 flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-3.5 bg-black/60 flex items-center justify-between text-white shrink-0">
+              <div className="min-w-0 pr-4">
+                <span className="font-bold text-sm block truncate">{zoomPhoto.title}</span>
+                <span className="text-[11px] text-slate-300">
+                  Fase: {zoomPhoto.phase === 'antes' ? '1. Antes' : '2. Correctivo realizado'}
+                </span>
+              </div>
+              <button
+                onClick={() => setZoomPhoto(null)}
+                className="p-1.5 rounded-lg hover:bg-white/20 text-white cursor-pointer"
+                title="Cerrar vista previa"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto flex items-center justify-center p-3 bg-black">
+              <img
+                src={zoomPhoto.url}
+                alt={zoomPhoto.title}
+                className="max-h-[72vh] max-w-full object-contain rounded-lg shadow-lg"
+              />
+            </div>
+            {zoomPhoto.notes && (
+              <div className="p-3 bg-slate-950 text-slate-200 text-xs border-t border-slate-800">
+                <strong className="text-amber-400">Observaciones técnicas del técnico: </strong>
+                <span>{zoomPhoto.notes}</span>
+              </div>
+            )}
           </div>
         </div>
       )}

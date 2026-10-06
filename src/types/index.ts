@@ -32,9 +32,11 @@ export interface VehicleInfo {
   odometerReading?: string; // Odómetro / Horómetro (ej. 130618 KM)
 }
 
+export type EvidencePhase = 'antes' | 'correctivo_realizado' | 'durante' | 'despues';
+
 export interface EvidencePhoto {
   id: string;
-  phase: 'antes' | 'durante' | 'despues';
+  phase: EvidencePhase;
   url: string;
   title: string;
   notes?: string;

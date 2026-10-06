@@ -19,11 +19,13 @@ import {
   FileSpreadsheet,
   PenTool,
   Eye,
-  FileText
+  FileText,
+  Lock
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, EvidencePhoto, PartUsed } from '../../types';
 import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
+import { EvidenceCaptureModal } from '../common/EvidenceCaptureModal';
 
 export const TecnicoPortal: React.FC = () => {
   const { 
@@ -31,7 +33,8 @@ export const TecnicoPortal: React.FC = () => {
     setActiveModule, 
     orders, 
     startTechnicianWork, 
-    addEvidencePhoto, 
+    addEvidencePhoto,
+    addBatchEvidences, 
     removeEvidencePhoto, 
     addPartUsed, 
     removePartUsed, 
@@ -57,12 +60,10 @@ export const TecnicoPortal: React.FC = () => {
   const [initialDiagnosisText, setInitialDiagnosisText] = useState('');
   const [showStartModal, setShowStartModal] = useState(false);
 
-  // Evidence upload form
-  const [evidencePhase, setEvidencePhase] = useState<'antes' | 'durante' | 'despues'>('antes');
-  const [evidenceTitle, setEvidenceTitle] = useState('');
-  const [evidenceNotes, setEvidenceNotes] = useState('');
-  const [evidenceUrl, setEvidenceUrl] = useState('');
-  const [showAddEvidence, setShowAddEvidence] = useState(false);
+  // Evidence upload modal state (Mobile Camera & Multi-card up to 15)
+  const [showEvidenceCaptureModal, setShowEvidenceCaptureModal] = useState(false);
+  const [captureInitialPhase, setCaptureInitialPhase] = useState<'antes' | 'correctivo_realizado'>('antes');
+  const [lightboxPhoto, setLightboxPhoto] = useState<EvidencePhoto | null>(null);
 
   // Part used form
   const [partNumber, setPartNumber] = useState('');
@@ -107,6 +108,25 @@ export const TecnicoPortal: React.FC = () => {
 
   const currentOrder = orders.find(o => o.id === selectedOrderId) || myAssignedOrders[0] || orders[0];
 
+  // Filtro de fases según la nueva regla (1. Antes y 2. Correctivo realizado)
+  const antesEvidences = currentOrder?.evidences.filter(e => e.phase === 'antes') || [];
+  const correctivoEvidences = currentOrder?.evidences.filter(e => 
+    e.phase === 'correctivo_realizado' || e.phase === 'durante' || e.phase === 'despues'
+  ) || [];
+
+  const handleSubmitForReview = () => {
+    if (!currentOrder) return;
+    if (antesEvidences.length === 0) {
+      alert('⚠️ Paso 1 Requerido: Debes cargar al menos 1 evidencia fotográfica en "1. Antes" antes de enviar a revisión.');
+      return;
+    }
+    if (correctivoEvidences.length === 0) {
+      alert('⚠️ Paso 2 Requerido: Debes cargar al menos 1 evidencia fotográfica en "2. Correctivo realizado" antes de enviar a revisión.');
+      return;
+    }
+    submitEvidencesForReview(currentOrder.id);
+  };
+
   // Sync report state whenever currentOrder changes
   useEffect(() => {
     if (currentOrder) {
@@ -130,28 +150,23 @@ export const TecnicoPortal: React.FC = () => {
     setInitialDiagnosisText('');
   };
 
-  const handleAddEvidenceSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentOrder || !evidenceTitle.trim()) return;
+  const handleOpenEvidenceCapture = (phase: 'antes' | 'correctivo_realizado' = 'antes') => {
+    // If attempting to open in step 2 but no photos in antes, block with alert
+    const antesCount = currentOrder?.evidences.filter(e => e.phase === 'antes').length || 0;
+    if (phase === 'correctivo_realizado' && antesCount === 0) {
+      alert('⚠️ Paso Bloqueado: Debes tomar o subir al menos 1 fotografía en "1. Antes" antes de poder registrar evidencias en "2. Correctivo realizado".');
+      setCaptureInitialPhase('antes');
+      setShowEvidenceCaptureModal(true);
+      return;
+    }
 
-    // Default sample image if empty
-    const defaultSamplePhotos = {
-      antes: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&w=600&q=80',
-      durante: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=600&q=80',
-      despues: 'https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=600&q=80',
-    };
+    setCaptureInitialPhase(phase);
+    setShowEvidenceCaptureModal(true);
+  };
 
-    addEvidencePhoto(currentOrder.id, {
-      phase: evidencePhase,
-      title: evidenceTitle.trim(),
-      notes: evidenceNotes.trim() || undefined,
-      url: evidenceUrl.trim() || defaultSamplePhotos[evidencePhase],
-    });
-
-    setEvidenceTitle('');
-    setEvidenceNotes('');
-    setEvidenceUrl('');
-    setShowAddEvidence(false);
+  const handleSaveBatchEvidences = (photos: Omit<EvidencePhoto, 'id' | 'timestamp'>[]) => {
+    if (!currentOrder || photos.length === 0) return;
+    addBatchEvidences(currentOrder.id, photos);
   };
 
   const handleAddPartSubmit = (e: React.FormEvent) => {
@@ -443,135 +458,257 @@ export const TecnicoPortal: React.FC = () => {
             )}
           </div>
 
-          {/* SECCIÓN OBLIGATORIA: EVIDENCIAS FOTOGRÁFICAS (Antes, Durante, Después) */}
+          {/* SECCIÓN OBLIGATORIA: EVIDENCIAS FOTOGRÁFICAS (2 PASOS OBLIGATORIOS) */}
           <div className="space-y-4 pt-2 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 min-w-0">
               <div className="min-w-0">
-                <h3 className="font-bold text-[#040057] text-sm sm:text-base flex items-center gap-1.5">
-                  <Camera className="w-4 h-4 text-indigo-600 shrink-0" />
-                  Carga Obligatoria de Evidencias Fotográficas (Paso D)
+                <h3 className="font-bold text-[#040057] text-sm sm:text-base flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-indigo-600 shrink-0" />
+                  <span>Carga Obligatoria de Evidencias Fotográficas</span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-100 text-[#040057] font-bold">
+                    {currentOrder.evidences.length} de 15 máx
+                  </span>
                 </h3>
-                <p className="text-[11px] text-slate-500">
-                  Captura obligatoria de fotos y notas clasificadas: ANTES (falla inicial), DURANTE (proceso/desarme) y DESPUÉS (reparación concluida).
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Toma fotos con la cámara móvil o sube archivos. Debes completar <strong>1. Antes</strong> (mínimo 1) para poder avanzar a <strong>2. Correctivo realizado</strong>.
                 </p>
               </div>
 
+              {/* Botón principal de apertura de cámara */}
               <button
-                onClick={() => setShowAddEvidence(true)}
-                className="px-3.5 py-1.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shrink-0"
+                type="button"
+                onClick={() => handleOpenEvidenceCapture('antes')}
+                className="px-4 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-2 self-start sm:self-auto shrink-0"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Agregar Foto de Evidencia</span>
+                <Camera className="w-4 h-4 text-emerald-400" />
+                <span>Tomar Fotos con Cámara (1 a 15)</span>
               </button>
             </div>
 
-            {/* Clasificación en 3 columnas: ANTES / DURANTE / DESPUÉS */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 min-w-0">
+            {/* Cuadrícula de 2 Pasos: 1. ANTES y 2. CORRECTIVO REALIZADO */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
               
-              {/* 1. ANTES */}
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2 min-w-0">
-                <div className="flex items-center justify-between pb-1 border-b border-slate-200">
-                  <span className="text-xs font-bold text-slate-800 uppercase flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-amber-500"></span> 1. ANTES
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-bold">
-                    {currentOrder.evidences.filter(e => e.phase === 'antes').length} fotos
-                  </span>
+              {/* PASO 1: 1. ANTES */}
+              <div className="bg-slate-50/90 rounded-2xl p-4 border-2 border-slate-200 hover:border-slate-300 transition space-y-3 min-w-0">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0"></span>
+                    <span className="text-xs sm:text-sm font-bold text-slate-800 uppercase">
+                      1. ANTES (Falla Inicial)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      antesEvidences.length > 0 
+                        ? 'bg-emerald-100 text-emerald-800' 
+                        : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {antesEvidences.length > 0 ? `✓ ${antesEvidences.length} foto(s)` : '⚠️ Mínimo 1 obligatoria'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  {currentOrder.evidences.filter(e => e.phase === 'antes').map(ev => (
-                    <div key={ev.id} className="bg-white rounded-lg p-2 border border-slate-200 shadow-2xs space-y-1 text-xs min-w-0">
-                      <img src={ev.url} alt={ev.title} className="w-full h-28 object-cover rounded-md" />
-                      <div className="font-bold text-slate-800 line-clamp-1 break-words">{ev.title}</div>
-                      {ev.notes && <div className="text-[11px] text-slate-500 line-clamp-2 break-words">{ev.notes}</div>}
-                      <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1">
-                        <span>{new Date(ev.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
+                <div className="flex justify-between items-center text-[11px] text-slate-500">
+                  <span>Evidencia de componentes dañados y falla detectada en sitio</span>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvidenceCapture('antes')}
+                    className="text-[#040057] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Tomar / Subir</span>
+                  </button>
+                </div>
+
+                {/* Listado de evidencias de Antes */}
+                <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                  {antesEvidences.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs space-y-2 text-xs min-w-0 hover:border-indigo-300 transition"
+                    >
+                      <div className="relative group rounded-lg overflow-hidden bg-slate-900 cursor-pointer" onClick={() => setLightboxPhoto(ev)}>
+                        <img
+                          src={ev.url}
+                          alt={ev.title}
+                          className="w-full h-36 object-contain bg-slate-950 rounded-lg group-hover:scale-102 transition duration-200"
+                        />
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold gap-1">
+                          <Eye className="w-4 h-4" />
+                          <span>Ver en tamaño completo</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-slate-800 line-clamp-1 break-words">{ev.title}</div>
+                          {ev.notes && (
+                            <div className="text-[11px] text-slate-600 line-clamp-2 break-words mt-0.5">
+                              {ev.notes}
+                            </div>
+                          )}
+                        </div>
+
                         <button
+                          type="button"
                           onClick={() => removeEvidencePhoto(currentOrder.id, ev.id)}
-                          className="text-rose-500 hover:text-rose-700"
+                          className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 cursor-pointer shrink-0"
+                          title="Eliminar evidencia"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
+                      </div>
+
+                      <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-100">
+                        <span>{new Date(ev.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">Fase 1: Antes</span>
                       </div>
                     </div>
                   ))}
-                  {currentOrder.evidences.filter(e => e.phase === 'antes').length === 0 && (
-                    <div className="text-center py-6 text-slate-400 text-xs border border-dashed rounded-lg">
-                      Sin fotos de fase "Antes"
+
+                  {antesEvidences.length === 0 && (
+                    <div className="p-6 text-center rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50 space-y-2">
+                      <Camera className="w-8 h-8 text-amber-600 mx-auto" />
+                      <div className="font-bold text-amber-900 text-xs">Sin evidencias de "1. Antes"</div>
+                      <p className="text-[11px] text-amber-700 max-w-xs mx-auto">
+                        Captura mínimo 1 fotografía con la cámara para poder continuar al paso 2 (Correctivo realizado).
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEvidenceCapture('antes')}
+                        className="mt-2 px-4 py-1.5 rounded-lg bg-[#040057] text-white font-bold text-xs hover:bg-[#070085] cursor-pointer inline-flex items-center gap-1.5"
+                      >
+                        <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Tomar Foto del Antes</span>
+                      </button>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* 2. DURANTE */}
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2 min-w-0">
-                <div className="flex items-center justify-between pb-1 border-b border-slate-200">
-                  <span className="text-xs font-bold text-slate-800 uppercase flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-blue-500"></span> 2. DURANTE
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-bold">
-                    {currentOrder.evidences.filter(e => e.phase === 'durante').length} fotos
-                  </span>
+              {/* PASO 2: 2. CORRECTIVO REALIZADO */}
+              <div className={`rounded-2xl p-4 border-2 transition space-y-3 min-w-0 ${
+                antesEvidences.length === 0
+                  ? 'bg-slate-100/80 border-slate-300/80'
+                  : 'bg-slate-50/90 border-slate-200 hover:border-slate-300'
+              }`}>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    {antesEvidences.length === 0 ? (
+                      <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                    ) : (
+                      <span className="w-3 h-3 rounded-full bg-emerald-500 shrink-0"></span>
+                    )}
+                    <span className="text-xs sm:text-sm font-bold text-slate-800 uppercase">
+                      2. CORRECTIVO REALIZADO
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      antesEvidences.length === 0
+                        ? 'bg-slate-200 text-slate-600'
+                        : correctivoEvidences.length > 0
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {antesEvidences.length === 0
+                        ? 'Bloqueado'
+                        : correctivoEvidences.length > 0
+                        ? `✓ ${correctivoEvidences.length} foto(s)`
+                        : '⚠️ Mínimo 1 obligatoria'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  {currentOrder.evidences.filter(e => e.phase === 'durante').map(ev => (
-                    <div key={ev.id} className="bg-white rounded-lg p-2 border border-slate-200 shadow-2xs space-y-1 text-xs min-w-0">
-                      <img src={ev.url} alt={ev.title} className="w-full h-28 object-cover rounded-md" />
-                      <div className="font-bold text-slate-800 line-clamp-1 break-words">{ev.title}</div>
-                      {ev.notes && <div className="text-[11px] text-slate-500 line-clamp-2 break-words">{ev.notes}</div>}
-                      <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1">
-                        <span>{new Date(ev.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
-                        <button
-                          onClick={() => removeEvidencePhoto(currentOrder.id, ev.id)}
-                          className="text-rose-500 hover:text-rose-700"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                <div className="flex justify-between items-center text-[11px] text-slate-500">
+                  <span>Reparación efectuada, refacciones nuevas montadas y pruebas</span>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvidenceCapture('correctivo_realizado')}
+                    className="text-[#040057] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Tomar / Subir</span>
+                  </button>
+                </div>
+
+                {/* Listado de evidencias de Correctivo Realizado */}
+                <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                  {antesEvidences.length === 0 ? (
+                    <div className="p-6 text-center rounded-xl border-2 border-dashed border-slate-300 bg-white/70 space-y-2">
+                      <Lock className="w-8 h-8 text-amber-500 mx-auto" />
+                      <div className="font-bold text-slate-700 text-xs">Paso 2 Bloqueado</div>
+                      <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                        Debes capturar y guardar al menos 1 fotografía en <strong>"1. Antes"</strong> para habilitar este paso.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEvidenceCapture('antes')}
+                        className="mt-2 px-3.5 py-1.5 rounded-lg border border-[#040057] text-[#040057] font-bold text-xs hover:bg-blue-50 cursor-pointer inline-flex items-center gap-1"
+                      >
+                        <span>Ir a Paso 1 (Antes)</span>
+                      </button>
+                    </div>
+                  ) : correctivoEvidences.length === 0 ? (
+                    <div className="p-6 text-center rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 space-y-2">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
+                      <div className="font-bold text-emerald-900 text-xs">Paso 1 Completado</div>
+                      <p className="text-[11px] text-emerald-700 max-w-xs mx-auto">
+                        Ahora captura mínimo 1 fotografía del trabajo correctivo finalizado y pruebas.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEvidenceCapture('correctivo_realizado')}
+                        className="mt-2 px-4 py-1.5 rounded-lg bg-[#040057] text-white font-bold text-xs hover:bg-[#070085] cursor-pointer inline-flex items-center gap-1.5"
+                      >
+                        <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Tomar Foto de Correctivo</span>
+                      </button>
+                    </div>
+                  ) : (
+                    correctivoEvidences.map((ev) => (
+                      <div
+                        key={ev.id}
+                        className="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs space-y-2 text-xs min-w-0 hover:border-emerald-300 transition"
+                      >
+                        <div className="relative group rounded-lg overflow-hidden bg-slate-900 cursor-pointer" onClick={() => setLightboxPhoto(ev)}>
+                          <img
+                            src={ev.url}
+                            alt={ev.title}
+                            className="w-full h-36 object-contain bg-slate-950 rounded-lg group-hover:scale-102 transition duration-200"
+                          />
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold gap-1">
+                            <Eye className="w-4 h-4" />
+                            <span>Ver en tamaño completo</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-slate-800 line-clamp-1 break-words">{ev.title}</div>
+                            {ev.notes && (
+                              <div className="text-[11px] text-slate-600 line-clamp-2 break-words mt-0.5">
+                                {ev.notes}
+                              </div>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeEvidencePhoto(currentOrder.id, ev.id)}
+                            className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 cursor-pointer shrink-0"
+                            title="Eliminar evidencia"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-100">
+                          <span>{new Date(ev.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">Fase 2: Correctivo</span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  {currentOrder.evidences.filter(e => e.phase === 'durante').length === 0 && (
-                    <div className="text-center py-6 text-slate-400 text-xs border border-dashed rounded-lg">
-                      Sin fotos de fase "Durante"
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 3. DESPUÉS */}
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2 min-w-0">
-                <div className="flex items-center justify-between pb-1 border-b border-slate-200">
-                  <span className="text-xs font-bold text-slate-800 uppercase flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> 3. DESPUÉS
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-bold">
-                    {currentOrder.evidences.filter(e => e.phase === 'despues').length} fotos
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  {currentOrder.evidences.filter(e => e.phase === 'despues').map(ev => (
-                    <div key={ev.id} className="bg-white rounded-lg p-2 border border-slate-200 shadow-2xs space-y-1 text-xs min-w-0">
-                      <img src={ev.url} alt={ev.title} className="w-full h-28 object-cover rounded-md" />
-                      <div className="font-bold text-slate-800 line-clamp-1 break-words">{ev.title}</div>
-                      {ev.notes && <div className="text-[11px] text-slate-500 line-clamp-2 break-words">{ev.notes}</div>}
-                      <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1">
-                        <span>{new Date(ev.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
-                        <button
-                          onClick={() => removeEvidencePhoto(currentOrder.id, ev.id)}
-                          className="text-rose-500 hover:text-rose-700"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {currentOrder.evidences.filter(e => e.phase === 'despues').length === 0 && (
-                    <div className="text-center py-6 text-slate-400 text-xs border border-dashed rounded-lg">
-                      Sin fotos de fase "Después"
-                    </div>
+                    ))
                   )}
                 </div>
               </div>
@@ -794,100 +931,55 @@ export const TecnicoPortal: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL PARA CARGAR EVIDENCIA FOTOGRÁFICA */}
-      {showAddEvidence && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-            <h3 className="text-base font-bold text-[#040057] mb-1">
-              Carga de Evidencia Fotográfica
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Asigna la fase obligatoria correspondiente a la fotografía.
-            </p>
+      {/* MODAL PARA CARGAR EVIDENCIA FOTOGRÁFICA (Cámara móvil, galería, 1 a 15 fotos) */}
+      {showEvidenceCaptureModal && currentOrder && (
+        <EvidenceCaptureModal
+          isOpen={showEvidenceCaptureModal}
+          onClose={() => setShowEvidenceCaptureModal(false)}
+          order={currentOrder}
+          initialPhase={captureInitialPhase}
+          onSave={handleSaveBatchEvidences}
+        />
+      )}
 
-            <form onSubmit={handleAddEvidenceSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Fase de la Evidencia *
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'antes', label: '1. ANTES' },
-                    { id: 'durante', label: '2. DURANTE' },
-                    { id: 'despues', label: '3. DESPUÉS' },
-                  ].map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => setEvidencePhase(f.id as any)}
-                      className={`py-2 rounded-lg font-bold border transition ${
-                        evidencePhase === f.id
-                          ? 'bg-[#040057] text-white border-[#040057]'
-                          : 'bg-slate-50 text-slate-700 border-slate-200'
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
+      {/* MODAL LIGHTBOX PARA VISUALIZACIÓN EN TAMAÑO COMPLETO */}
+      {lightboxPhoto && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xs p-3 sm:p-5 animate-fadeIn" 
+          onClick={() => setLightboxPhoto(null)}
+        >
+          <div 
+            className="relative max-w-4xl max-h-[92vh] w-full bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-700 flex flex-col" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-3.5 bg-black/60 flex items-center justify-between text-white shrink-0">
+              <div className="min-w-0 pr-4">
+                <span className="font-bold text-sm block truncate">{lightboxPhoto.title}</span>
+                <span className="text-[11px] text-slate-300">
+                  Fase: {lightboxPhoto.phase === 'antes' ? '1. Antes' : '2. Correctivo realizado'} • {new Date(lightboxPhoto.timestamp).toLocaleString('es-MX')}
+                </span>
               </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Título de la Foto / Componente *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={evidenceTitle}
-                  onChange={(e) => setEvidenceTitle(e.target.value)}
-                  placeholder="Ej. Desgaste en balatas / Prueba de presión a 120 PSI"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#040057]"
-                />
+              <button
+                onClick={() => setLightboxPhoto(null)}
+                className="p-1.5 rounded-lg hover:bg-white/20 text-white cursor-pointer"
+                title="Cerrar vista previa"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto flex items-center justify-center p-3 bg-black">
+              <img
+                src={lightboxPhoto.url}
+                alt={lightboxPhoto.title}
+                className="max-h-[72vh] max-w-full object-contain rounded-lg shadow-lg"
+              />
+            </div>
+            {lightboxPhoto.notes && (
+              <div className="p-3 bg-slate-950 text-slate-200 text-xs border-t border-slate-800">
+                <strong className="text-blue-300">Notas de inspección: </strong>
+                <span>{lightboxPhoto.notes}</span>
               </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Notas Técnicas de Observación
-                </label>
-                <textarea
-                  rows={2}
-                  value={evidenceNotes}
-                  onChange={(e) => setEvidenceNotes(e.target.value)}
-                  placeholder="Detalles de torque, número de serie de repuesto o medición..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#040057]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  URL de Imagen (o dejar vacío para usar muestra predefinida de alta resolución)
-                </label>
-                <input
-                  type="url"
-                  value={evidenceUrl}
-                  onChange={(e) => setEvidenceUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#040057]"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddEvidence(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-semibold"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#040057] text-white font-bold shadow-xs"
-                >
-                  Guardar Evidencia
-                </button>
-              </div>
-            </form>
+            )}
           </div>
         </div>
       )}

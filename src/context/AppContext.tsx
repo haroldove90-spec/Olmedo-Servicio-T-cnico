@@ -44,7 +44,10 @@ interface AppContextType {
   assignTechnician: (orderId: string, technicianId: string, priority?: 'baja' | 'media' | 'alta' | 'urgente') => void;
   startTechnicianWork: (orderId: string, initialDiagnosis: string) => void;
   addEvidencePhoto: (orderId: string, photo: Omit<EvidencePhoto, 'id' | 'timestamp'>) => void;
+  addBatchEvidences: (orderId: string, photos: Omit<EvidencePhoto, 'id' | 'timestamp'>[]) => void;
+  updateEvidencePhoto: (orderId: string, photoId: string, updates: Partial<EvidencePhoto>) => void;
   removeEvidencePhoto: (orderId: string, photoId: string) => void;
+  updateOrderGeneral: (orderId: string, updates: Partial<ServiceOrder>) => void;
   addPartUsed: (orderId: string, part: Omit<PartUsed, 'id'>) => void;
   removePartUsed: (orderId: string, partId: string) => void;
   submitEvidencesForReview: (orderId: string) => void;
@@ -357,6 +360,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
+  const addBatchEvidences = (orderId: string, photos: Omit<EvidencePhoto, 'id' | 'timestamp'>[]) => {
+    const newItems: EvidencePhoto[] = photos.map((p, idx) => ({
+      ...p,
+      id: `ev-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+      timestamp: new Date().toISOString(),
+    }));
+
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        return {
+          ...o,
+          evidences: [...o.evidences, ...newItems],
+        };
+      }
+      return o;
+    }));
+    addToast('success', `${newItems.length} Evidencias Guardadas`, 'Se agregaron las fotografías y notas a la orden.');
+  };
+
+  const updateEvidencePhoto = (orderId: string, photoId: string, updates: Partial<EvidencePhoto>) => {
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        return {
+          ...o,
+          evidences: o.evidences.map(e => {
+            if (e.id === photoId) {
+              return { ...e, ...updates };
+            }
+            return e;
+          }),
+        };
+      }
+      return o;
+    }));
+    addToast('success', 'Evidencia Actualizada', 'Los datos y observaciones fueron guardados exitosamente.');
+  };
+
+  const updateOrderGeneral = (orderId: string, updates: Partial<ServiceOrder>) => {
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        return {
+          ...o,
+          ...updates,
+          vehicle: updates.vehicle ? { ...o.vehicle, ...updates.vehicle } : o.vehicle,
+        };
+      }
+      return o;
+    }));
+    addToast('success', 'Registro Actualizado', 'La información técnica fue corregida y guardada.');
+  };
+
   const addPartUsed = (orderId: string, part: Omit<PartUsed, 'id'>) => {
     const newPart: PartUsed = {
       ...part,
@@ -639,7 +693,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         assignTechnician,
         startTechnicianWork,
         addEvidencePhoto,
+        addBatchEvidences,
+        updateEvidencePhoto,
         removeEvidencePhoto,
+        updateOrderGeneral,
         addPartUsed,
         removePartUsed,
         submitEvidencesForReview,

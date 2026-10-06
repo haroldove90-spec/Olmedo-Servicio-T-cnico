@@ -137,7 +137,7 @@ export const Sidebar: React.FC = () => {
               },
               {
                 id: 'evidencias',
-                label: 'Carga de Evidencias (Antes/Durante/Después)',
+                label: 'Carga de Evidencias (1. Antes / 2. Correctivo)',
                 icon: <Camera className="w-5 h-5" />,
                 badge: rejected > 0 ? rejected : undefined,
                 badgeColor: 'bg-rose-600',
@@ -167,6 +167,11 @@ export const Sidebar: React.FC = () => {
                 icon: <CheckSquare className="w-5 h-5" />,
                 badge: pendingReview > 0 ? pendingReview : undefined,
                 badgeColor: 'bg-amber-600',
+              },
+              {
+                id: 'registros_tecnicos',
+                label: 'Registros y Evidencias del Técnico',
+                icon: <Camera className="w-5 h-5" />,
               },
               {
                 id: 'reportes_excel',
