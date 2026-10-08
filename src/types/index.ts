@@ -21,6 +21,8 @@ export interface VehicleInfo {
   type: VehicleType;
   plates: string;
   economicNumber: string;
+  brand?: string; // Marca de la unidad (ej. ANKAI, Kenworth, Freightliner, Volvo)
+  model?: string; // Modelo de la unidad (ej. HFF6120GZ-4, T680, M2, 9800)
   brandModel?: string;
   location: string;
   failureDescription: string;

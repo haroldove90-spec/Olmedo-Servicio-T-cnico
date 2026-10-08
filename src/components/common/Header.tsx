@@ -42,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSupabaseModal, onOpenWorkf
             >
               <img
                 src="https://appdesignproyectos.com/olmedologo.png"
-                alt="Olemdo Servicio Técnico"
+                alt="Olmedo Servicio Técnico"
                 className="h-12 xs:h-14 sm:h-16 md:h-18 lg:h-20 w-auto object-contain block max-w-[190px] xs:max-w-[240px] sm:max-w-[320px] md:max-w-none"
               />
             </button>

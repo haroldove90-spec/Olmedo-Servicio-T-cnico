@@ -163,16 +163,16 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
           className="bg-white p-6 sm:p-8 md:p-9 border border-slate-300 rounded-xl shadow-lg max-w-[816px] mx-auto text-slate-900 font-sans leading-tight text-xs print:p-0 print:border-none print:shadow-none print:m-0 print:max-w-none print:rounded-none"
         >
           
-          {/* Cabecera Institucional Olemdo */}
+          {/* Cabecera Institucional Olmedo */}
           <div className="flex items-start justify-between pb-3.5 border-b-2 border-slate-900 mb-3.5 gap-4">
             <div className="space-y-1">
               <img
                 src="https://appdesignproyectos.com/olmedologo.png"
-                alt="Olemdo Servicio Técnico"
+                alt="Olmedo Servicio Técnico"
                 className="h-12 sm:h-14 w-auto object-contain block"
               />
               <div className="text-[11px] font-black text-[#040057] tracking-tight">
-                OLEMDO SERVICIO TÉCNICO DIÉSEL Y TALLER PESADO S.A. DE C.V.
+                OLMEDO SERVICIO TÉCNICO DIÉSEL Y TALLER PESADO S.A. DE C.V.
               </div>
               <div className="text-[10px] text-slate-600">
                 Mantenimiento Preventivo y Correctivo • Rescate Carretero • Asistencia Vial 24/7
@@ -215,7 +215,7 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
                 Ficha Técnica del Vehículo
               </div>
               <div><strong>Tipo de Unidad:</strong> {order.vehicle.type.toUpperCase()}</div>
-              <div><strong>Marca / Modelo:</strong> {order.vehicle.brandModel || 'No especificado'}</div>
+              <div><strong>Marca:</strong> {order.vehicle.brand || (order.vehicle.brandModel?.split(' ')[0]) || 'No especificada'} • <strong>Modelo:</strong> {order.vehicle.model || order.vehicle.brandModel || 'No especificado'}</div>
               <div><strong>Placas:</strong> {order.vehicle.plates} • <strong>Económico:</strong> {order.vehicle.economicNumber}</div>
               <div><strong>Odómetro / Horas:</strong> {order.vehicle.odometerReading || 'En revisión'}</div>
             </div>
@@ -308,7 +308,7 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
                 • Precios expresados en Moneda Nacional (MXN).
               </p>
               <p className="text-slate-600">
-                • Garantía por escrito de <strong>90 días naturales</strong> en toda mano de obra mecánica efectuada por personal de Olemdo.
+                • Garantía por escrito de <strong>90 días naturales</strong> en toda mano de obra mecánica efectuada por personal de Olmedo.
               </p>
               <p className="text-slate-600">
                 • Facturación electrónica válida con CFDI 4.0 al confirmar la orden.
@@ -358,10 +358,10 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
           <div className="grid grid-cols-2 gap-8 pt-4 border-t-2 border-slate-800 text-center text-xs break-inside-avoid print:pt-4">
             <div className="space-y-1">
               <div className="h-9 border-b border-slate-400 flex items-center justify-center text-[10px] text-slate-500 italic max-w-[240px] mx-auto">
-                {order.adminApprovedBy ? `Firma digital: ${order.adminApprovedBy}` : 'Lic. Laura Méndez - Gerencia'}
+                {order.adminApprovedBy ? `Firma digital: ${order.adminApprovedBy}` : 'Ing. Arturo Olmedo - Dirección General'}
               </div>
-              <div className="font-bold text-[#040057] text-[11px]">GERENCIA ADMINISTRATIVA Y TALLER</div>
-              <div className="text-[9.5px] text-slate-500">Olemdo Servicio Técnico Automotriz y Diésel S.A. de C.V.</div>
+              <div className="font-bold text-[#040057] text-[11px]">DIRECCIÓN GENERAL Y GERENCIA ADMINISTRATIVA</div>
+              <div className="text-[9.5px] text-slate-500">Olmedo Servicio Técnico Automotriz y Diésel S.A. de C.V.</div>
             </div>
 
             <div className="space-y-1">

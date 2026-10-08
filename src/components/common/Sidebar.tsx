@@ -15,7 +15,8 @@ import {
   ChevronLeft, 
   ChevronRight,
   Shield,
-  Layers
+  Layers,
+  Database
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -175,8 +176,8 @@ export const Sidebar: React.FC = () => {
               },
               {
                 id: 'reportes_excel',
-                label: 'Consolidación y Exportación Excel',
-                icon: <FileText className="w-5 h-5" />,
+                label: 'Base de Datos e Historial',
+                icon: <Database className="w-5 h-5" />,
               },
             ],
           },

@@ -19,7 +19,7 @@ export const WorkflowModal: React.FC<WorkflowModalProps> = ({ isOpen, onClose })
             <GitBranch className="w-6 h-6 text-emerald-400" />
             <div>
               <h2 className="text-base sm:text-lg font-bold">Flujo de Trabajo Operativo</h2>
-              <p className="text-xs text-blue-200">Arquitectura de Procesos Olemdo Servicio Técnico</p>
+              <p className="text-xs text-blue-200">Arquitectura de Procesos Olmedo Servicio Técnico</p>
             </div>
           </div>
           <button

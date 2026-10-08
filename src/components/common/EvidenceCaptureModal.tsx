@@ -545,7 +545,7 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
 
                   {/* Título de la Foto / Componente */}
                   <div>
-                    {/* Selector de Servicios Ofrecidos por Olemdo */}
+                    {/* Selector de Servicios Ofrecidos por Olmedo */}
                     <div className="mb-2.5 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200/90 space-y-1.5">
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="font-bold text-[#040057] flex items-center gap-1.5">

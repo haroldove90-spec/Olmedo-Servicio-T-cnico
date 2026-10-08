@@ -22,6 +22,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { ServiceType, VehicleType, ServiceOrder } from '../../types';
 import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
+import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
 
 export const ClientePortal: React.FC = () => {
   const { 
@@ -35,12 +36,14 @@ export const ClientePortal: React.FC = () => {
 
   // Form states
   const [clientName, setClientName] = useState('Flotillas Express S.A. de C.V.');
-  const [clientContact, setClientContact] = useState('Ing. Arturo Ramírez (55 4421 8899)');
+  const [clientContact, setClientContact] = useState('Ing. Arturo Olmedo (55 4421 8899)');
   const [clientCompany, setClientCompany] = useState('Flotillas Express S.A.');
   const [serviceType, setServiceType] = useState<ServiceType>('taller');
   const [vehicleType, setVehicleType] = useState<VehicleType>('tractocamion');
   const [plates, setPlates] = useState('');
   const [economicNumber, setEconomicNumber] = useState('');
+  const [unitBrand, setUnitBrand] = useState('');
+  const [unitModel, setUnitModel] = useState('');
   const [brandModel, setBrandModel] = useState('');
   const [location, setLocation] = useState('');
   const [failureDescription, setFailureDescription] = useState('');
@@ -52,7 +55,7 @@ export const ClientePortal: React.FC = () => {
 
   // Quotation authorization modal
   const [selectedQuoteOrder, setSelectedQuoteOrder] = useState<ServiceOrder | null>(null);
-  const [authorizerName, setAuthorizerName] = useState('Ing. Arturo Ramírez');
+  const [authorizerName, setAuthorizerName] = useState('Ing. Arturo Olmedo');
   const [rejectNotes, setRejectNotes] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
 
@@ -81,7 +84,11 @@ export const ClientePortal: React.FC = () => {
         type: vehicleType,
         plates: plates.toUpperCase(),
         economicNumber: economicNumber.toUpperCase(),
-        brandModel: brandModel || undefined,
+        brand: unitBrand.trim() || undefined,
+        model: unitModel.trim() || undefined,
+        brandModel: (unitBrand.trim() && unitModel.trim()) 
+          ? `${unitBrand.trim()} ${unitModel.trim()}` 
+          : (unitBrand.trim() || unitModel.trim() || brandModel || undefined),
         location,
         failureDescription,
         driverContact: driverContact || undefined,
@@ -91,6 +98,8 @@ export const ClientePortal: React.FC = () => {
     // Reset form
     setPlates('');
     setEconomicNumber('');
+    setUnitBrand('');
+    setUnitModel('');
     setBrandModel('');
     setLocation('');
     setFailureDescription('');
@@ -126,12 +135,19 @@ export const ClientePortal: React.FC = () => {
     setShowRejectInput(false);
   };
 
-  const filteredOrders = orders.filter(o => 
-    o.folio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.vehicle.plates.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.vehicle.economicNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.vehicle.failureDescription.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOrders = orders.filter(o => {
+    const term = searchTerm.toLowerCase();
+    const brand = (o.vehicle.brand || o.vehicle.brandModel?.split(' ')[0] || '').toLowerCase();
+    const model = (o.vehicle.model || o.vehicle.brandModel || '').toLowerCase();
+    return (
+      o.folio.toLowerCase().includes(term) ||
+      o.vehicle.plates.toLowerCase().includes(term) ||
+      o.vehicle.economicNumber.toLowerCase().includes(term) ||
+      brand.includes(term) ||
+      model.includes(term) ||
+      o.vehicle.failureDescription.toLowerCase().includes(term)
+    );
+  });
 
   const quotesPending = orders.filter(o => o.quotation && o.quotation.status === 'enviada');
 
@@ -272,7 +288,7 @@ export const ClientePortal: React.FC = () => {
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Placas de la Unidad *
@@ -303,14 +319,27 @@ export const ClientePortal: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Marca y Modelo
+                    Marca de la Unidad
                   </label>
                   <input
                     type="text"
-                    value={brandModel}
-                    onChange={(e) => setBrandModel(e.target.value)}
-                    placeholder="Ej. Kenworth T680 2023"
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
+                    value={unitBrand}
+                    onChange={(e) => setUnitBrand(e.target.value)}
+                    placeholder="Ej. Kenworth, Freightliner..."
+                    className="w-full px-3 py-2 text-xs uppercase border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Modelo y Año
+                  </label>
+                  <input
+                    type="text"
+                    value={unitModel}
+                    onChange={(e) => setUnitModel(e.target.value)}
+                    placeholder="Ej. T680 2023, M2 106..."
+                    className="w-full px-3 py-2 text-xs uppercase border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
                   />
                 </div>
               </div>
@@ -485,9 +514,12 @@ export const ClientePortal: React.FC = () => {
                         <span className="text-base font-extrabold text-[#040057]">
                           {order.folio}
                         </span>
-                        <span className={`text-[11px] px-2.5 py-0.5 rounded-full border font-semibold ${statusInfo.color}`}>
-                          {statusInfo.text}
-                        </span>
+                        <StatusSemaphoreBadge 
+                          status={order.status} 
+                          priority={order.priority} 
+                          quotationStatus={order.quotation?.status}
+                          showCategoryHint
+                        />
                       </div>
 
                       <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -511,7 +543,11 @@ export const ClientePortal: React.FC = () => {
                         </div>
                         <div className="text-slate-600 font-medium">
                           Económico: <span className="text-slate-800 font-bold">{order.vehicle.economicNumber}</span>
-                          {order.vehicle.brandModel && ` (${order.vehicle.brandModel})`}
+                          {(order.vehicle.brand || order.vehicle.brandModel) && (
+                            <span className="ml-1 text-[#040057] font-bold">
+                              • {order.vehicle.brand || order.vehicle.brandModel?.split(' ')[0]} {order.vehicle.model || ''}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -873,7 +909,7 @@ export const ClientePortal: React.FC = () => {
               <div>
                 <img
                   src="https://appdesignproyectos.com/olmedologo.png"
-                  alt="Olemdo Servicio Técnico"
+                  alt="Olmedo Servicio Técnico"
                   className="h-10 w-auto mb-2"
                 />
                 <span className="text-xs font-bold text-slate-500">Comprobante Fiscal Digital (CFDI)</span>

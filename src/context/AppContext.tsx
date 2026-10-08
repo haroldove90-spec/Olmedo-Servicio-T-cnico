@@ -73,11 +73,15 @@ interface AppContextType {
     technicianSignature?: string;
     userOperatorName?: string;
     vehicleUpdates?: {
+      brand?: string;
+      model?: string;
+      brandModel?: string;
+      plates?: string;
+      economicNumber?: string;
       chassisSerialNumber?: string;
       engineModelTransmission?: string;
       engineSeriesTransmission?: string;
       odometerReading?: string;
-      brandModel?: string;
     };
   }) => void;
   clientSignReport: (orderId: string, clientNameSignature: string) => void;
@@ -690,11 +694,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     technicianSignature?: string;
     userOperatorName?: string;
     vehicleUpdates?: {
+      brand?: string;
+      model?: string;
+      brandModel?: string;
+      plates?: string;
+      economicNumber?: string;
       chassisSerialNumber?: string;
       engineModelTransmission?: string;
       engineSeriesTransmission?: string;
       odometerReading?: string;
-      brandModel?: string;
     };
   }) => {
     setOrders(prev => prev.map(o => {

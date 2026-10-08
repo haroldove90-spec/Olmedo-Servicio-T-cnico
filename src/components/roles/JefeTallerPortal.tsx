@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceType, Technician } from '../../types';
+import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
 
 export const JefeTallerPortal: React.FC = () => {
   const { 
@@ -199,7 +200,11 @@ export const JefeTallerPortal: React.FC = () => {
                       </div>
                       <div className="text-slate-600">
                         Económico: <span className="font-bold text-slate-800">{order.vehicle.economicNumber}</span>
-                        {order.vehicle.brandModel && ` (${order.vehicle.brandModel})`}
+                        {(order.vehicle.brand || order.vehicle.brandModel) && (
+                          <span className="ml-1 text-[#040057] font-bold">
+                            • {order.vehicle.brand || order.vehicle.brandModel?.split(' ')[0]} {order.vehicle.model || ''}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -306,12 +311,12 @@ export const JefeTallerPortal: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
                   <div className="flex items-center gap-3">
                     <span className="font-extrabold text-[#040057] text-base">{order.folio}</span>
-                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-100 text-[#040057]">
-                      {order.status === 'asignado' ? 'Asignado (Técnico por iniciar)' :
-                       order.status === 'en_diagnostico_trabajo' ? 'En Diagnóstico / Reparación' :
-                       order.status === 'evidencias_en_revision' ? 'Evidencias en Revisión de Gerencia' :
-                       order.status === 'evidencias_rechazadas' ? 'Evidencias Observadas (Corrigiendo)' : 'Liberación Autorizada'}
-                    </span>
+                    <StatusSemaphoreBadge 
+                      status={order.status} 
+                      priority={order.priority} 
+                      quotationStatus={order.quotation?.status}
+                      showCategoryHint
+                    />
                   </div>
 
                   <div className="text-xs text-slate-500 flex items-center gap-2">

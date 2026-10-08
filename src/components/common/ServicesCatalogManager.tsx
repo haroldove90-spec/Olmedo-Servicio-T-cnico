@@ -136,7 +136,7 @@ export const ServicesCatalogManager: React.FC = () => {
             </h2>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Administra todos los productos, refacciones, conceptos de mano de obra y viáticos ofrecidos por Olemdo Servicio Técnico con sus tarifas oficiales para agilizar la cotización.
+            Administra todos los productos, refacciones, conceptos de mano de obra y viáticos ofrecidos por Olmedo Servicio Técnico con sus tarifas oficiales para agilizar la cotización.
           </p>
         </div>
 

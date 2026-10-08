@@ -26,7 +26,11 @@ import {
   FileUp,
   Share2,
   FileCheck,
-  Upload
+  Upload,
+  Database,
+  Filter,
+  RotateCcw,
+  Tag
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, PartUsed, Quotation, EvidencePhoto, ServiceCatalogItem } from '../../types';
@@ -34,6 +38,8 @@ import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
 import { GerenciaEvidenceEditModal } from '../common/GerenciaEvidenceEditModal';
 import { ServicesCatalogManager } from '../common/ServicesCatalogManager';
 import { QuotationDocument } from '../common/QuotationDocument';
+import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
+import { getStatusSemaphore } from '../../utils/statusSemaphore';
 
 export const GerenciaPortal: React.FC = () => {
   const { 
@@ -53,7 +59,7 @@ export const GerenciaPortal: React.FC = () => {
 
   // Modal inspection of evidences
   const [inspectOrder, setInspectOrder] = useState<ServiceOrder | null>(null);
-  const [reviewerName, setReviewerName] = useState('Lic. Laura Méndez (Gerencia Administrativa)');
+  const [reviewerName, setReviewerName] = useState('Ing. Arturo Olmedo (Dirección General)');
   const [approvalNotes, setApprovalNotes] = useState('Servicio y evidencias validados satisfactoriamente. Se autoriza la liberación de la unidad.');
   const [rejectionNotes, setRejectionNotes] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
@@ -118,6 +124,99 @@ export const GerenciaPortal: React.FC = () => {
     o.status === 'facturado'
   );
 
+  // Base de Datos e Historial Multicriterio (Buscador Inteligente por Cliente, Marca, Modelo y Semáforo)
+  const [dbSearchTerm, setDbSearchTerm] = useState('');
+  const [dbClientFilter, setDbClientFilter] = useState('todos');
+  const [dbBrandFilter, setDbBrandFilter] = useState('todas');
+  const [dbModelFilter, setDbModelFilter] = useState('todos');
+  const [dbSemaphoreFilter, setDbSemaphoreFilter] = useState<'todos' | 'verde' | 'amarillo' | 'rojo'>('todos');
+
+  // Clientes únicos para filtro dinámico
+  const uniqueClients = Array.from(
+    new Set(orders.map(o => o.clientName).filter(Boolean))
+  ).sort();
+
+  // Marcas únicas para filtro dinámico
+  const uniqueBrands = Array.from(
+    new Set(
+      orders.map(o => {
+        if (o.vehicle.brand) return o.vehicle.brand.trim();
+        if (o.vehicle.brandModel) return o.vehicle.brandModel.split(' ')[0].trim();
+        return '';
+      }).filter(Boolean)
+    )
+  ).sort();
+
+  // Modelos únicos (filtrables por la marca seleccionada)
+  const uniqueModels = Array.from(
+    new Set(
+      orders
+        .filter(o => {
+          if (dbBrandFilter === 'todas') return true;
+          const b = o.vehicle.brand || o.vehicle.brandModel?.split(' ')[0] || '';
+          return b.toLowerCase() === dbBrandFilter.toLowerCase();
+        })
+        .map(o => {
+          if (o.vehicle.model) return o.vehicle.model.trim();
+          if (o.vehicle.brandModel) {
+            const parts = o.vehicle.brandModel.split(' ');
+            return parts.slice(1).join(' ').trim() || o.vehicle.brandModel.trim();
+          }
+          return '';
+        })
+        .filter(Boolean)
+    )
+  ).sort();
+
+  // Filtrado reactivo inteligente de la base de datos
+  const filteredDatabaseOrders = orders.filter(order => {
+    // 1. Filtro por Cliente
+    if (dbClientFilter !== 'todos' && order.clientName !== dbClientFilter) {
+      return false;
+    }
+
+    // 2. Filtro por Marca
+    const orderBrand = (order.vehicle.brand || order.vehicle.brandModel?.split(' ')[0] || '').toLowerCase();
+    if (dbBrandFilter !== 'todas' && orderBrand !== dbBrandFilter.toLowerCase()) {
+      return false;
+    }
+
+    // 3. Filtro por Modelo
+    const orderModel = (order.vehicle.model || order.vehicle.brandModel || '').toLowerCase();
+    if (dbModelFilter !== 'todos' && !orderModel.includes(dbModelFilter.toLowerCase())) {
+      return false;
+    }
+
+    // 4. Filtro por Semáforo de Estatus (Verde, Amarillo, Rojo)
+    if (dbSemaphoreFilter !== 'todos') {
+      const sem = getStatusSemaphore(order.status, order.priority, order.quotation?.status);
+      if (sem.color !== dbSemaphoreFilter) {
+        return false;
+      }
+    }
+
+    // 5. Buscador inteligente de texto libre
+    if (dbSearchTerm.trim()) {
+      const term = dbSearchTerm.toLowerCase();
+      const matchFolio = order.folio.toLowerCase().includes(term);
+      const matchClient = (order.clientName || '').toLowerCase().includes(term);
+      const matchCompany = (order.clientCompany || '').toLowerCase().includes(term);
+      const matchBrand = orderBrand.includes(term);
+      const matchModel = orderModel.includes(term);
+      const matchPlates = (order.vehicle.plates || '').toLowerCase().includes(term);
+      const matchEco = (order.vehicle.economicNumber || '').toLowerCase().includes(term);
+      const matchTech = (order.assignedTechnicianName || '').toLowerCase().includes(term);
+      const matchDiagnosis = (order.initialDiagnosis || order.vehicle.failureDescription || '').toLowerCase().includes(term);
+      const matchVin = (order.vehicle.chassisSerialNumber || '').toLowerCase().includes(term);
+
+      if (!matchFolio && !matchClient && !matchCompany && !matchBrand && !matchModel && !matchPlates && !matchEco && !matchTech && !matchDiagnosis && !matchVin) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
   const handleShareQuotationWhatsApp = (order: ServiceOrder) => {
     if (!order.quotation) return;
     const q = order.quotation;
@@ -129,7 +228,7 @@ export const GerenciaPortal: React.FC = () => {
 
     const cleanPhone = (order.clientContact || '').replace(/[^0-9]/g, '');
 
-    const message = `*OLEMDO SERVICIO TÉCNICO AUTOMOTRIZ Y DIÉSEL* 🚛\n` +
+    const message = `*OLMEDO SERVICIO TÉCNICO AUTOMOTRIZ Y DIÉSEL* 🚛\n` +
       `*COTIZACIÓN OFICIAL:* ${order.folio}\n` +
       `*Cliente:* ${order.clientName}\n` +
       `*Unidad:* ${order.vehicle.type.toUpperCase()} • Placas: ${order.vehicle.plates} (Económico: ${order.vehicle.economicNumber})\n` +
@@ -143,7 +242,7 @@ export const GerenciaPortal: React.FC = () => {
       `💵 *SUBTOTAL:* $${q.subtotal.toLocaleString('es-MX')} MXN\n` +
       `🏷️ *IVA (16%):* $${q.tax.toLocaleString('es-MX')} MXN\n` +
       `⭐ *TOTAL GENERAL:* $${q.total.toLocaleString('es-MX')} MXN\n\n` +
-      `🛡️ *Garantía:* 90 días naturales en mano de obra. Aprobada por Gerencia Administrativa Olemdo.\n` +
+      `🛡️ *Garantía:* 90 días naturales en mano de obra. Aprobada por Gerencia Administrativa Olmedo.\n` +
       `Quedamos atentos a su confirmación de orden de servicio.`;
 
     const encoded = encodeURIComponent(message);
@@ -199,6 +298,11 @@ export const GerenciaPortal: React.FC = () => {
       preventiveInspectionNotes: updates.preventiveInspectionNotes,
       vehicle: {
         ...editingTargetOrder.vehicle,
+        brand: updates.brand !== undefined ? updates.brand : editingTargetOrder.vehicle.brand,
+        model: updates.model !== undefined ? updates.model : editingTargetOrder.vehicle.model,
+        brandModel: updates.brandModel !== undefined ? updates.brandModel : editingTargetOrder.vehicle.brandModel,
+        plates: updates.plates || editingTargetOrder.vehicle.plates,
+        economicNumber: updates.economicNumber || editingTargetOrder.vehicle.economicNumber,
         chassisSerialNumber: updates.chassisSerialNumber,
         engineModelTransmission: updates.engineModelTransmission,
         engineSeriesTransmission: updates.engineSeriesTransmission,
@@ -210,6 +314,11 @@ export const GerenciaPortal: React.FC = () => {
       workPerformedDetail: updates.workPerformedDetail,
       preventiveInspectionNotes: updates.preventiveInspectionNotes,
       vehicleUpdates: {
+        brand: updates.brand !== undefined ? updates.brand : editingTargetOrder.vehicle.brand,
+        model: updates.model !== undefined ? updates.model : editingTargetOrder.vehicle.model,
+        brandModel: updates.brandModel !== undefined ? updates.brandModel : editingTargetOrder.vehicle.brandModel,
+        plates: updates.plates || editingTargetOrder.vehicle.plates,
+        economicNumber: updates.economicNumber || editingTargetOrder.vehicle.economicNumber,
         chassisSerialNumber: updates.chassisSerialNumber,
         engineModelTransmission: updates.engineModelTransmission,
         engineSeriesTransmission: updates.engineSeriesTransmission,
@@ -226,6 +335,11 @@ export const GerenciaPortal: React.FC = () => {
         preventiveInspectionNotes: updates.preventiveInspectionNotes,
         vehicle: {
           ...inspectOrder.vehicle,
+          brand: updates.brand !== undefined ? updates.brand : inspectOrder.vehicle.brand,
+          model: updates.model !== undefined ? updates.model : inspectOrder.vehicle.model,
+          brandModel: updates.brandModel !== undefined ? updates.brandModel : inspectOrder.vehicle.brandModel,
+          plates: updates.plates || inspectOrder.vehicle.plates,
+          economicNumber: updates.economicNumber || inspectOrder.vehicle.economicNumber,
           chassisSerialNumber: updates.chassisSerialNumber,
           engineModelTransmission: updates.engineModelTransmission,
           engineSeriesTransmission: updates.engineSeriesTransmission,
@@ -410,20 +524,24 @@ export const GerenciaPortal: React.FC = () => {
     const total = order.quotation?.total || +(subtotal + tax).toFixed(2);
 
     let csvContent = '\uFEFF'; // UTF-8 BOM
-    csvContent += 'REPORTE FORMAL Y CONSOLIDACIÓN DE SERVICIO TÉCNICO - OLEMDO SERVICIO TÉCNICO\n';
+    csvContent += 'REPORTE FORMAL Y CONSOLIDACIÓN DE SERVICIO TÉCNICO - OLMEDO SERVICIO TÉCNICO\n';
     csvContent += `Folio de Orden:,"${order.folio}"\n`;
     csvContent += `Fecha de Solicitud:,"${new Date(order.createdAt).toLocaleString('es-MX')}"\n`;
     csvContent += `Cliente:,"${order.clientName}"\n`;
     csvContent += `Contacto:,"${order.clientContact}"\n`;
     csvContent += `Tipo de Atención:,"${order.serviceType.toUpperCase()}"\n`;
     csvContent += `Tipo de Unidad:,"${order.vehicle.type.toUpperCase()}"\n`;
+    csvContent += `Marca:,"${order.vehicle.brand || order.vehicle.brandModel?.split(' ')[0] || 'N/A'}"\n`;
+    csvContent += `Modelo:,"${order.vehicle.model || order.vehicle.brandModel || 'N/A'}"\n`;
     csvContent += `Placas:,"${order.vehicle.plates}"\n`;
     csvContent += `No. Económico:,"${order.vehicle.economicNumber}"\n`;
+    csvContent += `Serie Chasis (VIN):,"${order.vehicle.chassisSerialNumber || 'N/A'}"\n`;
+    csvContent += `Odómetro / Horómetro:,"${order.vehicle.odometerReading || 'N/A'}"\n`;
     csvContent += `Ubicación:,"${order.vehicle.location}"\n`;
     csvContent += `Avería Reportada:,"${order.vehicle.failureDescription.replace(/"/g, '""')}"\n`;
     csvContent += `Diagnóstico Técnico:,"${(order.initialDiagnosis || 'Diagnóstico en taller').replace(/"/g, '""')}"\n`;
     csvContent += `Técnico Asignado:,"${order.assignedTechnicianName || 'N/A'}"\n`;
-    csvContent += `Aprobado por Gerencia:,"${order.adminApprovedBy || 'Lic. Laura Méndez'}"\n`;
+    csvContent += `Aprobado por Gerencia:,"${order.adminApprovedBy || 'Ing. Arturo Olmedo'}"\n`;
     csvContent += `Fecha Aprobación:,"${order.adminApprovedAt ? new Date(order.adminApprovedAt).toLocaleString('es-MX') : 'N/A'}"\n\n`;
 
     csvContent += 'DESGLOSE DE MANO DE OBRA Y TIEMPOS\n';
@@ -460,7 +578,54 @@ export const GerenciaPortal: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Olemdo_${order.folio}_Reporte_Consolidado.csv`);
+    link.setAttribute('download', `Olmedo_${order.folio}_Reporte_Consolidado.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Exportación masiva de la Base de Datos filtrada por Cliente, Marca y Modelo
+  const handleExportFilteredDatabaseToExcel = (filteredList: ServiceOrder[]) => {
+    let csvContent = '\uFEFF'; // UTF-8 BOM
+    csvContent += 'BASE DE DATOS E HISTORIAL INTEGRAL DE SERVICIOS - OLMEDO SERVICIO TÉCNICO\n';
+    csvContent += `Fecha y Hora de Emisión:,"${new Date().toLocaleString('es-MX')}"\n`;
+    csvContent += `Filtro Aplicado:,"Cliente: ${dbClientFilter.toUpperCase()} | Marca: ${dbBrandFilter.toUpperCase()} | Modelo: ${dbModelFilter.toUpperCase()} | Semáforo: ${dbSemaphoreFilter.toUpperCase()}"\n`;
+    csvContent += `Total de Registros Localizados:,"${filteredList.length}"\n\n`;
+
+    // Encabezado de columnas
+    csvContent += 'Folio,Fecha,Estatus Semáforo,Cliente,Empresa,Contacto,Tipo Servicio,Tipo Unidad,Marca,Modelo,Placas,No. Económico,Serie Chasis VIN,Odómetro,Falla Reportada,Diagnóstico Técnico,Técnico Asignado,Total MXN\n';
+
+    filteredList.forEach(o => {
+      const sem = getStatusSemaphore(o.status, o.priority, o.quotation?.status);
+      const brand = o.vehicle.brand || o.vehicle.brandModel?.split(' ')[0] || 'N/A';
+      const model = o.vehicle.model || o.vehicle.brandModel || 'N/A';
+      const totalAmount = o.quotation?.total ? `$${o.quotation.total.toFixed(2)}` : (o.invoice ? `$${o.invoice.total.toFixed(2)}` : 'Por Cotizar');
+
+      csvContent += `"${o.folio}",`;
+      csvContent += `"${new Date(o.createdAt).toLocaleDateString('es-MX')}",`;
+      csvContent += `"${sem.label.replace(/"/g, '""')}",`;
+      csvContent += `"${(o.clientName || '').replace(/"/g, '""')}",`;
+      csvContent += `"${(o.clientCompany || '').replace(/"/g, '""')}",`;
+      csvContent += `"${(o.clientContact || '').replace(/"/g, '""')}",`;
+      csvContent += `"${o.serviceType.toUpperCase()}",`;
+      csvContent += `"${o.vehicle.type.toUpperCase()}",`;
+      csvContent += `"${brand.replace(/"/g, '""')}",`;
+      csvContent += `"${model.replace(/"/g, '""')}",`;
+      csvContent += `"${o.vehicle.plates}",`;
+      csvContent += `"${o.vehicle.economicNumber}",`;
+      csvContent += `"${o.vehicle.chassisSerialNumber || 'N/A'}",`;
+      csvContent += `"${o.vehicle.odometerReading || 'N/A'}",`;
+      csvContent += `"${o.vehicle.failureDescription.replace(/"/g, '""')}",`;
+      csvContent += `"${(o.initialDiagnosis || '').replace(/"/g, '""')}",`;
+      csvContent += `"${(o.assignedTechnicianName || 'N/A').replace(/"/g, '""')}",`;
+      csvContent += `"${totalAmount}"\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Olmedo_Base_Datos_Servicios_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -590,7 +755,14 @@ export const GerenciaPortal: React.FC = () => {
                         <div>
                           <span className="text-[10px] uppercase font-bold text-slate-400">Cliente y Unidad</span>
                           <div className="font-bold text-slate-800">{order.clientName}</div>
-                          <div className="text-slate-600">{order.vehicle.type.toUpperCase()} • Placas: {order.vehicle.plates}</div>
+                          <div className="text-slate-600">
+                            {order.vehicle.type.toUpperCase()} • Placas: {order.vehicle.plates}
+                            {(order.vehicle.brand || order.vehicle.brandModel) && (
+                              <span className="ml-1 text-[#040057] font-bold">
+                                ({order.vehicle.brand || order.vehicle.brandModel?.split(' ')[0]} {order.vehicle.model || ''})
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div>
@@ -939,59 +1111,390 @@ export const GerenciaPortal: React.FC = () => {
         </div>
       )}
 
-      {/* MÓDULO 2: CONSOLIDACIÓN Y EXPORTACIÓN A EXCEL */}
+      {/* MÓDULO 2: BASE DE DATOS E HISTORIAL INTEGRAL DE SERVICIOS */}
       {activeModule === 'reportes_excel' && (
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200">
-            <h2 className="text-lg font-bold text-[#040057] flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-              Consolidación y Exportación Formal a Excel
-            </h2>
-            <p className="text-xs text-slate-500">
-              Genera reportes técnicos y descarga el archivo Excel desglosado con horas de trabajo, refacciones, costos y evidencia fotográfica.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4">
-            {orders.filter(o => o.adminApprovedAt || o.quotation || o.invoice).map((order) => (
-              <div key={order.id} className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-[#040057] text-base">{order.folio}</span>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                      Liberación Aprobada
-                    </span>
-                  </div>
-
-                  <div className="text-xs text-slate-700">
-                    Cliente: <strong>{order.clientName}</strong> • Unidad: {order.vehicle.type.toUpperCase()} ({order.vehicle.plates})
-                  </div>
-
-                  <div className="text-xs text-slate-500">
-                    Aprobado por: {order.adminApprovedBy || 'Gerencia'} el {order.adminApprovedAt ? new Date(order.adminApprovedAt).toLocaleDateString('es-MX') : 'Fecha de hoy'}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setReportOrder(order)}
-                    className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <FileText className="w-4 h-4 text-[#040057]" />
-                    <span>Ver Reporte Formal</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleExportToExcel(order)}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Exportar a Excel (.CSV / .XLS)</span>
-                  </button>
-                </div>
+          
+          {/* Encabezado del Módulo de Base de Datos */}
+          <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-[#040057] flex items-center gap-2">
+                  <Database className="w-5 h-5 text-indigo-600" />
+                  <span>Base de Datos e Historial Integral de Servicios</span>
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                  Buscador inteligente con localización por <strong>Cliente</strong>, <strong>Marca</strong> y <strong>Modelo</strong> de unidad, semáforo de estatus operativo y exportación oficial a Excel (.CSV / .XLS) y PDF.
+                </p>
               </div>
-            ))}
+
+              {/* Botón de exportación masiva directa */}
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleExportFilteredDatabaseToExcel(filteredDatabaseOrders)}
+                  disabled={filteredDatabaseOrders.length === 0}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs transition flex items-center gap-2 cursor-pointer"
+                  title="Descargar base de datos filtrada en archivo Excel compatible con UTF-8"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Exportar a Excel ({filteredDatabaseOrders.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                  title="Imprimir resumen de base de datos"
+                >
+                  <Printer className="w-4 h-4 text-[#040057]" />
+                  <span>Imprimir</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Panel de Buscador Inteligente y Filtros Multicriterio */}
+            <div className="mt-5 p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#040057] uppercase tracking-wider">
+                  <Filter className="w-4 h-4 text-indigo-600" />
+                  <span>Buscador Inteligente Multicriterio</span>
+                </div>
+                
+                {(dbSearchTerm || dbClientFilter !== 'todos' || dbBrandFilter !== 'todas' || dbModelFilter !== 'todos' || dbSemaphoreFilter !== 'todos') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDbSearchTerm('');
+                      setDbClientFilter('todos');
+                      setDbBrandFilter('todas');
+                      setDbModelFilter('todos');
+                      setDbSemaphoreFilter('todos');
+                    }}
+                    className="text-xs text-rose-600 hover:text-rose-800 font-semibold flex items-center gap-1 cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Limpiar Filtros</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Barra de Búsqueda de Texto Libre */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={dbSearchTerm}
+                  onChange={(e) => setDbSearchTerm(e.target.value)}
+                  placeholder="Buscar por cliente, marca, modelo, folio, placas, económico, falla, diagnóstico, serie..."
+                  className="w-full pl-9 pr-9 py-2 text-xs border border-slate-300 rounded-xl bg-white focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
+                />
+                {dbSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setDbSearchTerm('')}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Filtros Dropdown Específicos: Cliente, Marca, Modelo, Semáforo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
+                
+                {/* 1. Filtro por Cliente */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
+                    <Building2 className="w-3 h-3 text-slate-400" />
+                    <span>Por Cliente:</span>
+                  </label>
+                  <select
+                    value={dbClientFilter}
+                    onChange={(e) => setDbClientFilter(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-[#040057]"
+                  >
+                    <option value="todos">Todos los Clientes ({orders.length})</option>
+                    {uniqueClients.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Filtro por Marca */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-slate-400" />
+                    <span>Por Marca:</span>
+                  </label>
+                  <select
+                    value={dbBrandFilter}
+                    onChange={(e) => {
+                      setDbBrandFilter(e.target.value);
+                      setDbModelFilter('todos'); // reset modelo dependiente
+                    }}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-[#040057]"
+                  >
+                    <option value="todas">Todas las Marcas ({uniqueBrands.length})</option>
+                    {uniqueBrands.map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Filtro por Modelo */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
+                    <Truck className="w-3 h-3 text-slate-400" />
+                    <span>Por Modelo:</span>
+                  </label>
+                  <select
+                    value={dbModelFilter}
+                    onChange={(e) => setDbModelFilter(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-[#040057]"
+                  >
+                    <option value="todos">Todos los Modelos</option>
+                    {uniqueModels.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 4. Filtro por Semáforo de Estatus */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-slate-400" />
+                    <span>Semáforo de Estatus:</span>
+                  </label>
+                  <select
+                    value={dbSemaphoreFilter}
+                    onChange={(e) => setDbSemaphoreFilter(e.target.value as any)}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-[#040057]"
+                  >
+                    <option value="todos">Todos los Estados ({orders.length})</option>
+                    <option value="verde">🟢 Concluidos / Liberados (Verde)</option>
+                    <option value="amarillo">🟡 En Proceso / Diagnóstico (Amarillo)</option>
+                    <option value="rojo">🔴 Atención Inmediata / Observados (Rojo)</option>
+                  </select>
+                </div>
+
+              </div>
+
+              {/* Barra de conteo de resultados */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs text-slate-500">
+                <span>
+                  Mostrando <strong>{filteredDatabaseOrders.length}</strong> de {orders.length} órdenes registradas
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  Base de Datos en Tiempo Real • Olmedo Servicio Técnico
+                </span>
+              </div>
+            </div>
+
           </div>
+
+          {/* Listado de Resultados de la Base de Datos */}
+          {filteredDatabaseOrders.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+              <Database className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <h3 className="text-base font-bold text-slate-700">Sin coincidencias en la Base de Datos</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
+                No se encontraron registros con los filtros de búsqueda seleccionados. Intenta ampliar los términos o limpiar los filtros.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setDbSearchTerm('');
+                  setDbClientFilter('todos');
+                  setDbBrandFilter('todas');
+                  setDbModelFilter('todos');
+                  setDbSemaphoreFilter('todos');
+                }}
+                className="px-4 py-2 rounded-xl bg-[#040057] text-white text-xs font-semibold shadow-xs cursor-pointer hover:bg-[#070085]"
+              >
+                Restablecer Filtros y Ver Todas
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3.5">
+              {filteredDatabaseOrders.map((order) => {
+                const brand = order.vehicle.brand || order.vehicle.brandModel?.split(' ')[0] || 'S/M';
+                const model = order.vehicle.model || order.vehicle.brandModel || 'Modelo N/A';
+
+                return (
+                  <div 
+                    key={order.id} 
+                    className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs hover:border-indigo-300 transition space-y-3"
+                  >
+                    
+                    {/* Header de la Ficha: Folio, Fecha, Semáforo y Tipo */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className="font-extrabold text-[#040057] text-base">{order.folio}</span>
+                        <StatusSemaphoreBadge 
+                          status={order.status} 
+                          priority={order.priority} 
+                          quotationStatus={order.quotation?.status}
+                          size="md"
+                          showCategoryHint
+                        />
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold uppercase">
+                          {order.serviceType}
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-slate-500">
+                        Fecha: <strong>{new Date(order.createdAt).toLocaleDateString('es-MX')}</strong>
+                        {order.adminApprovedAt && ` • Aprobado: ${new Date(order.adminApprovedAt).toLocaleDateString('es-MX')}`}
+                      </div>
+                    </div>
+
+                    {/* Contenido Modular: Vehículo (Marca/Modelo destacado), Cliente, Falla y Diagnóstico */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                      
+                      {/* 1. Ficha Vehicular Destacada con Marca y Modelo */}
+                      <div className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          Unidad / Marca y Modelo
+                        </span>
+                        
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="px-2 py-0.5 rounded-md bg-[#040057] text-white font-extrabold text-[11px] tracking-wide">
+                            {brand}
+                          </span>
+                          <span className="font-bold text-slate-800 text-xs">
+                            {model}
+                          </span>
+                        </div>
+
+                        <div className="text-slate-600 text-[11px]">
+                          {order.vehicle.type.toUpperCase()} • Placas: <strong>{order.vehicle.plates}</strong>
+                        </div>
+                        <div className="text-slate-500 text-[10.5px]">
+                          Económico: <strong>{order.vehicle.economicNumber}</strong>
+                          {order.vehicle.chassisSerialNumber && ` • VIN: ${order.vehicle.chassisSerialNumber}`}
+                        </div>
+                      </div>
+
+                      {/* 2. Cliente y Contacto */}
+                      <div className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          Cliente y Contacto
+                        </span>
+                        <div className="font-bold text-slate-800 text-xs truncate" title={order.clientName}>
+                          {order.clientName}
+                        </div>
+                        <div className="text-slate-600 text-[11px] truncate">
+                          {order.clientContact || 'Sin teléfono'}
+                        </div>
+                        <div className="text-slate-500 text-[10.5px] truncate" title={order.vehicle.location}>
+                          📍 {order.vehicle.location}
+                        </div>
+                      </div>
+
+                      {/* 3. Falla y Diagnóstico */}
+                      <div className="p-2.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          Diagnóstico Técnico
+                        </span>
+                        <p className="text-slate-700 italic text-[11px] line-clamp-2">
+                          {order.initialDiagnosis || order.vehicle.failureDescription}
+                        </p>
+                        <div className="text-[10.5px] text-slate-500 font-medium">
+                          Técnico: <strong>{order.assignedTechnicianName || 'Por asignar'}</strong>
+                        </div>
+                      </div>
+
+                      {/* 4. Resumen Financiero y Cotización */}
+                      <div className="p-2.5 bg-indigo-50/60 rounded-xl border border-indigo-100 space-y-1 flex flex-col justify-between">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-indigo-700 block">
+                            Importe y Documento
+                          </span>
+                          <div className="text-base font-extrabold text-[#040057]">
+                            {order.quotation?.total ? (
+                              `$${order.quotation.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                            ) : order.invoice?.total ? (
+                              `$${order.invoice.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
+                            ) : (
+                              <span className="text-xs text-amber-700 font-semibold">Pendiente Cotización</span>
+                            )}
+                          </div>
+                          <div className="text-[10.5px] text-slate-600">
+                            {order.invoice ? 'Facturado Oficial' : order.quotation ? `Cotización ${order.quotation.status}` : 'Sin cotización'}
+                          </div>
+                        </div>
+
+                        {order.invoice && (
+                          <div className="text-[10px] text-emerald-800 font-mono font-bold truncate">
+                            CFDI: {order.invoice.fiscalFolio}
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+
+                    {/* Acciones de la Ficha en la Base de Datos */}
+                    <div className="flex flex-wrap items-center justify-between pt-2.5 border-t border-slate-100 gap-2">
+                      <div className="text-[11px] text-slate-400">
+                        {order.partsUsed.length} refacciones • {order.evidences.length} fotos
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        
+                        {/* Botón: Apartado para Editar Ficha, Marca y Modelo en Base de Datos */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditTechData(order)}
+                          className="px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 hover:bg-indigo-100 text-[#040057] text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                          title="Actualizar Marca, Modelo, Placas y Datos Técnicos en la Base de Datos"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Ficha Vehicular y Marca/Modelo</span>
+                        </button>
+
+                        {/* Botón: Ver Reporte Técnico Formal */}
+                        <button
+                          type="button"
+                          onClick={() => setReportOrder(order)}
+                          className="px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-[#040057]" />
+                          <span>Reporte Formal</span>
+                        </button>
+
+                        {/* Botón: Exportar Orden Individual a Excel */}
+                        <button
+                          type="button"
+                          onClick={() => handleExportToExcel(order)}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                          title="Descargar desglose de esta orden en formato Excel CSV"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Excel</span>
+                        </button>
+
+                        {/* Botón: Ver Cotización si existe */}
+                        {order.quotation && (
+                          <button
+                            type="button"
+                            onClick={() => setViewQuoteDocOrder(order)}
+                            className="px-3 py-1.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <DollarSign className="w-3.5 h-3.5 text-amber-300" />
+                            <span>Cotización</span>
+                          </button>
+                        )}
+
+                      </div>
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
         </div>
       )}
 
@@ -1165,7 +1668,7 @@ export const GerenciaPortal: React.FC = () => {
                       <h3 className="font-bold text-slate-700 text-sm">No se encontraron cotizaciones</h3>
                       <p className="text-xs text-slate-500">
                         {registeredQuotationOrders.length === 0 
-                          ? 'Aún no se han generado cotizaciones. Ve a la pestaña "Por Cotizar" para crear una o importar un PDF.'
+                          ? 'Aún no se han generado cotizaciones. Haz clic en "+ Nueva Cotización" o ve a la pestaña "Por Cotizar" para crear una.'
                           : 'Prueba ajustando el término de búsqueda o el filtro de estado.'}
                       </p>
                     </div>

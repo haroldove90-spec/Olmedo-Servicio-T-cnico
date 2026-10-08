@@ -20,6 +20,11 @@ interface GerenciaEvidenceEditModalProps {
   evidenceToEdit?: EvidencePhoto | null;
   onSaveEvidence?: (photoId: string, updates: Partial<EvidencePhoto>) => void;
   onSaveTechnicalData?: (updates: {
+    brand?: string;
+    model?: string;
+    brandModel?: string;
+    plates?: string;
+    economicNumber?: string;
     initialDiagnosis?: string;
     workPerformedDetail?: string;
     preventiveInspectionNotes?: string;
@@ -51,6 +56,10 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
   );
 
   // Technical data fields
+  const [unitBrand, setUnitBrand] = useState(order.vehicle.brand || (order.vehicle.brandModel ? order.vehicle.brandModel.split(' ')[0] : ''));
+  const [unitModel, setUnitModel] = useState(order.vehicle.model || order.vehicle.brandModel || '');
+  const [unitPlates, setUnitPlates] = useState(order.vehicle.plates || '');
+  const [unitEcoNumber, setUnitEcoNumber] = useState(order.vehicle.economicNumber || '');
   const [diagText, setDiagText] = useState(order.initialDiagnosis || order.vehicle.failureDescription || '');
   const [workText, setWorkText] = useState(order.workPerformedDetail || '');
   const [preventiveNotes, setPreventiveNotes] = useState(order.preventiveInspectionNotes || '');
@@ -66,6 +75,10 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
       setEvidenceNotes(evidenceToEdit.notes || '');
       setEvidencePhase(evidenceToEdit.phase === 'antes' ? 'antes' : 'correctivo_realizado');
     } else {
+      setUnitBrand(order.vehicle.brand || (order.vehicle.brandModel ? order.vehicle.brandModel.split(' ')[0] : ''));
+      setUnitModel(order.vehicle.model || order.vehicle.brandModel || '');
+      setUnitPlates(order.vehicle.plates || '');
+      setUnitEcoNumber(order.vehicle.economicNumber || '');
       setDiagText(order.initialDiagnosis || order.vehicle.failureDescription || '');
       setWorkText(order.workPerformedDetail || '');
       setPreventiveNotes(order.preventiveInspectionNotes || '');
@@ -94,7 +107,16 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
     e.preventDefault();
     if (!onSaveTechnicalData) return;
 
+    const brandVal = unitBrand.trim();
+    const modelVal = unitModel.trim();
+    const combinedBrandModel = brandVal && modelVal ? `${brandVal} ${modelVal}` : brandVal || modelVal;
+
     onSaveTechnicalData({
+      brand: brandVal,
+      model: modelVal,
+      brandModel: combinedBrandModel,
+      plates: unitPlates.trim().toUpperCase(),
+      economicNumber: unitEcoNumber.trim().toUpperCase(),
       initialDiagnosis: diagText.trim(),
       workPerformedDetail: workText.trim(),
       preventiveInspectionNotes: preventiveNotes.trim(),
@@ -262,7 +284,7 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
               {/* Selector del Catálogo */}
               <div className="p-2 rounded-lg bg-indigo-50 border border-indigo-200">
                 <div className="flex items-center justify-between text-[11px] mb-1 font-bold text-[#040057]">
-                  <span>⚡ Insertar Servicio desde Catálogo de Olemdo:</span>
+                  <span>⚡ Insertar Servicio desde Catálogo de Olmedo:</span>
                   <span className="text-[10px] text-slate-500 font-normal">Autocompleta texto</span>
                 </div>
                 <select
@@ -308,20 +330,64 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
               />
             </div>
 
-            {/* Series y odómetro */}
+            {/* Ficha Vehicular y Mecánica de la Base de Datos */}
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-              <span className="font-bold text-[#040057] uppercase text-[11px] block">
-                Ficha Mecánica del Equipo
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-[#040057] uppercase text-[11px] block">
+                  Ficha Vehicular y Mecánica (Base de Datos)
+                </span>
+                <span className="text-[10px] text-slate-500">Localización por Marca y Modelo</span>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Marca de la Unidad:</label>
+                  <input
+                    type="text"
+                    value={unitBrand}
+                    onChange={(e) => setUnitBrand(e.target.value)}
+                    placeholder="Ej. Kenworth, ANKAI, Freightliner, Volvo..."
+                    className="w-full px-3 py-1.5 border rounded-lg uppercase bg-white font-medium text-xs focus:ring-1 focus:ring-[#040057]"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Modelo y Versión:</label>
+                  <input
+                    type="text"
+                    value={unitModel}
+                    onChange={(e) => setUnitModel(e.target.value)}
+                    placeholder="Ej. T680 2023, HFF6120GZ-4, M2 106..."
+                    className="w-full px-3 py-1.5 border rounded-lg uppercase bg-white font-medium text-xs focus:ring-1 focus:ring-[#040057]"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Placas:</label>
+                  <input
+                    type="text"
+                    value={unitPlates}
+                    onChange={(e) => setUnitPlates(e.target.value)}
+                    placeholder="Ej. 82-AF-9K"
+                    className="w-full px-3 py-1.5 border rounded-lg font-mono uppercase bg-white text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">No. Económico:</label>
+                  <input
+                    type="text"
+                    value={unitEcoNumber}
+                    onChange={(e) => setUnitEcoNumber(e.target.value)}
+                    placeholder="Ej. ECO-308"
+                    className="w-full px-3 py-1.5 border rounded-lg font-mono uppercase bg-white text-xs"
+                  />
+                </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Serie Chasis (VIN):</label>
                   <input
                     type="text"
                     value={chassisSerial}
                     onChange={(e) => setChassisSerial(e.target.value)}
-                    className="w-full px-3 py-1.5 border rounded-lg font-mono uppercase bg-white"
+                    placeholder="Ej. 3AKJHGLD..."
+                    className="w-full px-3 py-1.5 border rounded-lg font-mono uppercase bg-white text-xs"
                   />
                 </div>
                 <div>
@@ -330,7 +396,8 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
                     type="text"
                     value={odometer}
                     onChange={(e) => setOdometer(e.target.value)}
-                    className="w-full px-3 py-1.5 border rounded-lg uppercase bg-white"
+                    placeholder="Ej. 130618 KM"
+                    className="w-full px-3 py-1.5 border rounded-lg uppercase bg-white text-xs"
                   />
                 </div>
                 <div>
@@ -339,7 +406,8 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
                     type="text"
                     value={engineModel}
                     onChange={(e) => setEngineModel(e.target.value)}
-                    className="w-full px-3 py-1.5 border rounded-lg uppercase bg-white"
+                    placeholder="Ej. Cummins ISX15"
+                    className="w-full px-3 py-1.5 border rounded-lg uppercase bg-white text-xs"
                   />
                 </div>
                 <div>
@@ -348,7 +416,8 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
                     type="text"
                     value={engineSeries}
                     onChange={(e) => setEngineSeries(e.target.value)}
-                    className="w-full px-3 py-1.5 border rounded-lg font-mono uppercase bg-white"
+                    placeholder="Ej. 79482910"
+                    className="w-full px-3 py-1.5 border rounded-lg font-mono uppercase bg-white text-xs"
                   />
                 </div>
               </div>

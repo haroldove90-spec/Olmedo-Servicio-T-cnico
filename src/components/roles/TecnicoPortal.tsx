@@ -369,7 +369,14 @@ export const TecnicoPortal: React.FC = () => {
               <div className="font-bold text-[#040057] text-sm break-words">
                 {currentOrder.vehicle.type.toUpperCase()} • Placas: {currentOrder.vehicle.plates}
               </div>
-              <div className="text-slate-600">Económico: {currentOrder.vehicle.economicNumber}</div>
+              <div className="text-slate-600">
+                Económico: <strong>{currentOrder.vehicle.economicNumber}</strong>
+                {(currentOrder.vehicle.brand || currentOrder.vehicle.brandModel) && (
+                  <span className="ml-1 text-[#040057] font-bold">
+                    • {currentOrder.vehicle.brand || currentOrder.vehicle.brandModel?.split(' ')[0]} {currentOrder.vehicle.model || ''}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="min-w-0">
@@ -395,7 +402,7 @@ export const TecnicoPortal: React.FC = () => {
             </div>
           )}
 
-          {/* SECCIÓN DEL FORMATO OFICIAL DE REPORTE TÉCNICO (Imagen oficial Arcinux / Olemdo) */}
+          {/* SECCIÓN DEL FORMATO OFICIAL DE REPORTE TÉCNICO (Imagen oficial Arcinux / Olmedo) */}
           <div className="p-3.5 sm:p-4 bg-slate-50 rounded-2xl border-2 border-indigo-200 space-y-3 min-w-0 max-w-full">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
               <div className="flex items-center gap-2 min-w-0">

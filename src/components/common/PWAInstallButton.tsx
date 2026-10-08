@@ -31,7 +31,7 @@ export const PWAInstallButton: React.FC = () => {
     <>
       <button
         onClick={handleInstallClick}
-        title="Instalar Olemdo Servicio Técnico en tu dispositivo"
+        title="Instalar Olmedo Servicio Técnico en tu dispositivo"
         className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-[#040057] text-white hover:bg-[#070085] shadow-xs hover:shadow transition-all active:scale-95 cursor-pointer whitespace-nowrap"
       >
         <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
@@ -92,7 +92,7 @@ export const PWAInstallButton: React.FC = () => {
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Download className="w-5 h-5 text-[#040057]" />
-                <h3 className="text-base font-bold text-[#040057]">Instalar Olemdo ST</h3>
+                <h3 className="text-base font-bold text-[#040057]">Instalar Olmedo ST</h3>
               </div>
               <button
                 onClick={() => setShowGenericGuide(false)}
@@ -103,10 +103,10 @@ export const PWAInstallButton: React.FC = () => {
             </div>
             <div className="mt-4 space-y-3 text-sm text-slate-700">
               <p>
-                Para instalar <strong>Olemdo Servicio Técnico</strong> como aplicación nativa en tu navegador (Chrome, Edge o Android):
+                Para instalar <strong>Olmedo Servicio Técnico</strong> como aplicación nativa en tu navegador (Chrome, Edge o Android):
               </p>
               <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-2">
-                <div>• En <strong>Chrome / Edge (PC)</strong>: Haz clic en el ícono de instalar en la barra de direcciones o en el menú ⋮ &gt; "Instalar Olemdo Servicio Técnico".</div>
+                <div>• En <strong>Chrome / Edge (PC)</strong>: Haz clic en el ícono de instalar en la barra de direcciones o en el menú ⋮ &gt; "Instalar Olmedo Servicio Técnico".</div>
                 <div>• En <strong>Android Chrome</strong>: Toca el menú de tres puntos ⋮ y presiona <strong>"Instalar aplicación"</strong> o "Agregar a la pantalla principal".</div>
               </div>
             </div>

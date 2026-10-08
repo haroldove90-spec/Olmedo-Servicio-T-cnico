@@ -10,7 +10,8 @@ import {
   DollarSign, 
   Receipt,
   Clock,
-  Users
+  Users,
+  Database
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -149,8 +150,8 @@ export const BottomBar: React.FC = () => {
           },
           {
             id: 'reportes_excel',
-            label: 'Reportes',
-            icon: <FileText className="w-5 h-5" />,
+            label: 'Base Datos',
+            icon: <Database className="w-5 h-5" />,
           },
         ];
 
