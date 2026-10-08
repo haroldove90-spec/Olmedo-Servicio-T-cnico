@@ -17,8 +17,8 @@ export default defineConfig(() => {
         },
         manifest: {
           id: '/',
-          name: 'Olemdo Servicio Técnico',
-          short_name: 'Olemdo ST',
+          name: 'Olmedo Servicio Técnico',
+          short_name: 'Olmedo ST',
           description: 'Sistema integral de gestión de servicio técnico, taller, asistencia vial y rescate en carretera.',
           theme_color: '#040057',
           background_color: '#ffffff',
