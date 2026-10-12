@@ -12,7 +12,8 @@ import {
   Clock,
   Users,
   Database,
-  ClipboardCheck
+  ClipboardCheck,
+  Truck
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -85,7 +86,7 @@ export const BottomBar: React.FC = () => {
         ];
 
       case 'tecnico':
-        const techOrders = orders.filter(o => 
+        const assignedCount = orders.filter(o => 
           o.status === 'asignado' || 
           o.status === 'en_diagnostico_trabajo' || 
           o.status === 'evidencias_rechazadas' ||
@@ -95,10 +96,10 @@ export const BottomBar: React.FC = () => {
         const authorized = orders.filter(o => o.status === 'liberacion_autorizada').length;
         return [
           {
-            id: 'mis_tareas',
-            label: 'Tareas',
-            icon: <Wrench className="w-5 h-5" />,
-            badge: techOrders > 0 ? techOrders : undefined,
+            id: 'unidades_asignadas',
+            label: 'Unidades',
+            icon: <Truck className="w-5 h-5" />,
+            badge: assignedCount > 0 ? assignedCount : undefined,
           },
           {
             id: 'evidencias',
@@ -125,6 +126,12 @@ export const BottomBar: React.FC = () => {
             icon: <ClipboardCheck className="w-5 h-5" />,
           },
           {
+            id: 'gestion_personal',
+            label: 'Personal',
+            icon: <Users className="w-5 h-5" />,
+            badge: technicians.length > 0 ? technicians.length : undefined,
+          },
+          {
             id: 'validacion_evidencias',
             label: 'Validación',
             icon: <CheckSquare className="w-5 h-5" />,
@@ -136,14 +143,8 @@ export const BottomBar: React.FC = () => {
             icon: <Camera className="w-5 h-5" />,
           },
           {
-            id: 'servicios',
-            label: 'Productos',
-            icon: <Wrench className="w-5 h-5" />,
-            badge: services.length > 0 ? services.length : undefined,
-          },
-          {
             id: 'cotizaciones',
-            label: 'Cotizador',
+            label: 'Cotizar',
             icon: <DollarSign className="w-5 h-5" />,
             badge: pendingQuoteCreate > 0 ? pendingQuoteCreate : undefined,
           },

@@ -164,12 +164,8 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
     setFormError(null);
   };
 
-  // Add a new evidence card (up to 15)
+  // Add a new evidence card (sin límite)
   const handleAddCard = () => {
-    if (cards.length >= 15) {
-      alert('Has alcanzado el límite máximo de 15 evidencias por carga.');
-      return;
-    }
     const newCard: DraftEvidenceCard = {
       id: `draft-${Date.now()}-${cards.length}`,
       url: '',
@@ -232,9 +228,9 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
           return c;
         }));
       } else {
-        // Multiple files selected from gallery: populate multiple cards up to 15
+        // Multiple files selected from gallery: populate multiple cards without limit
         const newCardsList = [...cards];
-        for (let i = 0; i < files.length && newCardsList.length <= 15; i++) {
+        for (let i = 0; i < files.length; i++) {
           const file = files[i];
           const compressed = await compressImageFile(file);
 
@@ -245,7 +241,7 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
               url: compressed,
               title: newCardsList[targetIndex].title || `Evidencia ${targetIndex + 1}`,
             };
-          } else if (newCardsList.length < 15) {
+          } else {
             newCardsList.push({
               id: `draft-${Date.now()}-${newCardsList.length}`,
               url: compressed,
@@ -325,7 +321,7 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
             <div className="flex items-center gap-2">
               <Camera className="w-5 h-5 text-emerald-400 shrink-0" />
               <h3 className="text-base sm:text-lg font-bold truncate">
-                Carga de Evidencia Fotográfica ({cards.length} de 15)
+                Carga de Evidencia Fotográfica ({cards.length} {cards.length === 1 ? 'tarjeta' : 'tarjetas'} • Sin límite)
               </h3>
             </div>
             <p className="text-xs text-blue-200 mt-0.5">
@@ -424,24 +420,22 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
                   <Layers className="w-4 h-4 text-[#040057]" />
                   <span>Tarjetas de Evidencia</span>
                   <span className="px-2 py-0.5 rounded-full bg-blue-100 text-[#040057] text-[11px] font-bold">
-                    {cards.length} / 15
+                    {cards.length} {cards.length === 1 ? 'foto' : 'fotos'} (Sin límite)
                   </span>
                 </h4>
                 <p className="text-[11px] text-slate-500">
-                  Toma foto o sube desde el dispositivo. Puedes agregar hasta 15 tarjetas con el botón (+).
+                  Toma foto o sube desde el dispositivo. Puedes agregar todas las evidencias necesarias sin límite con el botón (+).
                 </p>
               </div>
 
-              {cards.length < 15 && (
-                <button
-                  type="button"
-                  onClick={handleAddCard}
-                  className="px-3 py-1.5 rounded-xl bg-blue-50 text-[#040057] border border-blue-200 hover:bg-blue-100 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Agregar Tarjeta (+)</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleAddCard}
+                className="px-3 py-1.5 rounded-xl bg-blue-50 text-[#040057] border border-blue-200 hover:bg-blue-100 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Agregar Otra Foto (+)</span>
+              </button>
             </div>
 
             {/* Tarjetas individuales */}
@@ -623,17 +617,15 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
               ))}
             </div>
 
-            {/* Botón para agregar otra tarjeta (hasta 15) */}
-            {cards.length < 15 && (
-              <button
-                type="button"
-                onClick={handleAddCard}
-                className="w-full py-3 rounded-xl border-2 border-dashed border-indigo-300 hover:border-[#040057] bg-indigo-50/50 hover:bg-indigo-50 text-[#040057] font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
-              >
-                <Plus className="w-4 h-4 text-[#040057]" />
-                <span>Agregar Otra Tarjeta de Evidencia ({cards.length} de 15)</span>
-              </button>
-            )}
+            {/* Botón para agregar otra tarjeta (sin límite) */}
+            <button
+              type="button"
+              onClick={handleAddCard}
+              className="w-full py-3.5 rounded-xl border-2 border-dashed border-indigo-300 hover:border-[#040057] bg-indigo-50/50 hover:bg-indigo-50 text-[#040057] font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-[#040057]" />
+              <span>Agregar Otra Tarjeta de Evidencia ({cards.length} cargadas • Sin límite)</span>
+            </button>
           </div>
 
           {formError && (

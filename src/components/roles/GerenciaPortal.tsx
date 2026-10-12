@@ -31,7 +31,8 @@ import {
   Filter,
   RotateCcw,
   Tag,
-  ClipboardCheck
+  ClipboardCheck,
+  Users
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, PartUsed, Quotation, EvidencePhoto, ServiceCatalogItem } from '../../types';
@@ -42,6 +43,7 @@ import { QuotationDocument } from '../common/QuotationDocument';
 import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
 import { getStatusSemaphore } from '../../utils/statusSemaphore';
 import { UnitReceptionManager } from '../common/UnitReceptionManager';
+import { EmployeesManager } from '../common/EmployeesManager';
 
 export const GerenciaPortal: React.FC = () => {
   const { 
@@ -49,6 +51,7 @@ export const GerenciaPortal: React.FC = () => {
     setActiveModule, 
     orders, 
     services,
+    technicians,
     reviewEvidences, 
     saveQuotation, 
     emitInvoice,
@@ -655,10 +658,23 @@ export const GerenciaPortal: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveModule('recepcion_unidades')}
-              className="px-3.5 py-1.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                activeModule === 'recepcion_unidades' ? 'bg-[#040057] text-white ring-2 ring-emerald-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              }`}
             >
-              <ClipboardCheck className="w-4 h-4 text-emerald-400" />
+              <ClipboardCheck className="w-4 h-4 text-emerald-500" />
               <span>Recepción de Unidades</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveModule('gestion_personal')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                activeModule === 'gestion_personal' ? 'bg-[#040057] text-white ring-2 ring-indigo-400' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200'
+              }`}
+            >
+              <Users className="w-4 h-4 text-indigo-600" />
+              <span>Registro de Empleados ({technicians.length})</span>
             </button>
 
             <span className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold flex items-center gap-1.5">
@@ -677,6 +693,11 @@ export const GerenciaPortal: React.FC = () => {
       {/* MÓDULO: RECEPCIÓN DE UNIDADES EN GERENCIA (DASHBOARD EN LISTA + FORMULARIO COMPLETO AL CREAR NUEVA) */}
       {activeModule === 'recepcion_unidades' && (
         <UnitReceptionManager />
+      )}
+
+      {/* MÓDULO: GESTIÓN DE PERSONAL / REGISTRO DE EMPLEADOS */}
+      {(activeModule === 'gestion_personal' || activeModule === 'empleados') && (
+        <EmployeesManager />
       )}
 
       {/* MÓDULO 1: VALIDACIÓN DE EVIDENCIAS Y SERVICIO + REGISTROS DEL TÉCNICO */}

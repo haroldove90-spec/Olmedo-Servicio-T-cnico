@@ -14,16 +14,26 @@ import {
   Send, 
   ShieldCheck, 
   FileCheck, 
-  PackageCheck,
-  AlertCircle,
-  FileSpreadsheet,
-  PenTool,
-  Eye,
-  FileText,
-  Lock
+  PackageCheck, 
+  AlertCircle, 
+  FileSpreadsheet, 
+  PenTool, 
+  Eye, 
+  FileText, 
+  Lock,
+  Gauge,
+  Fuel,
+  Sparkles,
+  Bell,
+  Layers,
+  Search,
+  Columns,
+  Check,
+  CheckSquare,
+  Edit3
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { ServiceOrder, EvidencePhoto, PartUsed } from '../../types';
+import { ServiceOrder, EvidencePhoto, PartUsed, RepairLog } from '../../types';
 import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
 import { EvidenceCaptureModal } from '../common/EvidenceCaptureModal';
 
@@ -42,6 +52,9 @@ export const TecnicoPortal: React.FC = () => {
     correctAndResubmitEvidences, 
     releaseVehiclePhysical,
     updateTechnicalReport,
+    addRepairLog,
+    updateRepairLog,
+    removeRepairLog,
     services
   } = useApp();
 
@@ -96,6 +109,19 @@ export const TecnicoPortal: React.FC = () => {
   const [releasedByName, setReleasedByName] = useState('Carlos Mendoza (Técnico Titular)');
   const [receivedByDriverName, setReceivedByDriverName] = useState('');
   const [showReleaseModal, setShowReleaseModal] = useState(false);
+
+  // Reparaciones registradas por el técnico
+  const [showAddRepairModal, setShowAddRepairModal] = useState(false);
+  const [repairTitle, setRepairTitle] = useState('');
+  const [repairDescription, setRepairDescription] = useState('');
+  const [repairStatus, setRepairStatus] = useState<'pendiente' | 'en_proceso' | 'terminado'>('en_proceso');
+  const [editingRepairId, setEditingRepairId] = useState<string | null>(null);
+
+  // Modal Comparativo Lado a Lado (Antes vs Después)
+  const [showCompareModal, setShowCompareModal] = useState(false);
+
+  // Búsqueda en módulo de Unidades Asignadas
+  const [assignedSearchTerm, setAssignedSearchTerm] = useState('');
 
   // Filter orders relevant to technician
   const myAssignedOrders = orders.filter(o => 
@@ -236,9 +262,116 @@ export const TecnicoPortal: React.FC = () => {
     setShowReleaseModal(false);
   };
 
+  // Handlers para el registro de reparaciones por el técnico
+  const handleSaveRepair = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentOrder || !repairTitle.trim()) return;
+
+    if (editingRepairId) {
+      updateRepairLog(currentOrder.id, editingRepairId, {
+        title: repairTitle.trim(),
+        description: repairDescription.trim(),
+        status: repairStatus,
+        completedAt: repairStatus === 'terminado' ? new Date().toISOString() : undefined,
+      });
+    } else {
+      addRepairLog(currentOrder.id, {
+        title: repairTitle.trim(),
+        description: repairDescription.trim(),
+        status: repairStatus,
+        completedAt: repairStatus === 'terminado' ? new Date().toISOString() : undefined,
+        technicianName: currentOrder.assignedTechnicianName || 'Técnico',
+      });
+    }
+
+    setShowAddRepairModal(false);
+    setRepairTitle('');
+    setRepairDescription('');
+    setRepairStatus('en_proceso');
+    setEditingRepairId(null);
+  };
+
+  const handleOpenAddRepair = () => {
+    setEditingRepairId(null);
+    setRepairTitle('');
+    setRepairDescription('');
+    setRepairStatus('en_proceso');
+    setShowAddRepairModal(true);
+  };
+
+  const handleOpenEditRepair = (repair: RepairLog) => {
+    setEditingRepairId(repair.id);
+    setRepairTitle(repair.title);
+    setRepairDescription(repair.description);
+    setRepairStatus(repair.status);
+    setShowAddRepairModal(true);
+  };
+
+  const handleToggleRepairStatus = (repair: RepairLog) => {
+    if (!currentOrder) return;
+    const nextStatus = repair.status === 'terminado' ? 'en_proceso' : 'terminado';
+    updateRepairLog(currentOrder.id, repair.id, {
+      status: nextStatus,
+      completedAt: nextStatus === 'terminado' ? new Date().toISOString() : undefined,
+    });
+  };
+
+  const newAssignedOrders = myAssignedOrders.filter(o => o.status === 'asignado');
+
+  const filteredAssignedUnits = myAssignedOrders.filter(o => {
+    const term = assignedSearchTerm.toLowerCase().trim();
+    if (!term) return true;
+    return (
+      o.folio.toLowerCase().includes(term) ||
+      (o.reportNumber || '').toLowerCase().includes(term) ||
+      o.vehicle.plates.toLowerCase().includes(term) ||
+      o.vehicle.economicNumber.toLowerCase().includes(term) ||
+      (o.vehicle.brand || '').toLowerCase().includes(term) ||
+      (o.vehicle.model || '').toLowerCase().includes(term) ||
+      (o.clientName || '').toLowerCase().includes(term)
+    );
+  });
+
   return (
     <div className="space-y-6 pb-24 lg:pb-8 w-full max-w-full min-w-0 overflow-x-hidden">
       
+      {/* BANNER DE NOTIFICACIÓN DE NUEVAS UNIDADES ASIGNADAS */}
+      {newAssignedOrders.length > 0 && (
+        <div className="bg-gradient-to-r from-[#040057] via-indigo-900 to-[#070085] text-white p-4 sm:p-5 rounded-2xl border-2 border-emerald-400 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-slideIn">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400 flex items-center justify-center shrink-0">
+              <Bell className="w-5 h-5 text-emerald-400 animate-bounce" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500 text-white font-black text-[10px] uppercase tracking-wider">
+                  ¡Nueva Unidad Asignada!
+                </span>
+                <span className="text-xs text-blue-200">Recepción de Taller</span>
+              </div>
+              <h3 className="font-extrabold text-sm sm:text-base text-white mt-1">
+                Tienes {newAssignedOrders.length} {newAssignedOrders.length === 1 ? 'unidad asignada pendiente' : 'unidades asignadas pendientes'} de iniciar labores
+              </h3>
+              <p className="text-xs text-blue-200">
+                Unidad {newAssignedOrders[0].vehicle.type.toUpperCase()} ({newAssignedOrders[0].vehicle.plates}) • Folio: {newAssignedOrders[0].folio} • Reporte Técnico: {newAssignedOrders[0].reportNumber || '023'}.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedOrderId(newAssignedOrders[0].id);
+              setActiveModule('unidades_asignadas');
+            }}
+            className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black transition flex items-center justify-center gap-2 shadow-xs cursor-pointer shrink-0"
+          >
+            <Truck className="w-4 h-4" />
+            <span>Ver Unidades Asignadas</span>
+          </button>
+        </div>
+      )}
+
       {/* Encabezado del Portal del Técnico */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs max-w-full min-w-0 overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -250,251 +383,642 @@ export const TecnicoPortal: React.FC = () => {
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Apertura de OS • Evidencias Obligatorias (Antes/Durante/Después) • Insumos • Liberación de Unidades
+              Unidades Asignadas • Registro de Reparaciones • Evidencias Antes y Después • Entrega de Unidades
             </p>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             <span className="px-3 py-1.5 rounded-xl bg-blue-50 text-[#040057] border border-blue-200 text-xs font-bold flex items-center gap-1.5">
-              <Wrench className="w-4 h-4 text-blue-600" />
-              {myAssignedOrders.length} Tareas Asignadas
+              <Truck className="w-4 h-4 text-blue-600" />
+              {myAssignedOrders.length} Unidades Asignadas
             </span>
           </div>
         </div>
       </div>
 
-      {/* Selector de Orden Activa */}
-      {myAssignedOrders.length > 0 && (
-        <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-w-full min-w-0 overflow-hidden">
-          <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 shrink-0">Orden:</span>
-            <select
-              value={currentOrder?.id}
-              onChange={(e) => setSelectedOrderId(e.target.value)}
-              className="w-full sm:w-auto px-3 py-1.5 rounded-xl border border-slate-300 font-bold text-[#040057] text-xs sm:text-sm bg-slate-50 focus:ring-2 focus:ring-[#040057] truncate max-w-full min-w-0"
-            >
-              {myAssignedOrders.map(o => (
-                <option key={o.id} value={o.id}>
-                  {o.folio} — {o.vehicle.type.toUpperCase()} ({o.vehicle.plates}) • {o.status.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* Barra de Pestañas de Navegación del Técnico */}
+      <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
+        <button
+          type="button"
+          onClick={() => setActiveModule('unidades_asignadas')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeModule === 'unidades_asignadas' || activeModule === 'mis_tareas' || activeModule === 'inicio'
+              ? 'bg-[#040057] text-white shadow-xs'
+              : 'text-slate-700 hover:bg-white'
+          }`}
+        >
+          <Truck className="w-4 h-4 text-emerald-400" />
+          <span>Unidades Asignadas ({myAssignedOrders.length})</span>
+        </button>
 
-          <div className="flex items-center gap-2 text-xs font-semibold shrink-0">
-            {currentOrder && (
-              <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
-                Prioridad: <strong className="uppercase text-rose-600">{currentOrder.priority}</strong>
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+        <button
+          type="button"
+          onClick={() => setActiveModule('evidencias')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeModule === 'evidencias'
+              ? 'bg-[#040057] text-white shadow-xs'
+              : 'text-slate-700 hover:bg-white'
+          }`}
+        >
+          <Wrench className="w-4 h-4 text-amber-400" />
+          <span>Reparaciones y Evidencias de la Orden</span>
+          {currentOrder && (
+            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-[#040057] text-[10px] font-extrabold">
+              {currentOrder.folio}
+            </span>
+          )}
+        </button>
 
-      {/* ALERTA DE OBSERVACIONES / RECHAZO DE GERENCIA ADMINISTRATIVA (Paso F en Graph TD) */}
-      {currentOrder && currentOrder.status === 'evidencias_rechazadas' && (
-        <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 sm:p-5 shadow-xs animate-pulse min-w-0">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-6 h-6 text-rose-600" />
-            </div>
-            <div className="flex-1 min-w-0 space-y-1">
-              <h3 className="text-sm sm:text-base font-bold text-rose-900">
-                Observación Administrativa: Evidencias Rechazadas / Requieren Corrección (Paso F)
-              </h3>
-              <p className="text-xs text-rose-800 font-medium">
-                Gerencia Administrativa ha devuelto esta orden solicitando correcciones o fotos adicionales antes de autorizar la liberación física:
+        <button
+          type="button"
+          onClick={() => setActiveModule('liberacion')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeModule === 'liberacion'
+              ? 'bg-[#040057] text-white shadow-xs'
+              : 'text-slate-700 hover:bg-white'
+          }`}
+        >
+          <Key className="w-4 h-4 text-emerald-400" />
+          <span>Liberación Física</span>
+        </button>
+      </div>
+
+      {/* MÓDULO 1: UNIDADES ASIGNADAS (DASHBOARD COMPLETO) */}
+      {(activeModule === 'unidades_asignadas' || activeModule === 'mis_tareas') && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-[#040057] flex items-center gap-2">
+                <Truck className="w-5 h-5 text-indigo-600" />
+                <span>Unidades Asignadas a tu Cuadrilla</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Selecciona la unidad para abrir la orden de recepción e ir registrando los avances, reparaciones y evidencias fotográficas.
               </p>
-              <div className="mt-2 p-3 bg-white rounded-xl border border-rose-200 text-xs font-semibold text-slate-800 break-words">
-                "{currentOrder.adminReviewNotes}"
-              </div>
-              
-              <div className="pt-2">
-                <button
-                  onClick={() => setShowCorrectionModal(true)}
-                  className="px-4 py-2 rounded-xl bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Aclarar / Corregir y Reenviar a Gerencia</span>
-                </button>
-              </div>
+            </div>
+
+            <div className="relative sm:w-72">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={assignedSearchTerm}
+                onChange={(e) => setAssignedSearchTerm(e.target.value)}
+                placeholder="Buscar placas, eco, cliente, folio..."
+                className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#040057]"
+              />
             </div>
           </div>
+
+          {filteredAssignedUnits.length === 0 ? (
+            <div className="bg-white rounded-2xl p-10 text-center border border-slate-200 space-y-2">
+              <Truck className="w-12 h-12 text-slate-300 mx-auto" />
+              <h3 className="text-base font-bold text-slate-700">Sin unidades asignadas</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                No hay unidades registradas con los filtros de búsqueda o el jefe de taller aún no ha asignado vehículos a tu cargo.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredAssignedUnits.map((order) => {
+                const brand = order.vehicle.brand || order.vehicle.brandModel?.split(' ')[0] || 'Kenworth';
+                const model = order.vehicle.model || order.vehicle.brandModel?.split(' ').slice(1).join(' ') || '';
+                const fuel = order.vehicle.fuelLevel ?? 50;
+                const km = order.vehicle.mileage || order.vehicle.odometerReading || 'Sin registrar';
+                const repCount = (order.repairs || []).length;
+                const photoCount = order.evidences.length;
+                const isSelected = order.id === currentOrder?.id;
+
+                return (
+                  <div
+                    key={order.id}
+                    className={`bg-white rounded-2xl p-4 sm:p-5 border-2 shadow-xs transition space-y-3.5 ${
+                      isSelected ? 'border-[#040057] ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-base font-extrabold text-[#040057]">{order.folio}</span>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-[#040057] font-bold">
+                          RT {order.reportNumber || '023'}
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-bold uppercase ${
+                          order.status === 'asignado' ? 'bg-amber-100 text-amber-800' :
+                          order.status === 'en_diagnostico_trabajo' ? 'bg-blue-100 text-blue-800' :
+                          order.status === 'evidencias_rechazadas' ? 'bg-rose-100 text-rose-800 animate-pulse' :
+                          'bg-emerald-100 text-emerald-800'
+                        }`}>
+                          {order.status.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
+                        order.priority === 'urgente' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        {order.priority}
+                      </span>
+                    </div>
+
+                    {/* Unidad y Ficha */}
+                    <div className="text-xs space-y-1">
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-extrabold text-sm text-[#040057]">
+                          {brand} {model}
+                        </span>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                          {order.vehicle.type}
+                        </span>
+                      </div>
+                      <div className="text-slate-700">
+                        Placas: <strong className="text-slate-900">{order.vehicle.plates}</strong> • Económico: <strong className="text-slate-900">{order.vehicle.economicNumber}</strong>
+                      </div>
+                      <div className="text-slate-500 text-[11px]">
+                        Cliente: <strong>{order.clientName}</strong> ({order.clientContact})
+                      </div>
+                    </div>
+
+                    {/* Lecturas visuales: Odómetro y Nivel de Combustible con Gráfica */}
+                    <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-slate-400 block flex items-center gap-1">
+                          <Gauge className="w-3.5 h-3.5 text-indigo-600" />
+                          Kilometraje
+                        </span>
+                        <div className="font-extrabold text-[#040057] font-mono text-xs mt-0.5">
+                          {km}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
+                          <span className="flex items-center gap-1">
+                            <Fuel className="w-3.5 h-3.5 text-amber-600" />
+                            Combustible
+                          </span>
+                          <span className="font-mono text-[#040057]">{fuel}% {order.vehicle.fuelType || 'diésel'}</span>
+                        </div>
+                        <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden mt-1.5 flex">
+                          <div 
+                            className={`h-full rounded-full ${fuel < 25 ? 'bg-rose-500' : fuel < 50 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                            style={{ width: `${fuel}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Falla inicial / inspección preventiva */}
+                    <div className="text-xs p-2.5 bg-amber-50/60 rounded-xl border border-amber-200/70 text-slate-800">
+                      <span className="font-bold text-amber-950">Motivo / Falla: </span>
+                      <span className="line-clamp-2">{order.preventiveInspectionNotes || order.vehicle.failureDescription}</span>
+                    </div>
+
+                    {/* Conteo de avances */}
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                      <span className="font-semibold text-slate-700">{repCount} reparaciones en bitácora</span>
+                      <span className="font-semibold text-slate-700">{photoCount} fotos de evidencias</span>
+                    </div>
+
+                    {/* Botón Abrir Orden */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedOrderId(order.id);
+                        setActiveModule('evidencias');
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
+                    >
+                      <Wrench className="w-4 h-4 text-emerald-400" />
+                      <span>Abrir Orden de Recepción y Comenzar Reparaciones</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* MÓDULO: DETALLE DE ORDEN Y APERTURA DE OS (Paso C) */}
-      {currentOrder && (
-        <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs space-y-5 min-w-0 max-w-full">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2 min-w-0">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-lg font-extrabold text-[#040057]">{currentOrder.folio}</span>
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-[#040057] font-semibold">
-                  {currentOrder.serviceType.toUpperCase()}
-                </span>
-              </div>
-              <div className="text-xs text-slate-500 mt-0.5 truncate">
-                Cliente: <strong className="text-slate-800">{currentOrder.clientName}</strong> ({currentOrder.clientContact})
-              </div>
-            </div>
-
-            {/* Estado de Apertura de OS */}
-            <div className="shrink-0">
-              {currentOrder.status === 'asignado' ? (
-                <button
-                  onClick={() => setShowStartModal(true)}
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5 animate-bounce"
+      {/* MÓDULO 2: ESPACIO DE TRABAJO DE LA ORDEN ACTIVA (REPARACIONES Y EVIDENCIAS) */}
+      {(activeModule === 'evidencias' || activeModule === 'inicio') && (
+        <div className="space-y-5">
+          {/* Selector de Orden Activa */}
+          {myAssignedOrders.length > 0 && (
+            <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-w-full min-w-0 overflow-hidden">
+              <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 shrink-0">Orden:</span>
+                <select
+                  value={currentOrder?.id}
+                  onChange={(e) => setSelectedOrderId(e.target.value)}
+                  className="w-full sm:w-auto px-3 py-1.5 rounded-xl border border-slate-300 font-bold text-[#040057] text-xs sm:text-sm bg-slate-50 focus:ring-2 focus:ring-[#040057] truncate max-w-full min-w-0"
                 >
-                  <Clock className="w-4 h-4" />
-                  <span>Abrir Orden de Servicio e Iniciar Trabajo (Paso C)</span>
-                </button>
-              ) : currentOrder.startTime ? (
-                <div className="text-left sm:text-right text-xs">
-                  <span className="text-emerald-700 font-bold flex items-center gap-1 sm:justify-end">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> OS Iniciada
-                  </span>
-                  <span className="text-slate-500">
-                    Hora inicio: {new Date(currentOrder.startTime).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          {/* Ficha de la unidad */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs min-w-0">
-            <div className="min-w-0">
-              <span className="text-[10px] font-bold uppercase text-slate-400">Unidad</span>
-              <div className="font-bold text-[#040057] text-sm break-words">
-                {currentOrder.vehicle.type.toUpperCase()} • Placas: {currentOrder.vehicle.plates}
+                  {myAssignedOrders.map(o => (
+                    <option key={o.id} value={o.id}>
+                      {o.folio} — {o.vehicle.type.toUpperCase()} ({o.vehicle.plates}) • {o.status.replace(/_/g, ' ')}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="text-slate-600">
-                Económico: <strong>{currentOrder.vehicle.economicNumber}</strong>
-                {(currentOrder.vehicle.brand || currentOrder.vehicle.brandModel) && (
-                  <span className="ml-1 text-[#040057] font-bold">
-                    • {currentOrder.vehicle.brand || currentOrder.vehicle.brandModel?.split(' ')[0]} {currentOrder.vehicle.model || ''}
+
+              <div className="flex items-center gap-2 text-xs font-semibold shrink-0">
+                {currentOrder && (
+                  <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
+                    Prioridad: <strong className="uppercase text-rose-600">{currentOrder.priority}</strong>
                   </span>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setActiveModule('unidades_asignadas')}
+                  className="px-3 py-1 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                >
+                  <Truck className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Ver Todas las Unidades</span>
+                </button>
               </div>
-            </div>
-
-            <div className="min-w-0">
-              <span className="text-[10px] font-bold uppercase text-slate-400">Ubicación y Operador</span>
-              <div className="font-semibold text-slate-800 flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                <span className="truncate">{currentOrder.vehicle.location}</span>
-              </div>
-              <div className="text-slate-500 truncate">{currentOrder.vehicle.driverContact || 'Sin chofer reportado'}</div>
-            </div>
-
-            <div className="min-w-0">
-              <span className="text-[10px] font-bold uppercase text-slate-400">Falla Reportada por Cliente</span>
-              <p className="text-slate-700 line-clamp-2 break-words">{currentOrder.vehicle.failureDescription}</p>
-            </div>
-          </div>
-
-          {/* Diagnóstico técnico registrado */}
-          {currentOrder.initialDiagnosis && (
-            <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-xs min-w-0">
-              <span className="font-bold text-[#040057]">Diagnóstico Técnico en Sitio / Taller: </span>
-              <span className="text-slate-800 break-words">{currentOrder.initialDiagnosis}</span>
             </div>
           )}
 
-          {/* SECCIÓN DEL FORMATO OFICIAL DE REPORTE TÉCNICO (Imagen oficial Arcinux / Olmedo) */}
-          <div className="p-3.5 sm:p-4 bg-slate-50 rounded-2xl border-2 border-indigo-200 space-y-3 min-w-0 max-w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <FileText className="w-5 h-5 text-[#040057] shrink-0" />
-                <div className="min-w-0">
-                  <h4 className="font-extrabold text-sm text-[#040057] truncate">
-                    Formato Oficial: REPORTE TÉCNICO {currentOrder.reportNumber || '023'}
-                  </h4>
-                  <p className="text-[11px] text-slate-500">
-                    Captura los datos del formato físico: Chasis, Motor, Odómetro, Tipo de Servicio (Correctivo/Preventivo) y Detalle Realizado.
+          {/* ALERTA DE OBSERVACIONES / RECHAZO DE GERENCIA ADMINISTRATIVA (Paso F en Graph TD) */}
+          {currentOrder && currentOrder.status === 'evidencias_rechazadas' && (
+            <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 sm:p-5 shadow-xs animate-pulse min-w-0">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-rose-600" />
+                </div>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <h3 className="text-sm sm:text-base font-bold text-rose-900">
+                    Observación Administrativa: Evidencias Rechazadas / Requieren Corrección (Paso F)
+                  </h3>
+                  <p className="text-xs text-rose-800 font-medium">
+                    Gerencia Administrativa ha devuelto esta orden solicitando correcciones o fotos adicionales antes de autorizar la liberación física:
                   </p>
+                  <div className="mt-2 p-3 bg-white rounded-xl border border-rose-200 text-xs font-semibold text-slate-800 break-words">
+                    "{currentOrder.adminReviewNotes}"
+                  </div>
+                  
+                  <div className="pt-2">
+                    <button
+                      onClick={() => setShowCorrectionModal(true)}
+                      className="px-4 py-2 rounded-xl bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Aclarar / Corregir y Reenviar a Gerencia</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DETALLE DE ORDEN Y APERTURA DE OS (Paso C) */}
+          {currentOrder && (
+            <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs space-y-5 min-w-0 max-w-full">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2 min-w-0">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-lg font-extrabold text-[#040057]">{currentOrder.folio}</span>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-[#040057] font-semibold">
+                      {currentOrder.serviceType.toUpperCase()}
+                    </span>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 font-bold">
+                      REPORTE TÉCNICO {currentOrder.reportNumber || '023'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5 truncate">
+                    Cliente: <strong className="text-slate-800">{currentOrder.clientName}</strong> ({currentOrder.clientContact})
+                  </div>
+                </div>
+
+                {/* Estado de Apertura de OS */}
+                <div className="shrink-0">
+                  {currentOrder.status === 'asignado' ? (
+                    <button
+                      onClick={() => setShowStartModal(true)}
+                      className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5 animate-bounce"
+                    >
+                      <Clock className="w-4 h-4" />
+                      <span>Abrir Orden de Servicio e Iniciar Trabajo (Paso C)</span>
+                    </button>
+                  ) : currentOrder.startTime ? (
+                    <div className="text-left sm:text-right text-xs">
+                      <span className="text-emerald-700 font-bold flex items-center gap-1 sm:justify-end">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> OS Iniciada
+                      </span>
+                      <span className="text-slate-500">
+                        Hora inicio: {new Date(currentOrder.startTime).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowReportPreviewModal(true)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-white text-slate-700 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <Eye className="w-3.5 h-3.5 text-[#040057]" />
-                  <span>Ver Formato Impreso</span>
-                </button>
+              {/* Ficha de la unidad */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs min-w-0">
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Unidad</span>
+                  <div className="font-bold text-[#040057] text-sm break-words">
+                    {currentOrder.vehicle.type.toUpperCase()} • Placas: {currentOrder.vehicle.plates}
+                  </div>
+                  <div className="text-slate-600">
+                    Económico: <strong>{currentOrder.vehicle.economicNumber}</strong>
+                    {(currentOrder.vehicle.brand || currentOrder.vehicle.brandModel) && (
+                      <span className="ml-1 text-[#040057] font-bold">
+                        • {currentOrder.vehicle.brand || currentOrder.vehicle.brandModel?.split(' ')[0]} {currentOrder.vehicle.model || ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowReportFormModal(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <PenTool className="w-3.5 h-3.5" />
-                  <span>Llenar / Editar Formato Oficial</span>
-                </button>
-              </div>
-            </div>
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Ubicación y Operador</span>
+                  <div className="font-semibold text-slate-800 flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span className="truncate">{currentOrder.vehicle.location}</span>
+                  </div>
+                  <div className="text-slate-500 truncate">{currentOrder.vehicle.driverContact || 'Sin chofer reportado'}</div>
+                </div>
 
-            {/* Resumen de los datos capturados */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200 text-xs min-w-0">
-              <div className="bg-white p-2 rounded-lg border min-w-0">
-                <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Tipo Servicio:</span>
-                <span className="font-bold text-slate-800 uppercase truncate block">{currentOrder.maintenanceNature || 'Correctivo'}</span>
-              </div>
-              <div className="bg-white p-2 rounded-lg border min-w-0">
-                <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Odómetro/Horómetro:</span>
-                <span className="font-bold text-slate-800 truncate block">{currentOrder.vehicle.odometerReading || 'Sin registrar'}</span>
-              </div>
-              <div className="bg-white p-2 rounded-lg border min-w-0">
-                <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Serie Chasis (VIN):</span>
-                <span className="font-mono text-slate-800 text-[11px] truncate block">{currentOrder.vehicle.chassisSerialNumber || 'Sin registrar'}</span>
-              </div>
-              <div className="bg-white p-2 rounded-lg border min-w-0">
-                <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Motor/Transmisión:</span>
-                <span className="font-bold text-slate-800 text-[11px] truncate block">{currentOrder.vehicle.engineModelTransmission || 'Sin registrar'}</span>
-              </div>
-            </div>
-
-            {currentOrder.workPerformedDetail && (
-              <div className="bg-white p-2.5 rounded-lg border text-xs text-slate-700 min-w-0">
-                <span className="font-bold text-[#040057]">Servicio Realizado: </span>
-                <span className="line-clamp-2 break-words">{currentOrder.workPerformedDetail}</span>
-              </div>
-            )}
-          </div>
-
-          {/* SECCIÓN OBLIGATORIA: EVIDENCIAS FOTOGRÁFICAS (2 PASOS OBLIGATORIOS) */}
-          <div className="space-y-4 pt-2 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 min-w-0">
-              <div className="min-w-0">
-                <h3 className="font-bold text-[#040057] text-sm sm:text-base flex items-center gap-2">
-                  <Camera className="w-5 h-5 text-indigo-600 shrink-0" />
-                  <span>Carga Obligatoria de Evidencias Fotográficas</span>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-100 text-[#040057] font-bold">
-                    {currentOrder.evidences.length} de 15 máx
-                  </span>
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Toma fotos con la cámara móvil o sube archivos. Debes completar <strong>1. Antes</strong> (mínimo 1) para poder avanzar a <strong>2. Correctivo realizado</strong>.
-                </p>
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Falla Reportada por Cliente</span>
+                  <p className="text-slate-700 line-clamp-2 break-words">{currentOrder.vehicle.failureDescription}</p>
+                </div>
               </div>
 
-              {/* Botón principal de apertura de cámara */}
-              <button
-                type="button"
-                onClick={() => handleOpenEvidenceCapture('antes')}
-                className="px-4 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-2 self-start sm:self-auto shrink-0"
-              >
-                <Camera className="w-4 h-4 text-emerald-400" />
-                <span>Tomar Fotos con Cámara (1 a 15)</span>
-              </button>
-            </div>
+              {/* Lectura de Tablero en Ficha: Kilometraje y Combustible */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-100 rounded-xl border border-slate-200 text-xs">
+                <div className="flex items-center gap-2">
+                  <Gauge className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Odómetro / Kilometraje al Ingreso</span>
+                    <span className="font-extrabold text-[#040057] text-sm font-mono">
+                      {currentOrder.vehicle.mileage || currentOrder.vehicle.odometerReading || 'Sin registrar'}
+                    </span>
+                  </div>
+                </div>
 
-            {/* Cuadrícula de 2 Pasos: 1. ANTES y 2. CORRECTIVO REALIZADO */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
+                <div className="flex items-center gap-2">
+                  <Fuel className="w-4 h-4 text-amber-600 shrink-0" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Nivel de Combustible</span>
+                      <span className="font-extrabold text-[#040057] text-xs font-mono">
+                        {currentOrder.vehicle.fuelLevel ?? 50}% {currentOrder.vehicle.fuelType || 'diésel'}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden mt-1 flex">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          (currentOrder.vehicle.fuelLevel ?? 50) < 25 ? 'bg-rose-500' : (currentOrder.vehicle.fuelLevel ?? 50) < 50 ? 'bg-amber-500' : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${currentOrder.vehicle.fuelLevel ?? 50}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Diagnóstico técnico registrado */}
+              {currentOrder.initialDiagnosis && (
+                <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-xs min-w-0">
+                  <span className="font-bold text-[#040057]">Diagnóstico Técnico en Sitio / Taller: </span>
+                  <span className="text-slate-800 break-words">{currentOrder.initialDiagnosis}</span>
+                </div>
+              )}
+
+              {/* SECCIÓN DE BITÁCORA Y REGISTRO DE REPARACIONES (NUEVO REQUERIMIENTO) */}
+              <div className="bg-slate-50/90 rounded-2xl p-4 sm:p-5 border-2 border-slate-200 space-y-4 min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Wrench className="w-5 h-5 text-indigo-600 shrink-0" />
+                      <h3 className="font-extrabold text-sm sm:text-base text-[#040057] truncate">
+                        Bitácora de Reparaciones y Cambios Realizados
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-[#040057] text-xs font-bold shrink-0">
+                        {(currentOrder.repairs || []).length} { (currentOrder.repairs || []).length === 1 ? 'partida' : 'partidas' }
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Registra cada una de las reparaciones, ajustes mecánicos y cambios efectuados a la unidad. Todos los cambios se guardan en tiempo real en la orden de recepción.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenAddRepair}
+                    className="px-4 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer self-start sm:self-auto shrink-0"
+                  >
+                    <Plus className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                    <span>Registrar Reparación</span>
+                  </button>
+                </div>
+
+                {/* Listado de reparaciones */}
+                {(currentOrder.repairs || []).length === 0 ? (
+                  <div className="p-6 text-center rounded-xl border-2 border-dashed border-slate-300 bg-white space-y-2">
+                    <Wrench className="w-8 h-8 text-slate-300 mx-auto" />
+                    <div className="font-bold text-slate-700 text-xs">Sin reparaciones registradas todavía</div>
+                    <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                      Comienza registrando las reparaciones que vayas realizando a la unidad (ej. reemplazo de balatas, rectificado, cambio de mangueras, etc.).
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleOpenAddRepair}
+                      className="mt-1 px-4 py-1.5 rounded-lg bg-blue-50 text-[#040057] border border-blue-200 hover:bg-blue-100 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Agregar Primera Reparación</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {(currentOrder.repairs || []).map((rep) => {
+                      const isCompleted = rep.status === 'terminado';
+                      return (
+                        <div
+                          key={rep.id}
+                          className={`p-4 rounded-xl border transition space-y-2 ${
+                            isCompleted 
+                              ? 'bg-emerald-50/40 border-emerald-200' 
+                              : rep.status === 'en_proceso' 
+                              ? 'bg-blue-50/40 border-blue-200' 
+                              : 'bg-white border-slate-200'
+                          }`}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase flex items-center gap-1 ${
+                                isCompleted 
+                                  ? 'bg-emerald-100 text-emerald-800' 
+                                  : rep.status === 'en_proceso' 
+                                  ? 'bg-blue-100 text-blue-800' 
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {isCompleted && <Check className="w-3 h-3 stroke-[3]" />}
+                                {rep.status === 'terminado' ? 'Terminada' : rep.status === 'en_proceso' ? 'En Proceso' : 'Pendiente'}
+                              </span>
+                              <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
+                                {rep.title}
+                              </h4>
+                            </div>
+
+                            <div className="flex items-center gap-1 self-end sm:self-auto">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleRepairStatus(rep)}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                                  isCompleted 
+                                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' 
+                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                }`}
+                                title={isCompleted ? 'Marcar en proceso' : 'Marcar como terminada'}
+                              >
+                                <Check className="w-3 h-3" />
+                                <span>{isCompleted ? 'Reabrir' : 'Completar'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditRepair(rep)}
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+                                title="Editar reparación"
+                              >
+                                <Edit3 className="w-3.5 h-3.5 text-amber-500" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => removeRepairLog(currentOrder.id, rep.id)}
+                                className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 cursor-pointer"
+                                title="Eliminar reparación"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+                            {rep.description}
+                          </p>
+
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100">
+                            <span>Registrado: {new Date(rep.createdAt).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                            {rep.completedAt && (
+                              <span className="text-emerald-700 font-semibold">
+                                Concluido el: {new Date(rep.completedAt).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* SECCIÓN DEL FORMATO OFICIAL DE REPORTE TÉCNICO (Imagen oficial Arcinux / Olmedo) */}
+              <div className="p-3.5 sm:p-4 bg-slate-50 rounded-2xl border-2 border-indigo-200 space-y-3 min-w-0 max-w-full">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="w-5 h-5 text-[#040057] shrink-0" />
+                    <div className="min-w-0">
+                      <h4 className="font-extrabold text-sm text-[#040057] truncate">
+                        Formato Oficial: REPORTE TÉCNICO {currentOrder.reportNumber || '023'}
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Captura los datos del formato físico: Chasis, Motor, Odómetro, Tipo de Servicio (Correctivo/Preventivo) y Detalle Realizado.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowReportPreviewModal(true)}
+                      className="px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-white text-slate-700 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-[#040057]" />
+                      <span>Ver Formato Impreso</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowReportFormModal(true)}
+                      className="px-3 py-1.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <PenTool className="w-3.5 h-3.5" />
+                      <span>Llenar / Editar Formato Oficial</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Resumen de los datos capturados */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200 text-xs min-w-0">
+                  <div className="bg-white p-2 rounded-lg border min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Tipo Servicio:</span>
+                    <span className="font-bold text-slate-800 uppercase truncate block">{currentOrder.maintenanceNature || 'Correctivo'}</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Odómetro/Horómetro:</span>
+                    <span className="font-bold text-slate-800 truncate block">{currentOrder.vehicle.odometerReading || 'Sin registrar'}</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Serie Chasis (VIN):</span>
+                    <span className="font-mono text-slate-800 text-[11px] truncate block">{currentOrder.vehicle.chassisSerialNumber || 'Sin registrar'}</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border min-w-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block truncate">Motor/Transmisión:</span>
+                    <span className="font-bold text-slate-800 text-[11px] truncate block">{currentOrder.vehicle.engineModelTransmission || 'Sin registrar'}</span>
+                  </div>
+                </div>
+
+                {currentOrder.workPerformedDetail && (
+                  <div className="bg-white p-2.5 rounded-lg border text-xs text-slate-700 min-w-0">
+                    <span className="font-bold text-[#040057]">Servicio Realizado: </span>
+                    <span className="line-clamp-2 break-words">{currentOrder.workPerformedDetail}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* SECCIÓN OBLIGATORIA: EVIDENCIAS FOTOGRÁFICAS (SIN LÍMITE) */}
+              <div className="space-y-4 pt-2 min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 min-w-0">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-[#040057] text-sm sm:text-base flex items-center gap-2">
+                      <Camera className="w-5 h-5 text-indigo-600 shrink-0" />
+                      <span>Evidencias Fotográficas Obligatorias (Sin Límite)</span>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-100 text-[#040057] font-bold">
+                        {currentOrder.evidences.length} fotos registradas
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Toma fotos con la cámara móvil o sube archivos de cada reparación sin límite. Debes completar <strong>1. Antes</strong> para avanzar a <strong>2. Correctivo realizado</strong>.
+                    </p>
+                  </div>
+
+                  {/* Botones de cámara y comparador */}
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowCompareModal(true)}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#040057] border border-indigo-200 text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                      title="Comparar evidencias de Antes vs Después lado a lado"
+                    >
+                      <Columns className="w-4 h-4 text-indigo-600" />
+                      <span>Comparar Antes vs Después</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEvidenceCapture('antes')}
+                      className="px-4 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-2 self-start sm:self-auto shrink-0"
+                    >
+                      <Camera className="w-4 h-4 text-emerald-400" />
+                      <span>Tomar Fotos con Cámara (Sin Límite)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cuadrícula de 2 Pasos: 1. ANTES y 2. CORRECTIVO REALIZADO */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
               
               {/* PASO 1: 1. ANTES */}
               <div className="bg-slate-50/90 rounded-2xl p-4 border-2 border-slate-200 hover:border-slate-300 transition space-y-3 min-w-0">
@@ -889,10 +1413,10 @@ export const TecnicoPortal: React.FC = () => {
               </div>
             )}
           </div>
-
         </div>
       )}
-
+    </div>
+  )}
       {/* MODAL PARA INICIAR OS */}
       {showStartModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">

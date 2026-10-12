@@ -17,10 +17,19 @@ import {
   Clock, 
   Share2, 
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Fuel,
+  Gauge,
+  Camera,
+  Layers,
+  Image as ImageIcon,
+  Check,
+  UserCheck,
+  Eye,
+  Trash2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { ServiceOrder, ServiceType, VehicleType } from '../../types';
+import { ServiceOrder, ServiceType, VehicleType, EvidencePhoto } from '../../types';
 import { TechnicalReportDocument } from './TechnicalReportDocument';
 
 export const UnitReceptionManager: React.FC = () => {
@@ -29,7 +38,11 @@ export const UnitReceptionManager: React.FC = () => {
     technicians, 
     services, 
     createUnitReception, 
-    currentRole 
+    currentRole,
+    addEvidencePhoto,
+    removeEvidencePhoto,
+    updateEvidencePhoto,
+    addToast
   } = useApp();
 
   // Vista activa: 'dashboard' (listado de recepciones) o 'formulario' (nueva/edición en pantalla completa)
@@ -53,7 +66,12 @@ export const UnitReceptionManager: React.FC = () => {
   const [brand, setBrand] = useState('Kenworth');
   const [model, setModel] = useState('');
 
-  // Form Fields - Official Technical Report (matching user's screenshot)
+  // Nuevos campos gráficos: Kilometraje y Nivel de combustible
+  const [mileage, setMileage] = useState('');
+  const [fuelType, setFuelType] = useState<'diesel' | 'gasolina'>('diesel');
+  const [fuelLevel, setFuelLevel] = useState<number>(50); // 0 a 100%
+
+  // Form Fields - Official Technical Report
   const [maintenanceNature, setMaintenanceNature] = useState<'correctivo' | 'preventivo'>('correctivo');
   const [preventiveNotes, setPreventiveNotes] = useState('');
   const [userOperator, setUserOperator] = useState('');
@@ -70,21 +88,29 @@ export const UnitReceptionManager: React.FC = () => {
     currentRole === 'gerencia' ? 'Gerencia / Dirección General' : 'Jefe de Taller'
   );
 
-  // Success Feedback Banner & Document Preview
+  // Evidencias fotográficas iniciales tomadas por Jefe de Taller en recepción
+  const [initialPhotos, setInitialPhotos] = useState<{ url: string; title: string; notes?: string }[]>([]);
+  const [photoUrlInput, setPhotoUrlInput] = useState('');
+  const [photoTitleInput, setPhotoTitleInput] = useState('Estado de ingreso de la unidad');
+
+  // Feedback Banner & Document Preview
   const [lastSavedOrder, setLastSavedOrder] = useState<ServiceOrder | null>(null);
   const [viewingDocumentOrder, setViewingDocumentOrder] = useState<ServiceOrder | null>(null);
+  const [selectedInspectOrder, setSelectedInspectOrder] = useState<ServiceOrder | null>(null);
 
   // Search & Filter in Dashboard
   const [searchTerm, setSearchTerm] = useState('');
   const [natureFilter, setNatureFilter] = useState<'todos' | 'correctivo' | 'preventivo'>('todos');
   const [brandFilter, setBrandFilter] = useState('todas');
 
+  // Solo técnicos operativos para asignación
+  const availableTechnicians = technicians.filter(t => !t.role || t.role === 'tecnico');
+
   // Filter orders that have reception / technical data
   const receptionOrders = orders.filter(o => 
     Boolean(o.receptionDate || o.reportNumber || o.maintenanceNature || o.vehicle.chassisSerialNumber)
   );
 
-  // Fallback to all orders if none explicitly flagged yet
   const displayOrders = receptionOrders.length > 0 ? receptionOrders : orders;
 
   // Unique brands for filter
@@ -136,6 +162,9 @@ export const UnitReceptionManager: React.FC = () => {
     setEconomicNumber('');
     setBrand('Kenworth');
     setModel('');
+    setMileage('');
+    setFuelType('diesel');
+    setFuelLevel(50);
     setMaintenanceNature('correctivo');
     setPreventiveNotes('');
     setUserOperator('');
@@ -144,8 +173,9 @@ export const UnitReceptionManager: React.FC = () => {
     setEngineModel('');
     setEngineSeries('');
     setWorkPerformedDetail('');
-    setAssignedTechId('');
+    setAssignedTechId(availableTechnicians[0]?.id || '');
     setPriority('alta');
+    setInitialPhotos([]);
     setViewMode('formulario');
   };
 
@@ -163,6 +193,9 @@ export const UnitReceptionManager: React.FC = () => {
     setEconomicNumber(order.vehicle.economicNumber || '');
     setBrand(order.vehicle.brand || order.vehicle.brandModel?.split(' ')[0] || 'Kenworth');
     setModel(order.vehicle.model || order.vehicle.brandModel?.split(' ').slice(1).join(' ') || '');
+    setMileage(order.vehicle.mileage || order.vehicle.odometerReading || '');
+    setFuelType(order.vehicle.fuelType || 'diesel');
+    setFuelLevel(order.vehicle.fuelLevel ?? 50);
     setMaintenanceNature(order.maintenanceNature || 'correctivo');
     setPreventiveNotes(order.preventiveInspectionNotes || order.vehicle.failureDescription || '');
     setUserOperator(order.userOperatorName || order.vehicle.driverContact || '');
@@ -171,8 +204,9 @@ export const UnitReceptionManager: React.FC = () => {
     setEngineModel(order.vehicle.engineModelTransmission || '');
     setEngineSeries(order.vehicle.engineSeriesTransmission || '');
     setWorkPerformedDetail(order.workPerformedDetail || '');
-    setAssignedTechId(order.assignedTechnicianId || '');
+    setAssignedTechId(order.assignedTechnicianId || availableTechnicians[0]?.id || '');
     setPriority(order.priority || 'alta');
+    setInitialPhotos([]);
     setViewMode('formulario');
   };
 
@@ -191,6 +225,9 @@ export const UnitReceptionManager: React.FC = () => {
     setEconomicNumber(target.vehicle.economicNumber || '');
     setBrand(target.vehicle.brand || target.vehicle.brandModel?.split(' ')[0] || 'Kenworth');
     setModel(target.vehicle.model || target.vehicle.brandModel?.split(' ').slice(1).join(' ') || '');
+    setMileage(target.vehicle.mileage || target.vehicle.odometerReading || '');
+    setFuelType(target.vehicle.fuelType || 'diesel');
+    setFuelLevel(target.vehicle.fuelLevel ?? 50);
     setMaintenanceNature(target.maintenanceNature || 'correctivo');
     setPreventiveNotes(target.preventiveInspectionNotes || target.vehicle.failureDescription || '');
     setUserOperator(target.userOperatorName || target.vehicle.driverContact || '');
@@ -199,8 +236,18 @@ export const UnitReceptionManager: React.FC = () => {
     setEngineModel(target.vehicle.engineModelTransmission || '');
     setEngineSeries(target.vehicle.engineSeriesTransmission || '');
     setWorkPerformedDetail(target.workPerformedDetail || '');
-    setAssignedTechId(target.assignedTechnicianId || '');
+    setAssignedTechId(target.assignedTechnicianId || availableTechnicians[0]?.id || '');
     setPriority(target.priority || 'alta');
+  };
+
+  // Add initial photo by URL or camera capture
+  const handleAddInitialPhoto = () => {
+    if (!photoUrlInput.trim()) return;
+    setInitialPhotos(prev => [
+      ...prev,
+      { url: photoUrlInput.trim(), title: photoTitleInput.trim() || 'Evidencia de ingreso en taller' }
+    ]);
+    setPhotoUrlInput('');
   };
 
   // Submit Handler -> saves and returns to dashboard list
@@ -220,6 +267,8 @@ export const UnitReceptionManager: React.FC = () => {
       return;
     }
 
+    const techObj = availableTechnicians.find(t => t.id === assignedTechId);
+
     const saved = createUnitReception({
       existingOrderId: entryMode === 'link_existing' && selectedExistingOrderId ? selectedExistingOrderId : undefined,
       clientName: clientName.trim() || 'Cliente Mostrador / Flotilla',
@@ -238,7 +287,10 @@ export const UnitReceptionManager: React.FC = () => {
         failureDescription: preventiveNotes.trim(),
         driverContact: userOperator.trim(),
         chassisSerialNumber: chassisSerial.trim().toUpperCase(),
-        odometerReading: odometerReading.trim().toUpperCase(),
+        odometerReading: (odometerReading.trim() || mileage.trim()).toUpperCase(),
+        mileage: mileage.trim() || odometerReading.trim(),
+        fuelLevel,
+        fuelType,
         engineModelTransmission: engineModel.trim().toUpperCase(),
         engineSeriesTransmission: engineSeries.trim().toUpperCase(),
       },
@@ -250,8 +302,24 @@ export const UnitReceptionManager: React.FC = () => {
       receivedByStaffName: receivedByStaff,
     });
 
+    // Si se capturaron fotos iniciales en recepción, se agregan a la orden
+    if (initialPhotos.length > 0) {
+      initialPhotos.forEach(p => {
+        addEvidencePhoto(saved.id, {
+          phase: 'antes',
+          url: p.url,
+          title: p.title,
+          notes: `Fotografía de recepción tomada al ingreso por ${receivedByStaff}.`,
+        });
+      });
+    }
+
+    // Notificación clara de asignación al técnico
+    if (techObj) {
+      addToast('info', 'Técnico Notificado', `Se asignó la unidad a ${techObj.name}. Aparecerá de inmediato en su dashboard de "Unidades Asignadas".`);
+    }
+
     setLastSavedOrder(saved);
-    // Retorna a la interfaz / dashboard en forma de lista como lo solicitó el usuario
     setViewMode('dashboard');
   };
 
@@ -265,7 +333,7 @@ export const UnitReceptionManager: React.FC = () => {
     let csvContent = '\uFEFF';
     csvContent += 'HISTORIAL DE RECEPCIÓN DE UNIDADES Y REPORTES TÉCNICOS - OLMEDO SERVICIO TÉCNICO\n';
     csvContent += `Fecha de Generación: ${new Date().toLocaleString('es-MX')}\n\n`;
-    csvContent += 'Folio,Reporte Técnico No,Fecha Recepción,Cliente,Empresa,Contacto,Tipo Unidad,Marca,Modelo,Placas,No Económico,Serie Chasis (VIN),Odómetro,Tipo Servicio,Operador en Sitio,Inspección Preventiva (Falla),Detalle Realizado,Técnico Asignado,Estatus\n';
+    csvContent += 'Folio,Reporte Técnico No,Fecha Recepción,Cliente,Empresa,Contacto,Tipo Unidad,Marca,Modelo,Placas,No Económico,Serie Chasis (VIN),Kilometraje,Nivel Combustible,Tipo Combustible,Tipo Servicio,Operador en Sitio,Inspección Preventiva (Falla),Técnico Asignado,Estatus\n';
 
     filteredOrders.forEach((o) => {
       const brandVal = o.vehicle.brand || o.vehicle.brandModel?.split(' ')[0] || 'N/A';
@@ -284,11 +352,12 @@ export const UnitReceptionManager: React.FC = () => {
       csvContent += `"${o.vehicle.plates}",`;
       csvContent += `"${o.vehicle.economicNumber}",`;
       csvContent += `"${o.vehicle.chassisSerialNumber || 'N/A'}",`;
-      csvContent += `"${o.vehicle.odometerReading || 'N/A'}",`;
+      csvContent += `"${o.vehicle.mileage || o.vehicle.odometerReading || 'N/A'}",`;
+      csvContent += `"${o.vehicle.fuelLevel !== undefined ? `${o.vehicle.fuelLevel}%` : 'N/A'}",`;
+      csvContent += `"${(o.vehicle.fuelType || 'diesel').toUpperCase()}",`;
       csvContent += `"${(o.maintenanceNature || 'correctivo').toUpperCase()}",`;
       csvContent += `"${(o.userOperatorName || o.vehicle.driverContact || 'N/A').replace(/"/g, '""')}",`;
       csvContent += `"${(o.preventiveInspectionNotes || o.vehicle.failureDescription || '').replace(/"/g, '""')}",`;
-      csvContent += `"${(o.workPerformedDetail || '').replace(/"/g, '""')}",`;
       csvContent += `"${(o.assignedTechnicianName || 'Sin asignar').replace(/"/g, '""')}",`;
       csvContent += `"${o.status.toUpperCase()}"\n`;
     });
@@ -323,15 +392,14 @@ export const UnitReceptionManager: React.FC = () => {
                   </h1>
                 </div>
                 <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  Control de ingresos a taller • Fichas técnicas • Formato Oficial de Reporte Técnico
+                  Control de ingresos a taller • Odómetro y Nivel de Combustible • Asignación Operativa a Técnicos
                 </p>
               </div>
 
-              {/* Botón Principal para Abrir el Formulario en Pantalla Completa */}
               <button
                 type="button"
                 onClick={handleStartNewReception}
-                className="px-5 py-3 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-extrabold text-xs sm:text-sm shadow-md hover:shadow-xl transition cursor-pointer flex items-center justify-center gap-2 self-start sm:self-auto shrink-0"
+                className="px-5 py-3 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-extrabold text-xs sm:text-sm shadow-md hover:shadow-xl transition cursor-pointer flex items-center justify-center gap-2 self-start sm:self-auto shrink-0 active:scale-98"
               >
                 <Plus className="w-4 h-4 text-emerald-400 stroke-[3]" />
                 <span>Nueva Recepción</span>
@@ -351,7 +419,7 @@ export const UnitReceptionManager: React.FC = () => {
                     ¡Recepción Registrada con Éxito! • Folio {lastSavedOrder.folio}
                   </h3>
                   <p className="text-xs text-emerald-800 font-medium">
-                    Unidad {lastSavedOrder.vehicle.type.toUpperCase()} ({lastSavedOrder.vehicle.plates}) • No. Económico: {lastSavedOrder.vehicle.economicNumber} • Reporte Técnico {lastSavedOrder.reportNumber || '023'}.
+                    Unidad {lastSavedOrder.vehicle.type.toUpperCase()} ({lastSavedOrder.vehicle.plates}) • No. Económico: {lastSavedOrder.vehicle.economicNumber} • Asignada a: <strong>{lastSavedOrder.assignedTechnicianName || 'Técnico'}</strong>.
                   </p>
                 </div>
               </div>
@@ -381,7 +449,6 @@ export const UnitReceptionManager: React.FC = () => {
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs space-y-3">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               
-              {/* Buscador en tiempo real */}
               <div className="relative flex-1">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
@@ -393,10 +460,7 @@ export const UnitReceptionManager: React.FC = () => {
                 />
               </div>
 
-              {/* Filtros rápidos */}
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                
-                {/* Tipo de Mantenimiento */}
                 <select
                   value={natureFilter}
                   onChange={(e) => setNatureFilter(e.target.value as any)}
@@ -407,7 +471,6 @@ export const UnitReceptionManager: React.FC = () => {
                   <option value="preventivo">Solo Preventivos</option>
                 </select>
 
-                {/* Marca de Unidad */}
                 <select
                   value={brandFilter}
                   onChange={(e) => setBrandFilter(e.target.value)}
@@ -419,7 +482,6 @@ export const UnitReceptionManager: React.FC = () => {
                   ))}
                 </select>
 
-                {/* Botón Exportar Excel */}
                 <button
                   type="button"
                   onClick={handleExportCSV}
@@ -473,6 +535,9 @@ export const UnitReceptionManager: React.FC = () => {
                   ? new Date(order.receptionDate).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
                   : new Date(order.createdAt).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
 
+                const totalAntes = order.evidences.filter(e => e.phase === 'antes').length;
+                const totalDespues = order.evidences.filter(e => e.phase === 'despues' || e.phase === 'correctivo_realizado').length;
+
                 return (
                   <div
                     key={order.id}
@@ -503,7 +568,7 @@ export const UnitReceptionManager: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Ficha Mecánica y Detalles de la Recepción */}
+                    {/* Ficha Mecánica con Gráficos de Odómetro y Nivel de Combustible */}
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                       <div>
                         <span className="text-[10px] font-bold uppercase text-slate-400 block">Unidad y Marca</span>
@@ -515,33 +580,66 @@ export const UnitReceptionManager: React.FC = () => {
                         </div>
                       </div>
 
+                      {/* Odómetro y Combustible visual */}
                       <div>
-                        <span className="text-[10px] font-bold uppercase text-slate-400 block">Identificación Técnica</span>
-                        <div className="font-mono text-slate-800 text-[11px] mt-0.5">
-                          VIN: <strong>{order.vehicle.chassisSerialNumber || 'Sin serie registrada'}</strong>
+                        <span className="text-[10px] font-bold uppercase text-slate-400 block">Lecturas de Tablero</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Gauge className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span className="font-bold text-slate-800">
+                            {order.vehicle.mileage || order.vehicle.odometerReading || 'Sin registrar'}
+                          </span>
                         </div>
-                        <div className="text-slate-600 mt-0.5">
-                          Odómetro: <strong>{order.vehicle.odometerReading || 'N/A'}</strong>
-                        </div>
+                        {order.vehicle.fuelLevel !== undefined && (
+                          <div className="flex items-center gap-1.5 mt-1 text-slate-600">
+                            <Fuel className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span className="font-semibold text-slate-800">
+                              {order.vehicle.fuelLevel}% {order.vehicle.fuelType || 'diésel'}
+                            </span>
+                            <div className="w-16 h-2 bg-slate-200 rounded-full overflow-hidden shrink-0">
+                              <div 
+                                className={`h-full rounded-full ${order.vehicle.fuelLevel < 25 ? 'bg-rose-500' : order.vehicle.fuelLevel < 50 ? 'bg-amber-500' : 'bg-emerald-500'}`} 
+                                style={{ width: `${order.vehicle.fuelLevel}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div>
-                        <span className="text-[10px] font-bold uppercase text-slate-400 block">Cliente y Operador</span>
+                        <span className="text-[10px] font-bold uppercase text-slate-400 block">Identificación y Cliente</span>
                         <div className="font-bold text-slate-800 mt-0.5">{order.clientName}</div>
-                        <div className="text-slate-600 mt-0.5">
-                          Operador: <strong>{order.userOperatorName || order.vehicle.driverContact || 'N/A'}</strong>
+                        <div className="font-mono text-slate-700 text-[11px] truncate mt-0.5">
+                          VIN: {order.vehicle.chassisSerialNumber || 'N/A'}
                         </div>
                       </div>
 
                       <div>
-                        <span className="text-[10px] font-bold uppercase text-slate-400 block">Atención en Taller</span>
-                        <div className="font-semibold text-slate-800 mt-0.5">
-                          Técnico: <strong className="text-[#040057]">{order.assignedTechnicianName || 'Por asignar'}</strong>
+                        <span className="text-[10px] font-bold uppercase text-slate-400 block">Atención y Cuadrilla</span>
+                        <div className="font-semibold text-slate-800 mt-0.5 flex items-center gap-1">
+                          <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                          <strong className="text-[#040057]">{order.assignedTechnicianName || 'Por asignar'}</strong>
                         </div>
-                        <div className="text-slate-500 mt-0.5">
-                          Ubicación: {order.vehicle.location}
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          Bahía: {order.vehicle.location}
                         </div>
                       </div>
+                    </div>
+
+                    {/* Resumen de Evidencias (Antes y Después) y Reparaciones */}
+                    <div className="flex flex-wrap items-center gap-3 p-2.5 bg-indigo-50/50 rounded-xl border border-indigo-100 text-xs">
+                      <span className="font-bold text-[#040057] flex items-center gap-1.5">
+                        <Camera className="w-4 h-4 text-indigo-600" />
+                        Evidencias Registradas:
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold">
+                        {totalAntes} de "Antes"
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900 font-bold">
+                        {totalDespues} de "Después"
+                      </span>
+                      <span className="text-slate-500 text-[11px]">
+                        • {order.evidences.length} fotos acumuladas sin límite
+                      </span>
                     </div>
 
                     {/* Inspección Preventiva y Detalle */}
@@ -553,7 +651,7 @@ export const UnitReceptionManager: React.FC = () => {
 
                       {order.workPerformedDetail && (
                         <div className="p-2.5 bg-blue-50/60 border border-blue-200/80 rounded-xl text-slate-800 font-mono text-[11px]">
-                          <strong className="text-[#040057]">Detalle Técnico Solicitado: </strong>
+                          <strong className="text-[#040057]">Detalle Técnico / Correctivo Registrado: </strong>
                           <span className="line-clamp-2">{order.workPerformedDetail}</span>
                         </div>
                       )}
@@ -574,7 +672,8 @@ export const UnitReceptionManager: React.FC = () => {
                             `*OLMEDO SERVICIO TÉCNICO* 🚛\n` +
                             `Se ha registrado la recepción de la unidad *${order.vehicle.type.toUpperCase()}* (${order.vehicle.plates}) • Económico: *${order.vehicle.economicNumber}*\n` +
                             `Folio: *${order.folio}* • Reporte Técnico: *${order.reportNumber || '023'}*\n` +
-                            `Odómetro: ${order.vehicle.odometerReading || 'N/A'} • Chasis: ${order.vehicle.chassisSerialNumber || 'N/A'}\n` +
+                            `Odómetro: ${order.vehicle.mileage || order.vehicle.odometerReading || 'N/A'} • Nivel Combustible: ${order.vehicle.fuelLevel ?? 'N/A'}%\n` +
+                            `Técnico Asignado: ${order.assignedTechnicianName || 'Por asignar'}\n` +
                             `Diagnóstico: ${order.preventiveInspectionNotes || order.vehicle.failureDescription}`
                           )}`}
                           target="_blank"
@@ -586,7 +685,7 @@ export const UnitReceptionManager: React.FC = () => {
                           <span>WhatsApp</span>
                         </a>
 
-                        {/* Botón Editar Ficha (Abre el Formulario en Pantalla Completa) */}
+                        {/* Botón Editar Ficha */}
                         <button
                           type="button"
                           onClick={() => handleEditReception(order)}
@@ -619,7 +718,6 @@ export const UnitReceptionManager: React.FC = () => {
 
       {/* ========================================================================= */}
       {/* VISTA 2: FORMULARIO EN SECCIÓN DIFERENTE / PANTALLA COMPLETA */}
-      {/* (SE MUESTRA CUANDO EL USUARIO DA CLIC EN NUEVA RECEPCIÓN O EDITAR) */}
       {/* ========================================================================= */}
       {viewMode === 'formulario' && (
         <div className="space-y-6 animate-fadeIn">
@@ -630,7 +728,7 @@ export const UnitReceptionManager: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setViewMode('dashboard')}
-                className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold transition flex items-center gap-1.5 cursor-pointer text-xs"
+                className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold transition flex items-center gap-1.5 cursor-pointer text-xs"
                 title="Volver a la lista de recepciones"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -642,12 +740,11 @@ export const UnitReceptionManager: React.FC = () => {
                   {isEditing ? 'Editar Ficha de Recepción' : 'Nueva Recepción de Unidad (Reporte Técnico)'}
                 </h1>
                 <p className="text-xs text-slate-500">
-                  Formulario oficial para recopilar los datos mecánicos de la unidad que entra al taller.
+                  Formulario oficial para registrar datos mecánicos, tacómetro, combustible y asignar técnico responsable.
                 </p>
               </div>
             </div>
 
-            {/* Selector de Modalidad si no está editando */}
             {!isEditing && (
               <div className="flex items-center gap-2 self-start sm:self-auto">
                 <span className="text-[11px] font-bold uppercase text-slate-400">Modalidad:</span>
@@ -678,7 +775,6 @@ export const UnitReceptionManager: React.FC = () => {
             )}
           </div>
 
-          {/* Selector de Solicitud Previa si está en link_existing */}
           {!isEditing && entryMode === 'link_existing' && (
             <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
               <span className="font-bold text-[#040057]">
@@ -722,7 +818,7 @@ export const UnitReceptionManager: React.FC = () => {
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
                     placeholder="Ej. Transportes del Norte S.A. de C.V."
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#040057] bg-white font-medium"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#040057] bg-white font-medium"
                   />
                 </div>
 
@@ -735,7 +831,7 @@ export const UnitReceptionManager: React.FC = () => {
                     value={clientContact}
                     onChange={(e) => setClientContact(e.target.value)}
                     placeholder="Ej. 55 4920 1822 / Lic. Mendoza"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#040057] bg-white font-medium"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#040057] bg-white font-medium"
                   />
                 </div>
 
@@ -749,7 +845,7 @@ export const UnitReceptionManager: React.FC = () => {
                     value={serviceLocation}
                     onChange={(e) => setServiceLocation(e.target.value)}
                     placeholder="Ej. Taller Central - Bahía 3"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#040057] bg-white font-medium"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#040057] bg-white font-medium"
                   />
                 </div>
               </div>
@@ -762,7 +858,7 @@ export const UnitReceptionManager: React.FC = () => {
                   <select
                     value={vehicleType}
                     onChange={(e) => setVehicleType(e.target.value as VehicleType)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white"
                   >
                     <option value="tractocamion">Tractocamión</option>
                     <option value="camion">Camión</option>
@@ -781,7 +877,7 @@ export const UnitReceptionManager: React.FC = () => {
                     value={plates}
                     onChange={(e) => setPlates(e.target.value.toUpperCase())}
                     placeholder="Ej. 82-AF-9K"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl uppercase font-bold text-[#040057] bg-white"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl uppercase font-bold text-[#040057] bg-white"
                   />
                 </div>
 
@@ -795,7 +891,7 @@ export const UnitReceptionManager: React.FC = () => {
                     value={economicNumber}
                     onChange={(e) => setEconomicNumber(e.target.value.toUpperCase())}
                     placeholder="Ej. ECO-308"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl uppercase font-bold text-slate-800 bg-white"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl uppercase font-bold text-slate-800 bg-white"
                   />
                 </div>
 
@@ -809,7 +905,7 @@ export const UnitReceptionManager: React.FC = () => {
                     value={brand}
                     onChange={(e) => setBrand(e.target.value)}
                     placeholder="Ej. Kenworth, Freightliner, ANKAI"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-[#040057] bg-white"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-[#040057] bg-white"
                   />
                 </div>
 
@@ -823,13 +919,267 @@ export const UnitReceptionManager: React.FC = () => {
                     value={model}
                     onChange={(e) => setModel(e.target.value)}
                     placeholder="Ej. T680 2023, Cascadia"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white"
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white"
                   />
                 </div>
               </div>
             </div>
 
-            {/* SECCIÓN 2: 1. SERVICIO SOLICITADO */}
+            {/* SECCIÓN 2: LECTURAS VISUALES - TACÓMETRO / KILOMETRAJE Y GRÁFICA DE COMBUSTIBLE */}
+            <div className="bg-white rounded-2xl p-5 sm:p-7 border border-slate-200/90 shadow-xs space-y-5">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Gauge className="w-5 h-5 text-indigo-600" />
+                  <h2 className="text-base font-bold text-[#040057]">
+                    Lecturas de Tablero: Kilometraje y Medidor Gráfico de Combustible
+                  </h2>
+                </div>
+                <span className="text-xs text-indigo-700 font-bold bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                  Estado al Ingreso
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* 1. CAMPO KILOMETRAJE CON TACÓMETRO MODERNO */}
+                <div className="p-4 sm:p-5 bg-gradient-to-br from-slate-900 to-indigo-950 rounded-2xl text-white shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Gauge className="w-5 h-5 text-indigo-400" />
+                      <label className="font-bold text-xs uppercase tracking-wider text-indigo-200">
+                        Kilometraje / Odómetro Actual *
+                      </label>
+                    </div>
+                    <span className="text-[10px] bg-indigo-800/80 px-2 py-0.5 rounded font-mono text-indigo-200">
+                      KM DIGITAL
+                    </span>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={mileage}
+                      onChange={(e) => {
+                        setMileage(e.target.value.toUpperCase());
+                        setOdometerReading(e.target.value.toUpperCase());
+                      }}
+                      placeholder="Ej. 145,280 KM"
+                      className="w-full px-4 py-3 bg-black/40 border-2 border-indigo-500/50 rounded-xl font-mono text-xl sm:text-2xl font-extrabold text-emerald-400 tracking-wider focus:outline-hidden focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-300 pt-1">
+                    <span>Lectura directa de odómetro / horómetro</span>
+                    <div className="flex gap-1.5 font-mono text-[10px]">
+                      {['50,000 KM', '120,000 KM', '250,000 KM'].map(km => (
+                        <button
+                          key={km}
+                          type="button"
+                          onClick={() => {
+                            setMileage(km);
+                            setOdometerReading(km);
+                          }}
+                          className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 cursor-pointer"
+                        >
+                          {km}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. CAMPO MEDIDOR GRÁFICO DE GASOLINA / DIÉSEL */}
+                <div className="p-4 sm:p-5 bg-slate-50 rounded-2xl border-2 border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Fuel className="w-5 h-5 text-amber-600" />
+                      <label className="font-bold text-xs uppercase tracking-wider text-slate-700">
+                        Nivel de Gasolina o Diésel *
+                      </label>
+                    </div>
+
+                    {/* Selector de Tipo: Diésel vs Gasolina */}
+                    <div className="inline-flex rounded-lg bg-white border border-slate-300 p-0.5 text-xs font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setFuelType('diesel')}
+                        className={`px-2.5 py-1 rounded-md transition ${fuelType === 'diesel' ? 'bg-[#040057] text-white' : 'text-slate-600'}`}
+                      >
+                        Diésel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFuelType('gasolina')}
+                        className={`px-2.5 py-1 rounded-md transition ${fuelType === 'gasolina' ? 'bg-[#040057] text-white' : 'text-slate-600'}`}
+                      >
+                        Gasolina
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Gráfico Visual del Tanque (E a F) */}
+                  <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between text-xs font-mono font-extrabold text-slate-600">
+                      <span className={fuelLevel <= 15 ? 'text-rose-600 font-bold' : ''}>E (Vacío)</span>
+                      <span>1/4</span>
+                      <span>1/2</span>
+                      <span>3/4</span>
+                      <span className={fuelLevel >= 90 ? 'text-emerald-600 font-bold' : ''}>F (Lleno)</span>
+                    </div>
+
+                    {/* Barra Gráfica de Combustible con Segmentos Iluminados */}
+                    <div className="w-full h-6 bg-slate-100 rounded-lg overflow-hidden p-1 flex gap-1 border border-slate-300">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(segment => {
+                        const threshold = segment * 10;
+                        const isFilled = fuelLevel >= threshold;
+                        const colorClass = segment <= 2 
+                          ? 'bg-rose-500' 
+                          : segment <= 4 
+                          ? 'bg-amber-500' 
+                          : 'bg-emerald-500';
+
+                        return (
+                          <div
+                            key={segment}
+                            className={`flex-1 rounded-sm transition-all duration-300 ${isFilled ? colorClass : 'bg-slate-200/80 opacity-40'}`}
+                          />
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={fuelLevel}
+                        onChange={(e) => setFuelLevel(Number(e.target.value))}
+                        className="w-full accent-[#040057] cursor-pointer"
+                      />
+                      <span className="ml-3 font-extrabold text-sm font-mono text-[#040057] w-12 text-right">
+                        {fuelLevel}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Botones Rápidos de Nivel */}
+                  <div className="grid grid-cols-5 gap-1.5 text-xs font-bold text-slate-700">
+                    {[
+                      { label: 'E (10%)', val: 10 },
+                      { label: '1/4 (25%)', val: 25 },
+                      { label: '1/2 (50%)', val: 50 },
+                      { label: '3/4 (75%)', val: 75 },
+                      { label: 'F (100%)', val: 100 },
+                    ].map(btn => (
+                      <button
+                        key={btn.val}
+                        type="button"
+                        onClick={() => setFuelLevel(btn.val)}
+                        className={`py-1.5 rounded-lg border text-center transition cursor-pointer ${
+                          fuelLevel === btn.val 
+                            ? 'bg-[#040057] text-white border-[#040057] shadow-xs' 
+                            : 'bg-white hover:bg-slate-100 border-slate-300'
+                        }`}
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* SECCIÓN 3: ASIGNACIÓN OPERATIVA OBLIGATORIA DEL TÉCNICO */}
+            <div className="bg-white rounded-2xl p-5 sm:p-7 border border-slate-200/90 shadow-xs space-y-4">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-indigo-600" />
+                  <h2 className="text-base font-bold text-[#040057]">
+                    Asignación Operativa del Técnico Responsable *
+                  </h2>
+                </div>
+                <span className="text-xs bg-amber-100 text-amber-900 font-bold px-2.5 py-0.5 rounded-full">
+                  Notificación Automática a su Dashboard
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-500">
+                Selecciona al técnico calificado para atender la unidad. Al guardar, la unidad aparecerá de inmediato en el módulo <strong>"Unidades Asignadas"</strong> del técnico.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                {availableTechnicians.map(tech => {
+                  const isSelected = assignedTechId === tech.id;
+                  return (
+                    <div
+                      key={tech.id}
+                      onClick={() => setAssignedTechId(tech.id)}
+                      className={`p-3.5 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
+                        isSelected 
+                          ? 'border-[#040057] bg-blue-50/70 shadow-xs' 
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <div>
+                          <div className="font-extrabold text-[#040057] text-sm">{tech.name}</div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">{tech.specialty}</div>
+                        </div>
+                        {isSelected && (
+                          <div className="w-5 h-5 rounded-full bg-[#040057] text-white flex items-center justify-center shrink-0">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                        <span className="text-slate-500">{tech.zone}</span>
+                        <span className={`px-2 py-0.5 rounded-full font-bold uppercase ${
+                          tech.status === 'disponible' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {tech.status}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Nivel de Prioridad Operativa
+                  </label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as any)}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white"
+                  >
+                    <option value="baja">Baja</option>
+                    <option value="media">Media</option>
+                    <option value="alta">Alta</option>
+                    <option value="urgente">Urgente (Prioridad Máxima)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Personal que Recibe la Unidad
+                  </label>
+                  <input
+                    type="text"
+                    value={receivedByStaff}
+                    onChange={(e) => setReceivedByStaff(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-semibold text-slate-800 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* SECCIÓN 4: 1. SERVICIO SOLICITADO (NATURALEZA, FALLA, OPERADOR) */}
             <div className="bg-white rounded-2xl p-5 sm:p-7 border border-slate-200/90 shadow-xs space-y-4">
               <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -889,9 +1239,6 @@ export const UnitReceptionManager: React.FC = () => {
                     placeholder="Ej. VIBRACIÓN EXCESIVA AL METER PRIMERA Y OLOR A FRICCIÓN"
                     className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl uppercase font-semibold text-slate-900 bg-white focus:ring-2 focus:ring-[#040057]"
                   />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Falla reportada por el cliente o detectada al momento de la inspección inicial.
-                  </p>
                 </div>
 
                 <div>
@@ -906,14 +1253,11 @@ export const UnitReceptionManager: React.FC = () => {
                     placeholder="Ej. OPERADOR DON PEDRO (55 3344 5566)"
                     className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl uppercase font-semibold text-slate-900 bg-white focus:ring-2 focus:ring-[#040057]"
                   />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Nombre del conductor que entrega físicamente la unidad en taller.
-                  </p>
                 </div>
               </div>
             </div>
 
-            {/* SECCIÓN 3: 2. FICHA TÉCNICA DEL EQUIPO Y CONJUNTO MECÁNICO */}
+            {/* SECCIÓN 5: 2. FICHA TÉCNICA DEL EQUIPO Y CONJUNTO MECÁNICO */}
             <div className="bg-white rounded-2xl p-5 sm:p-7 border border-slate-200/90 shadow-xs space-y-4">
               <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -944,7 +1288,7 @@ export const UnitReceptionManager: React.FC = () => {
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Odómetro / Horómetro Actual *
+                    Horómetro / Odómetro de Registro *
                   </label>
                   <input
                     type="text"
@@ -984,7 +1328,7 @@ export const UnitReceptionManager: React.FC = () => {
               </div>
             </div>
 
-            {/* SECCIÓN 4: DETALLE DE TRABAJO A REALIZAR */}
+            {/* SECCIÓN 6: DETALLE DE TRABAJO A REALIZAR */}
             <div className="bg-white rounded-2xl p-5 sm:p-7 border border-slate-200/90 shadow-xs space-y-4">
               <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -998,7 +1342,6 @@ export const UnitReceptionManager: React.FC = () => {
                 </span>
               </div>
 
-              {/* Selector Rápido desde Catálogo de Servicios Oficial */}
               <div className="p-3 bg-indigo-50/80 rounded-xl border border-indigo-200 space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold text-[#040057]">
                   <span className="flex items-center gap-1.5">
@@ -1039,62 +1382,62 @@ export const UnitReceptionManager: React.FC = () => {
               />
             </div>
 
-            {/* SECCIÓN 5: ASIGNACIÓN OPERATIVA Y PERSONAL QUE RECIBE */}
+            {/* SECCIÓN 7: EVIDENCIAS INICIALES DE INGRESO (JEFE DE TALLER) */}
             <div className="bg-white rounded-2xl p-5 sm:p-7 border border-slate-200/90 shadow-xs space-y-4">
-              <div className="border-b border-slate-100 pb-3 flex items-center gap-2">
-                <User className="w-5 h-5 text-indigo-600" />
-                <h2 className="text-base font-bold text-[#040057]">
-                  Asignación y Responsabilidad de Recepción
-                </h2>
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Camera className="w-5 h-5 text-indigo-600" />
+                  <h2 className="text-base font-bold text-[#040057]">
+                    Fotografías Iniciales de Ingreso (Opcional en Recepción)
+                  </h2>
+                </div>
+                <span className="text-xs text-slate-500 font-semibold">
+                  Fotos de carrocería, rayones o componentes dañados
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Técnico Asignado (Opcional al recibir)
-                  </label>
-                  <select
-                    value={assignedTechId}
-                    onChange={(e) => setAssignedTechId(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-[#040057] bg-white"
-                  >
-                    <option value="">-- Sin técnico asignado (Pendiente) --</option>
-                    {technicians.map(t => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.specialty} • {t.status})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Prioridad del Servicio
-                  </label>
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value as any)}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-slate-800 bg-white"
-                  >
-                    <option value="baja">Baja</option>
-                    <option value="media">Media</option>
-                    <option value="alta">Alta</option>
-                    <option value="urgente">Urgente (Prioridad Máxima)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Personal que Recibe la Unidad
-                  </label>
-                  <input
-                    type="text"
-                    value={receivedByStaff}
-                    onChange={(e) => setReceivedByStaff(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-semibold text-slate-800 bg-white"
-                  />
-                </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="url"
+                  value={photoUrlInput}
+                  onChange={(e) => setPhotoUrlInput(e.target.value)}
+                  placeholder="URL de fotografía o captura de cámara..."
+                  className="flex-1 px-3 py-2 border rounded-xl text-xs"
+                />
+                <input
+                  type="text"
+                  value={photoTitleInput}
+                  onChange={(e) => setPhotoTitleInput(e.target.value)}
+                  placeholder="Descripción de la foto..."
+                  className="sm:w-64 px-3 py-2 border rounded-xl text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddInitialPhoto}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Agregar Foto</span>
+                </button>
               </div>
+
+              {initialPhotos.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                  {initialPhotos.map((p, idx) => (
+                    <div key={idx} className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900 group">
+                      <img src={p.url} alt={p.title} className="w-full h-24 object-cover" />
+                      <div className="p-1.5 bg-black/60 text-white text-[10px] truncate">{p.title}</div>
+                      <button
+                        type="button"
+                        onClick={() => setInitialPhotos(prev => prev.filter((_, i) => i !== idx))}
+                        className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* BOTONES DE ACCIÓN: GUARDAR Y RETORNAR AL DASHBOARD */}
@@ -1109,10 +1452,10 @@ export const UnitReceptionManager: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-extrabold text-sm shadow-md hover:shadow-xl transition cursor-pointer flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-extrabold text-sm shadow-md hover:shadow-xl transition cursor-pointer flex items-center justify-center gap-2 active:scale-98"
               >
                 <ClipboardCheck className="w-5 h-5 text-emerald-400" />
-                <span>Guardar Recepción y Ver en Dashboard</span>
+                <span>Guardar Recepción y Asignar a Técnico</span>
               </button>
             </div>
 

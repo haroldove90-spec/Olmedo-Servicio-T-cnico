@@ -32,9 +32,23 @@ export interface VehicleInfo {
   engineModelTransmission?: string; // Modelo de Motor/Transmisión
   engineSeriesTransmission?: string; // Serie del Motor/Transmisión
   odometerReading?: string; // Odómetro / Horómetro (ej. 130618 KM)
+  mileage?: string; // Kilometraje
+  fuelLevel?: number; // Nivel de gasolina o diésel (0 a 100%)
+  fuelType?: 'diesel' | 'gasolina'; // Tipo de combustible
 }
 
-export type EvidencePhase = 'antes' | 'correctivo_realizado' | 'durante' | 'despues';
+export type EvidencePhase = 'antes' | 'despues' | 'correctivo_realizado' | 'durante';
+
+export interface RepairLog {
+  id: string;
+  title: string;
+  description: string;
+  status: 'pendiente' | 'en_proceso' | 'terminado';
+  createdAt: string;
+  completedAt?: string;
+  technicianName?: string;
+  position?: string;
+}
 
 export interface EvidencePhoto {
   id: string;
@@ -127,6 +141,9 @@ export interface ServiceOrder {
   clientSignature?: string; // FIRMA DEL CLIENTE
   clientSignatureDate?: string;
 
+  // Reparaciones registradas y evidencias
+  repairs?: RepairLog[];
+
   // Validación administrativa
   adminReviewNotes?: string;
   adminApprovedAt?: string;
@@ -137,15 +154,22 @@ export interface ServiceOrder {
   invoice?: Invoice;
 }
 
-export interface Technician {
+export type EmployeeRole = 'tecnico' | 'jefe_taller' | 'admin' | 'gerencia';
+
+export interface Employee {
   id: string;
   name: string;
+  role: EmployeeRole;
   specialty: string;
   phone: string;
+  email?: string;
   zone: string;
   status: 'disponible' | 'en_campo' | 'en_taller' | 'ocupado';
   currentOrderId?: string;
+  joinDate?: string;
 }
+
+export type Technician = Employee;
 
 export interface SupabaseConfig {
   supabaseUrl: string;

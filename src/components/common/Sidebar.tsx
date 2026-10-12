@@ -17,7 +17,9 @@ import {
   Shield,
   Layers,
   Database,
-  ClipboardCheck
+  ClipboardCheck,
+  Truck,
+  UserPlus
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -129,7 +131,7 @@ export const Sidebar: React.FC = () => {
         ];
 
       case 'tecnico':
-        const myTasks = orders.filter(o => 
+        const assignedUnits = orders.filter(o => 
           o.status === 'asignado' || 
           o.status === 'en_diagnostico_trabajo' || 
           o.status === 'evidencias_rechazadas'
@@ -138,18 +140,18 @@ export const Sidebar: React.FC = () => {
         const authorized = orders.filter(o => o.status === 'liberacion_autorizada').length;
         return [
           {
-            section: 'Trabajo de Campo y Taller',
+            section: 'Trabajo Operativo y Taller',
             items: [
               {
-                id: 'mis_tareas',
-                label: 'Recepción de Tareas Asignadas',
-                icon: <Wrench className="w-5 h-5" />,
-                badge: myTasks > 0 ? myTasks : undefined,
+                id: 'unidades_asignadas',
+                label: 'Unidades Asignadas',
+                icon: <Truck className="w-5 h-5" />,
+                badge: assignedUnits > 0 ? assignedUnits : undefined,
                 badgeColor: 'bg-blue-600',
               },
               {
                 id: 'evidencias',
-                label: 'Carga de Evidencias (1. Antes / 2. Correctivo)',
+                label: 'Evidencias y Reparaciones (Antes / Después)',
                 icon: <Camera className="w-5 h-5" />,
                 badge: rejected > 0 ? rejected : undefined,
                 badgeColor: 'bg-rose-600',
@@ -177,6 +179,18 @@ export const Sidebar: React.FC = () => {
                 id: 'recepcion_unidades',
                 label: 'Recepción de Unidades',
                 icon: <ClipboardCheck className="w-5 h-5" />,
+              },
+            ],
+          },
+          {
+            section: 'Administración de Personal',
+            items: [
+              {
+                id: 'gestion_personal',
+                label: 'Registro de Empleados',
+                icon: <Users className="w-5 h-5" />,
+                badge: technicians.length > 0 ? technicians.length : undefined,
+                badgeColor: 'bg-indigo-600',
               },
             ],
           },

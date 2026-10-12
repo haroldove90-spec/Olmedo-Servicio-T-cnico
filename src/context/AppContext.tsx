@@ -10,7 +10,9 @@ import {
   SupabaseConfig,
   ServiceType,
   VehicleInfo,
-  ServiceCatalogItem
+  ServiceCatalogItem,
+  RepairLog,
+  Employee
 } from '../types';
 import { INITIAL_ORDERS, INITIAL_TECHNICIANS, INITIAL_SERVICES } from '../data/mockData';
 
@@ -100,6 +102,16 @@ interface AppContextType {
     };
   }) => void;
   clientSignReport: (orderId: string, clientNameSignature: string) => void;
+
+  // Gestión de Empleados (Técnicos, Jefes de taller, Admin, Gerencia)
+  addEmployee: (employee: Omit<Technician, 'id'>) => void;
+  updateEmployee: (id: string, updates: Partial<Technician>) => void;
+  deleteEmployee: (id: string) => void;
+
+  // Reparaciones de la unidad
+  addRepairLog: (orderId: string, repair: Omit<RepairLog, 'id' | 'createdAt'>) => void;
+  updateRepairLog: (orderId: string, repairId: string, updates: Partial<RepairLog>) => void;
+  removeRepairLog: (orderId: string, repairId: string) => void;
   
   // Catálogo de Servicios y Precios
   services: ServiceCatalogItem[];
@@ -856,6 +868,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast('success', 'Reporte Técnico Firmado de Conformidad', `Firma registrada para ${clientNameSignature}.`);
   };
 
+  // Gestión de Empleados (Técnicos, Jefes de taller, Admin, Gerencia)
+  const addEmployee = (employee: Omit<Technician, 'id'>) => {
+    const newEmp: Technician = {
+      ...employee,
+      id: `emp-${Date.now()}`,
+      joinDate: new Date().toISOString().slice(0, 10),
+    };
+    setTechnicians(prev => [newEmp, ...prev]);
+    addToast('success', 'Empleado Registrado', `${newEmp.name} ha sido registrado como ${newEmp.role.replace('_', ' ').toUpperCase()}.`);
+  };
+
+  const updateEmployee = (id: string, updates: Partial<Technician>) => {
+    setTechnicians(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+    addToast('info', 'Empleado Actualizado', 'La información del personal ha sido modificada.');
+  };
+
+  const deleteEmployee = (id: string) => {
+    setTechnicians(prev => prev.filter(e => e.id !== id));
+    addToast('warning', 'Empleado Removido', 'El registro del empleado ha sido eliminado.');
+  };
+
+  // Reparaciones registradas en la orden (progresivas por técnico/jefe/gerencia)
+  const addRepairLog = (orderId: string, repair: Omit<RepairLog, 'id' | 'createdAt'>) => {
+    const newRepair: RepairLog = {
+      ...repair,
+      id: `rep-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        return {
+          ...o,
+          repairs: [...(o.repairs || []), newRepair],
+        };
+      }
+      return o;
+    }));
+    addToast('success', 'Reparación Registrada', `Se registró: "${newRepair.title}".`);
+  };
+
+  const updateRepairLog = (orderId: string, repairId: string, updates: Partial<RepairLog>) => {
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        return {
+          ...o,
+          repairs: (o.repairs || []).map(r => r.id === repairId ? { ...r, ...updates } : r),
+        };
+      }
+      return o;
+    }));
+    addToast('info', 'Reparación Actualizada', 'Los datos del trabajo técnico han sido actualizados.');
+  };
+
+  const removeRepairLog = (orderId: string, repairId: string) => {
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        return {
+          ...o,
+          repairs: (o.repairs || []).filter(r => r.id !== repairId),
+        };
+      }
+      return o;
+    }));
+    addToast('warning', 'Reparación Eliminada', 'Se removió la partida de reparación.');
+  };
+
   // Catálogo de Servicios y Precios
   const addServiceItem = (item: Omit<ServiceCatalogItem, 'id'>) => {
     const newItem: ServiceCatalogItem = {
@@ -918,6 +996,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveModule,
         orders,
         technicians,
+        addEmployee,
+        updateEmployee,
+        deleteEmployee,
+        addRepairLog,
+        updateRepairLog,
+        removeRepairLog,
         services,
         addServiceItem,
         updateServiceItem,
