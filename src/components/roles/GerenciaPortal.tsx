@@ -30,7 +30,8 @@ import {
   Database,
   Filter,
   RotateCcw,
-  Tag
+  Tag,
+  ClipboardCheck
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, PartUsed, Quotation, EvidencePhoto, ServiceCatalogItem } from '../../types';
@@ -40,6 +41,7 @@ import { ServicesCatalogManager } from '../common/ServicesCatalogManager';
 import { QuotationDocument } from '../common/QuotationDocument';
 import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
 import { getStatusSemaphore } from '../../utils/statusSemaphore';
+import { UnitReceptionManager } from '../common/UnitReceptionManager';
 
 export const GerenciaPortal: React.FC = () => {
   const { 
@@ -641,15 +643,24 @@ export const GerenciaPortal: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0"></span>
               <h1 className="text-xl sm:text-2xl font-bold text-[#040057] truncate">
-                Gerencia Administrativa y Facturación
+                Gerencia
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Inspección de Evidencias (Antes/Durante/Después) • Autorización de Liberación • Cotizador • Facturación Fiscal
+              Recepción de Unidades • Inspección de Evidencias • Autorización de Liberación • Cotizador • Facturación Fiscal
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveModule('recepcion_unidades')}
+              className="px-3.5 py-1.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <ClipboardCheck className="w-4 h-4 text-emerald-400" />
+              <span>Recepción de Unidades</span>
+            </button>
+
             <span className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold flex items-center gap-1.5">
               <CheckSquare className="w-4 h-4 text-amber-600" />
               {pendingReviewOrders.length} por Validar
@@ -662,6 +673,11 @@ export const GerenciaPortal: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* MÓDULO: RECEPCIÓN DE UNIDADES EN GERENCIA (DASHBOARD EN LISTA + FORMULARIO COMPLETO AL CREAR NUEVA) */}
+      {activeModule === 'recepcion_unidades' && (
+        <UnitReceptionManager />
+      )}
 
       {/* MÓDULO 1: VALIDACIÓN DE EVIDENCIAS Y SERVICIO + REGISTROS DEL TÉCNICO */}
       {(activeModule === 'validacion_evidencias' || activeModule === 'inicio' || activeModule === 'registros_tecnicos') && (

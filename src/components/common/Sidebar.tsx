@@ -16,7 +16,8 @@ import {
   ChevronRight,
   Shield,
   Layers,
-  Database
+  Database,
+  ClipboardCheck
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -80,6 +81,16 @@ export const Sidebar: React.FC = () => {
         const unassigned = orders.filter(o => o.status === 'solicitado').length;
         const inProgress = orders.filter(o => o.status === 'asignado' || o.status === 'en_diagnostico_trabajo').length;
         return [
+          {
+            section: 'Recepción e Ingreso a Taller',
+            items: [
+              {
+                id: 'recepcion_unidades',
+                label: 'Recepción de Unidades',
+                icon: <ClipboardCheck className="w-5 h-5" />,
+              },
+            ],
+          },
           {
             section: 'Operaciones de Taller',
             items: [
@@ -159,6 +170,16 @@ export const Sidebar: React.FC = () => {
         const pendingQuoteCreate = orders.filter(o => o.status === 'liberacion_autorizada' && !o.quotation).length;
         const approvedQuotes = orders.filter(o => o.status === 'cotizacion_aprobada' && !o.invoice).length;
         return [
+          {
+            section: 'Recepción e Ingreso de Unidades',
+            items: [
+              {
+                id: 'recepcion_unidades',
+                label: 'Recepción de Unidades',
+                icon: <ClipboardCheck className="w-5 h-5" />,
+              },
+            ],
+          },
           {
             section: 'Validación e Inspección',
             items: [

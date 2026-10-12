@@ -11,7 +11,8 @@ import {
   Receipt,
   Clock,
   Users,
-  Database
+  Database,
+  ClipboardCheck
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -61,6 +62,11 @@ export const BottomBar: React.FC = () => {
         const unassigned = orders.filter(o => o.status === 'solicitado').length;
         return [
           {
+            id: 'recepcion_unidades',
+            label: 'Recepción',
+            icon: <ClipboardCheck className="w-5 h-5" />,
+          },
+          {
             id: 'bandeja_solicitudes',
             label: 'Bandeja',
             icon: <ListFilter className="w-5 h-5" />,
@@ -75,12 +81,6 @@ export const BottomBar: React.FC = () => {
             id: 'monitoreo_piso',
             label: 'Monitoreo',
             icon: <Clock className="w-5 h-5" />,
-          },
-          {
-            id: 'catalogo_tecnicos',
-            label: 'Técnicos',
-            icon: <Users className="w-5 h-5" />,
-            badge: technicians.length,
           },
         ];
 
@@ -119,6 +119,11 @@ export const BottomBar: React.FC = () => {
         const pendingQuoteCreate = orders.filter(o => o.status === 'liberacion_autorizada' && !o.quotation).length;
         const approvedQuotes = orders.filter(o => o.status === 'cotizacion_aprobada' && !o.invoice).length;
         return [
+          {
+            id: 'recepcion_unidades',
+            label: 'Recepción',
+            icon: <ClipboardCheck className="w-5 h-5" />,
+          },
           {
             id: 'validacion_evidencias',
             label: 'Validación',

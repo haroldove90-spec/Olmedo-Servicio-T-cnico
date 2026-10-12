@@ -115,8 +115,10 @@ export interface ServiceOrder {
   releasedBy?: string;
   receivedByDriver?: string;
 
-  // Datos del formato oficial de Reporte Técnico
+  // Datos del formato oficial de Reporte Técnico y Recepción de Unidad
   reportNumber?: string; // ej. "023" -> REPORTE TÉCNICO 023
+  receptionDate?: string; // Fecha de recepción en taller
+  receivedByStaffName?: string; // Nombre del personal que recibe la unidad
   userOperatorName?: string; // ej. "OMAR BALDERAS"
   maintenanceNature?: 'correctivo' | 'preventivo'; // [X] CORRECTIVO / [ ] PREVENTIVO
   preventiveInspectionNotes?: string; // INSPECCIÓN PREVENTIVA

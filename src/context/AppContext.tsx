@@ -65,7 +65,22 @@ interface AppContextType {
   clientRespondQuotation: (orderId: string, approved: boolean, approvedBy: string, notes?: string) => void;
   emitInvoice: (orderId: string, notes?: string) => void;
   
-  // Formato oficial de Reporte Técnico
+  // Formato oficial de Reporte Técnico y Recepción de Unidad
+  createUnitReception: (data: {
+    existingOrderId?: string;
+    clientName: string;
+    clientContact: string;
+    clientCompany?: string;
+    serviceType?: ServiceType;
+    priority?: 'baja' | 'media' | 'alta' | 'urgente';
+    vehicle: VehicleInfo;
+    maintenanceNature: 'correctivo' | 'preventivo';
+    preventiveInspectionNotes: string;
+    userOperatorName: string;
+    workPerformedDetail?: string;
+    assignedTechnicianId?: string;
+    receivedByStaffName?: string;
+  }) => ServiceOrder;
   updateTechnicalReport: (orderId: string, reportData: {
     maintenanceNature?: 'correctivo' | 'preventivo';
     preventiveInspectionNotes?: string;
@@ -309,6 +324,106 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setOrders(prev => [newOrder, ...prev]);
     addToast('success', 'Solicitud Registrada con Éxito', `Folio ${newOrder.folio} creado para ${data.vehicle.type.toUpperCase()} placas ${data.vehicle.plates}.`);
+    return newOrder;
+  };
+
+  // Recepción de Unidades en Taller y Formato Oficial de Reporte Técnico
+  const createUnitReception = (data: {
+    existingOrderId?: string;
+    clientName: string;
+    clientContact: string;
+    clientCompany?: string;
+    serviceType?: ServiceType;
+    priority?: 'baja' | 'media' | 'alta' | 'urgente';
+    vehicle: VehicleInfo;
+    maintenanceNature: 'correctivo' | 'preventivo';
+    preventiveInspectionNotes: string;
+    userOperatorName: string;
+    workPerformedDetail?: string;
+    assignedTechnicianId?: string;
+    receivedByStaffName?: string;
+  }): ServiceOrder => {
+    const now = new Date().toISOString();
+    const tech = data.assignedTechnicianId ? technicians.find(t => t.id === data.assignedTechnicianId) : undefined;
+    
+    if (data.existingOrderId) {
+      let updatedOrder: ServiceOrder | undefined;
+      setOrders(prev => prev.map(o => {
+        if (o.id === data.existingOrderId) {
+          updatedOrder = {
+            ...o,
+            clientName: data.clientName || o.clientName,
+            clientContact: data.clientContact || o.clientContact,
+            clientCompany: data.clientCompany || o.clientCompany,
+            serviceType: data.serviceType || o.serviceType,
+            priority: data.priority || o.priority,
+            vehicle: {
+              ...o.vehicle,
+              ...data.vehicle,
+            },
+            maintenanceNature: data.maintenanceNature,
+            preventiveInspectionNotes: data.preventiveInspectionNotes,
+            userOperatorName: data.userOperatorName,
+            workPerformedDetail: data.workPerformedDetail !== undefined ? data.workPerformedDetail : o.workPerformedDetail,
+            receptionDate: now,
+            receivedByStaffName: data.receivedByStaffName || 'Jefe de Taller',
+            assignedTechnicianId: tech ? tech.id : o.assignedTechnicianId,
+            assignedTechnicianName: tech ? tech.name : o.assignedTechnicianName,
+            assignedAt: tech ? now : o.assignedAt,
+            status: o.status === 'solicitado' && tech ? 'asignado' : o.status,
+          };
+          return updatedOrder;
+        }
+        return o;
+      }));
+      
+      if (tech) {
+        setTechnicians(prev => prev.map(t => t.id === tech.id ? { ...t, status: 'en_taller', currentOrderId: data.existingOrderId } : t));
+      }
+
+      addToast('success', 'Recepción de Unidad Guardada', `Se actualizaron los datos técnicos y recepción para la orden.`);
+      return updatedOrder || orders.find(o => o.id === data.existingOrderId)!;
+    }
+
+    // Nueva recepción directa en Taller
+    const randomNum = Math.floor(100 + Math.random() * 900);
+    const count = orders.length + 1;
+    const reportNum = String(count < 100 ? (count < 10 ? `00${count}` : `0${count}`) : count);
+    const newFolio = `OS-${new Date().getFullYear()}-${randomNum}`;
+    
+    const newOrder: ServiceOrder = {
+      id: `ord-rec-${Date.now()}`,
+      folio: newFolio,
+      createdAt: now,
+      receptionDate: now,
+      receivedByStaffName: data.receivedByStaffName || 'Jefe de Taller',
+      reportNumber: reportNum,
+      clientName: data.clientName,
+      clientContact: data.clientContact,
+      clientCompany: data.clientCompany,
+      serviceType: data.serviceType || 'taller',
+      priority: data.priority || 'alta',
+      status: tech ? 'asignado' : 'solicitado',
+      assignedTechnicianId: tech?.id,
+      assignedTechnicianName: tech?.name,
+      assignedAt: tech ? now : undefined,
+      vehicle: data.vehicle,
+      maintenanceNature: data.maintenanceNature,
+      preventiveInspectionNotes: data.preventiveInspectionNotes,
+      userOperatorName: data.userOperatorName,
+      workPerformedDetail: data.workPerformedDetail,
+      technicianSignature: tech ? `${tech.name} - Técnico` : undefined,
+      evidences: [],
+      partsUsed: [],
+    };
+
+    setOrders(prev => [newOrder, ...prev]);
+
+    if (tech) {
+      setTechnicians(prev => prev.map(t => t.id === tech.id ? { ...t, status: 'en_taller', currentOrderId: newOrder.id } : t));
+    }
+
+    addToast('success', 'Recepción Registrada con Éxito', `Unidad recibida con Folio ${newFolio} y Reporte Técnico No. ${reportNum}.`);
     return newOrder;
   };
 
@@ -809,6 +924,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteServiceItem,
         attachQuotationPdf,
         createServiceOrder,
+        createUnitReception,
         assignTechnician,
         startTechnicianWork,
         addEvidencePhoto,

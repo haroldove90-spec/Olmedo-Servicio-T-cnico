@@ -1,28 +1,54 @@
 import React from 'react';
+import { 
+  Building2, 
+  ClipboardCheck, 
+  PenTool, 
+  Users 
+} from 'lucide-react';
 import { UserRole } from '../../types';
 import { useApp } from '../../context/AppContext';
 
 interface RoleOption {
   id: UserRole;
   name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor: string;
+  bgColor: string;
+  hoverBorder: string;
 }
 
 const ROLES: RoleOption[] = [
   {
-    id: 'cliente',
-    name: 'Portal del Cliente (Empresas de Flotillas / Particulares)',
+    id: 'gerencia',
+    name: 'Gerencia',
+    icon: Building2,
+    iconColor: 'text-[#040057]',
+    bgColor: 'bg-indigo-50/80 group-hover:bg-indigo-100',
+    hoverBorder: 'hover:border-[#040057]',
   },
   {
     id: 'jefe_taller',
-    name: 'Jefe de Taller / Operaciones',
+    name: 'Jefe de taller',
+    icon: ClipboardCheck,
+    iconColor: 'text-blue-700',
+    bgColor: 'bg-blue-50/80 group-hover:bg-blue-100',
+    hoverBorder: 'hover:border-blue-600',
   },
   {
     id: 'tecnico',
-    name: 'App / Portal del Técnico',
+    name: 'Técnico',
+    icon: PenTool,
+    iconColor: 'text-amber-700',
+    bgColor: 'bg-amber-50/80 group-hover:bg-amber-100',
+    hoverBorder: 'hover:border-amber-600',
   },
   {
-    id: 'gerencia',
-    name: 'Gerencia Administrativa y Facturación',
+    id: 'cliente',
+    name: 'Portal clientes',
+    icon: Users,
+    iconColor: 'text-emerald-700',
+    bgColor: 'bg-emerald-50/80 group-hover:bg-emerald-100',
+    hoverBorder: 'hover:border-emerald-600',
   },
 ];
 
@@ -40,20 +66,26 @@ export const RoleSelector: React.FC = () => {
         />
       </div>
 
-      {/* Cuadrícula de Roles: 2 Columnas Móvil / 4 Columnas Escritorio. Sin header, sin descripciones, solo nombre del rol */}
-      <div className="w-full max-w-6xl grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {ROLES.map((role) => (
-          <button
-            key={role.id}
-            onClick={() => setCurrentRole(role.id)}
-            className="group relative flex flex-col items-center justify-center text-center min-h-[140px] sm:min-h-[180px] p-5 sm:p-7 rounded-2xl bg-white border-2 border-slate-200/90 hover:border-[#040057] shadow-sm hover:shadow-xl transition-all duration-200 cursor-pointer active:scale-98 select-none"
-          >
-            <div className="w-2.5 h-2.5 rounded-full bg-[#040057] mb-3 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <span className="text-base sm:text-lg md:text-xl font-bold text-[#040057] group-hover:text-[#040057] transition-colors leading-snug">
-              {role.name}
-            </span>
-          </button>
-        ))}
+      {/* Cuadrícula de Roles: Orden solicitado: 1. Gerencia, 2. Jefe de taller, 3. Técnico, 4. Portal clientes */}
+      <div className="w-full max-w-5xl grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        {ROLES.map((role) => {
+          const Icon = role.icon;
+          return (
+            <button
+              key={role.id}
+              onClick={() => setCurrentRole(role.id)}
+              className={`group relative flex flex-col items-center justify-center text-center min-h-[160px] sm:min-h-[190px] p-5 sm:p-6 rounded-2xl bg-white border-2 border-slate-200/90 ${role.hoverBorder} shadow-sm hover:shadow-xl transition-all duration-200 cursor-pointer active:scale-98 select-none`}
+            >
+              <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl ${role.bgColor} flex items-center justify-center mb-3.5 transition-colors shadow-2xs`}>
+                <Icon className={`w-7 h-7 sm:w-8 sm:h-8 ${role.iconColor} transition-transform group-hover:scale-110 duration-200`} />
+              </div>
+              
+              <span className="text-base sm:text-lg md:text-xl font-bold text-[#040057] transition-colors leading-snug">
+                {role.name}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

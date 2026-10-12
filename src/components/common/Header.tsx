@@ -10,17 +10,17 @@ interface HeaderProps {
 }
 
 const ROLE_LABELS: Record<UserRole, string> = {
-  cliente: 'Portal del Cliente (Flotillas / Particulares)',
-  jefe_taller: 'Jefe de Taller / Operaciones',
-  tecnico: 'App / Portal del Técnico',
-  gerencia: 'Gerencia Administrativa y Facturación',
+  gerencia: 'Gerencia',
+  jefe_taller: 'Jefe de taller',
+  tecnico: 'Técnico',
+  cliente: 'Portal clientes',
 };
 
 const ROLE_SHORT_LABELS: Record<UserRole, string> = {
-  cliente: 'Cliente',
-  jefe_taller: 'Jefe Taller',
-  tecnico: 'Técnico',
   gerencia: 'Gerencia',
+  jefe_taller: 'Jefe de taller',
+  tecnico: 'Técnico',
+  cliente: 'Clientes',
 };
 
 export const Header: React.FC<HeaderProps> = ({ onOpenSupabaseModal, onOpenWorkflowModal }) => {

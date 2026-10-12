@@ -12,11 +12,14 @@ import {
   Activity, 
   ArrowRight,
   Shield,
-  PhoneCall
+  PhoneCall,
+  ClipboardCheck,
+  Plus
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceType, Technician } from '../../types';
 import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
+import { UnitReceptionManager } from '../common/UnitReceptionManager';
 
 export const JefeTallerPortal: React.FC = () => {
   const { 
@@ -84,15 +87,23 @@ export const JefeTallerPortal: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0"></span>
               <h1 className="text-xl sm:text-2xl font-bold text-[#040057] truncate">
-                Jefe de Taller y Operaciones
+                Jefe de Taller
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Despacho Operativo • Priorización de Rescates y Asistencias • Asignación de Cuadrillas
+              Recepción de Unidades • Despacho Operativo • Asignación de Cuadrillas • Monitoreo
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={() => setActiveModule('recepcion_unidades')}
+              className="px-3.5 py-1.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <ClipboardCheck className="w-4 h-4 text-emerald-400" />
+              <span>Recepción de Unidades</span>
+            </button>
+
             <span className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold flex items-center gap-1.5">
               <AlertCircle className="w-4 h-4 text-amber-600" />
               {incomingOrders.length} por Asignar
@@ -105,6 +116,11 @@ export const JefeTallerPortal: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* MÓDULO: RECEPCIÓN DE UNIDADES (DASHBOARD EN LISTA + FORMULARIO COMPLETO AL CREAR NUEVA) */}
+      {activeModule === 'recepcion_unidades' && (
+        <UnitReceptionManager />
+      )}
 
       {/* MÓDULO 1: BANDEJA DE SOLICITUDES ENTRANTES */}
       {(activeModule === 'bandeja_solicitudes' || activeModule === 'inicio') && (

@@ -161,11 +161,11 @@ export const ClientePortal: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
               <h1 className="text-xl sm:text-2xl font-bold text-[#040057] truncate">
-                Portal del Cliente
+                Portal Clientes
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Atención a Flotillas y Particulares • Solicitudes, Diagnósticos en Vivo y Facturación
+              Solicitudes de Servicio • Diagnósticos en Vivo • Cotizaciones y Facturación
             </p>
           </div>
 
