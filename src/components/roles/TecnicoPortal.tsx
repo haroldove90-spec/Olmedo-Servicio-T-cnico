@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wrench, 
   Camera, 
@@ -30,12 +30,16 @@ import {
   Columns,
   Check,
   CheckSquare,
-  Edit3
+  Edit3,
+  MessageSquare,
+  Image as ImageIcon,
+  UserCheck
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, EvidencePhoto, PartUsed, RepairLog } from '../../types';
 import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
-import { EvidenceCaptureModal } from '../common/EvidenceCaptureModal';
+import { LiveCameraModal } from '../common/LiveCameraModal';
+import { compressImageFile } from '../../utils/imageUtils';
 
 export const TecnicoPortal: React.FC = () => {
   const { 
@@ -74,9 +78,19 @@ export const TecnicoPortal: React.FC = () => {
   const [initialDiagnosisText, setInitialDiagnosisText] = useState('');
   const [showStartModal, setShowStartModal] = useState(false);
 
-  // Evidence upload modal state (Mobile Camera & Multi-card up to 15)
-  const [showEvidenceCaptureModal, setShowEvidenceCaptureModal] = useState(false);
-  const [captureInitialPhase, setCaptureInitialPhase] = useState<'antes' | 'correctivo_realizado'>('antes');
+  // Evidence upload state (Inline sin ventana flotante)
+  const [techEvidencePhase, setTechEvidencePhase] = useState<'antes' | 'correctivo_realizado'>('antes');
+  const [draftEvidences, setDraftEvidences] = useState<Array<{
+    id: string;
+    url: string;
+    title: string;
+    notes: string;
+    adminComments?: string;
+  }>>([]);
+  const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
+  const [activeDraftIdxForCamera, setActiveDraftIdxForCamera] = useState<number | null>(null);
+  const techCameraInputRef = useRef<HTMLInputElement | null>(null);
+  const techGalleryInputRef = useRef<HTMLInputElement | null>(null);
   const [lightboxPhoto, setLightboxPhoto] = useState<EvidencePhoto | null>(null);
 
   // Part used form
@@ -135,20 +149,154 @@ export const TecnicoPortal: React.FC = () => {
 
   const currentOrder = orders.find(o => o.id === selectedOrderId) || myAssignedOrders[0] || orders[0];
 
+  // Evidencias subidas por el Jefe de Taller en recepción
+  const jefeTallerEvidences = currentOrder?.evidences.filter(e => 
+    e.uploadedBy === 'jefe_taller' || 
+    e.commentAuthor?.toLowerCase().includes('jefe') ||
+    e.notes?.toLowerCase().includes('recepción') ||
+    e.notes?.toLowerCase().includes('recepcion') ||
+    e.notes?.toLowerCase().includes('ingreso') ||
+    e.title?.toLowerCase().includes('recepción') ||
+    e.title?.toLowerCase().includes('ingreso') ||
+    e.id.includes('recep')
+  ) || [];
+
+  // Evidencias subidas por el Técnico durante el servicio
+  const tecnicoEvidences = currentOrder?.evidences.filter(e => 
+    !jefeTallerEvidences.some(je => je.id === e.id)
+  ) || [];
+
   // Filtro de fases según la nueva regla (1. Antes y 2. Correctivo realizado)
   const antesEvidences = currentOrder?.evidences.filter(e => e.phase === 'antes') || [];
   const correctivoEvidences = currentOrder?.evidences.filter(e => 
     e.phase === 'correctivo_realizado' || e.phase === 'durante' || e.phase === 'despues'
   ) || [];
 
+  // Handlers para captura de evidencias inline del técnico
+  const handleTriggerMobileCamera = (draftIdx?: number) => {
+    if (draftIdx !== undefined && draftIdx < draftEvidences.length) {
+      setActiveDraftIdxForCamera(draftIdx);
+    } else {
+      const newId = `tech-draft-${Date.now()}`;
+      setDraftEvidences(prev => [
+        ...prev,
+        {
+          id: newId,
+          url: '',
+          title: techEvidencePhase === 'antes' ? `Inspección de componente dañado #${prev.length + 1}` : `Correctivo y pieza montada #${prev.length + 1}`,
+          notes: '',
+        }
+      ]);
+      setActiveDraftIdxForCamera(draftEvidences.length);
+    }
+    setIsLiveCameraOpen(true);
+  };
+
+  const handleLiveCameraCaptured = (dataUrl: string) => {
+    if (activeDraftIdxForCamera !== null && activeDraftIdxForCamera < draftEvidences.length) {
+      setDraftEvidences(prev => prev.map((item, idx) => 
+        idx === activeDraftIdxForCamera ? { ...item, url: dataUrl } : item
+      ));
+    } else {
+      setDraftEvidences(prev => [
+        ...prev,
+        {
+          id: `tech-draft-${Date.now()}`,
+          url: dataUrl,
+          title: techEvidencePhase === 'antes' ? `Inspección de componente #${prev.length + 1}` : `Correctivo concluido #${prev.length + 1}`,
+          notes: '',
+        }
+      ]);
+    }
+    setIsLiveCameraOpen(false);
+    setActiveDraftIdxForCamera(null);
+  };
+
+  const handleNativeCameraFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const compressed = await compressImageFile(files[i]);
+        if (activeDraftIdxForCamera !== null && i === 0 && activeDraftIdxForCamera < draftEvidences.length) {
+          setDraftEvidences(prev => prev.map((item, idx) => 
+            idx === activeDraftIdxForCamera ? { ...item, url: compressed } : item
+          ));
+        } else {
+          setDraftEvidences(prev => [
+            ...prev,
+            {
+              id: `tech-draft-${Date.now()}-${i}`,
+              url: compressed,
+              title: techEvidencePhase === 'antes' ? `Inspección de componente #${prev.length + 1}` : `Correctivo realizado #${prev.length + 1}`,
+              notes: '',
+            }
+          ]);
+        }
+      }
+    } catch (err: any) {
+      alert(`Error al procesar la fotografía: ${err.message || 'Intente de nuevo'}`);
+    } finally {
+      if (e.target) e.target.value = '';
+      setActiveDraftIdxForCamera(null);
+    }
+  };
+
+  const handleAddNewDraftEvidence = () => {
+    const num = draftEvidences.length + 1;
+    setDraftEvidences(prev => [
+      ...prev,
+      {
+        id: `tech-draft-${Date.now()}-${num}`,
+        url: '',
+        title: techEvidencePhase === 'antes' ? `Evidencia de daño #${num}` : `Evidencia de reparación #${num}`,
+        notes: '',
+      }
+    ]);
+  };
+
+  const handleRemoveDraftEvidence = (index: number) => {
+    setDraftEvidences(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleUpdateDraftEvidence = (index: number, field: 'title' | 'notes' | 'adminComments', value: string) => {
+    setDraftEvidences(prev => prev.map((item, idx) => 
+      idx === index ? { ...item, [field]: value } : item
+    ));
+  };
+
+  const handleSaveDraftEvidencesToOrder = () => {
+    if (!currentOrder) return;
+    const validDrafts = draftEvidences.filter(d => d.url.trim().length > 0 && d.title.trim().length > 0);
+    if (validDrafts.length === 0) {
+      alert('⚠️ Por favor toma o sube al menos 1 fotografía con su título antes de guardar.');
+      return;
+    }
+
+    const batch: Omit<EvidencePhoto, 'id' | 'timestamp'>[] = validDrafts.map(d => ({
+      phase: techEvidencePhase,
+      url: d.url,
+      title: d.title.trim(),
+      notes: d.notes.trim() || undefined,
+      adminComments: d.adminComments?.trim() || undefined,
+      uploadedBy: 'tecnico',
+      uploaderName: currentOrder.assignedTechnicianName || 'Técnico de Taller',
+      commentAuthor: currentOrder.assignedTechnicianName || 'Técnico de Taller',
+      commentUpdatedAt: new Date().toISOString(),
+    }));
+
+    addBatchEvidences(currentOrder.id, batch);
+    setDraftEvidences([]);
+  };
+
   const handleSubmitForReview = () => {
     if (!currentOrder) return;
     if (antesEvidences.length === 0) {
-      alert('⚠️ Paso 1 Requerido: Debes cargar al menos 1 evidencia fotográfica en "1. Antes" antes de enviar a revisión.');
+      alert('⚠️ Paso 1 Requerido: Debes registrar al menos 1 evidencia fotográfica en "1. Antes" antes de enviar a revisión.');
       return;
     }
     if (correctivoEvidences.length === 0) {
-      alert('⚠️ Paso 2 Requerido: Debes cargar al menos 1 evidencia fotográfica en "2. Correctivo realizado" antes de enviar a revisión.');
+      alert('⚠️ Paso 2 Requerido: Debes registrar al menos 1 evidencia fotográfica en "2. Correctivo realizado" antes de enviar a revisión.');
       return;
     }
     submitEvidencesForReview(currentOrder.id);
@@ -178,17 +326,11 @@ export const TecnicoPortal: React.FC = () => {
   };
 
   const handleOpenEvidenceCapture = (phase: 'antes' | 'correctivo_realizado' = 'antes') => {
-    // If attempting to open in step 2 but no photos in antes, block with alert
-    const antesCount = currentOrder?.evidences.filter(e => e.phase === 'antes').length || 0;
-    if (phase === 'correctivo_realizado' && antesCount === 0) {
-      alert('⚠️ Paso Bloqueado: Debes tomar o subir al menos 1 fotografía en "1. Antes" antes de poder registrar evidencias en "2. Correctivo realizado".');
-      setCaptureInitialPhase('antes');
-      setShowEvidenceCaptureModal(true);
-      return;
+    setTechEvidencePhase(phase);
+    // Asegurar que haya al menos 1 tarjeta para trabajar
+    if (draftEvidences.length === 0) {
+      handleAddNewDraftEvidence();
     }
-
-    setCaptureInitialPhase(phase);
-    setShowEvidenceCaptureModal(true);
   };
 
   const handleSaveBatchEvidences = (photos: Omit<EvidencePhoto, 'id' | 'timestamp'>[]) => {
@@ -636,37 +778,6 @@ export const TecnicoPortal: React.FC = () => {
             </div>
           )}
 
-          {/* ALERTA DE OBSERVACIONES / RECHAZO DE GERENCIA ADMINISTRATIVA (Paso F en Graph TD) */}
-          {currentOrder && currentOrder.status === 'evidencias_rechazadas' && (
-            <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 sm:p-5 shadow-xs animate-pulse min-w-0">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-6 h-6 text-rose-600" />
-                </div>
-                <div className="flex-1 min-w-0 space-y-1">
-                  <h3 className="text-sm sm:text-base font-bold text-rose-900">
-                    Observación Administrativa: Evidencias Rechazadas / Requieren Corrección (Paso F)
-                  </h3>
-                  <p className="text-xs text-rose-800 font-medium">
-                    Gerencia Administrativa ha devuelto esta orden solicitando correcciones o fotos adicionales antes de autorizar la liberación física:
-                  </p>
-                  <div className="mt-2 p-3 bg-white rounded-xl border border-rose-200 text-xs font-semibold text-slate-800 break-words">
-                    "{currentOrder.adminReviewNotes}"
-                  </div>
-                  
-                  <div className="pt-2">
-                    <button
-                      onClick={() => setShowCorrectionModal(true)}
-                      className="px-4 py-2 rounded-xl bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>Aclarar / Corregir y Reenviar a Gerencia</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* DETALLE DE ORDEN Y APERTURA DE OS (Paso C) */}
           {currentOrder && (
@@ -978,275 +1089,550 @@ export const TecnicoPortal: React.FC = () => {
                 )}
               </div>
 
-              {/* SECCIÓN OBLIGATORIA: EVIDENCIAS FOTOGRÁFICAS (SIN LÍMITE) */}
-              <div className="space-y-4 pt-2 min-w-0">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3 min-w-0">
+              {/* Inputs ocultos de archivo y disparador nativo de cámara móvil */}
+              <input
+                type="file"
+                ref={techCameraInputRef}
+                accept="image/*"
+                capture="environment"
+                onChange={handleNativeCameraFileChange}
+                className="hidden"
+              />
+              <input
+                type="file"
+                ref={techGalleryInputRef}
+                accept="image/*"
+                multiple
+                onChange={handleNativeCameraFileChange}
+                className="hidden"
+              />
+
+              {/* SECCIÓN 1: EVIDENCIAS SUBIDAS POR EL JEFE DE TALLER (RECEPCIÓN E INGRESO) */}
+              <div className="bg-slate-50/90 rounded-2xl p-4 sm:p-5 border-2 border-slate-200/90 space-y-3.5 min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200">
                   <div className="min-w-0">
                     <h3 className="font-bold text-[#040057] text-sm sm:text-base flex items-center gap-2">
-                      <Camera className="w-5 h-5 text-indigo-600 shrink-0" />
-                      <span>Evidencias Fotográficas Obligatorias (Sin Límite)</span>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-100 text-[#040057] font-bold">
-                        {currentOrder.evidences.length} fotos registradas
+                      <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0" />
+                      <span>Evidencias Subidas por el Jefe de Taller (Recepción e Ingreso)</span>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-[#040057] font-bold">
+                        {jefeTallerEvidences.length} fotos de recepción
                       </span>
                     </h3>
                     <p className="text-[11px] text-slate-500 mt-0.5">
-                      Toma fotos con la cámara móvil o sube archivos de cada reparación sin límite. Debes completar <strong>1. Antes</strong> para avanzar a <strong>2. Correctivo realizado</strong>.
+                      Fotografías registradas al momento de ingresar la unidad al taller. Las evidencias técnicas del trabajo se suben inmediatamente abajo.
                     </p>
                   </div>
-
-                  {/* Botones de cámara y comparador */}
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setShowCompareModal(true)}
-                      className="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#040057] border border-indigo-200 text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
-                      title="Comparar evidencias de Antes vs Después lado a lado"
-                    >
-                      <Columns className="w-4 h-4 text-indigo-600" />
-                      <span>Comparar Antes vs Después</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEvidenceCapture('antes')}
-                      className="px-4 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-2 self-start sm:self-auto shrink-0"
-                    >
-                      <Camera className="w-4 h-4 text-emerald-400" />
-                      <span>Tomar Fotos con Cámara (Sin Límite)</span>
-                    </button>
-                  </div>
                 </div>
 
-                {/* Cuadrícula de 2 Pasos: 1. ANTES y 2. CORRECTIVO REALIZADO */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
-              
-              {/* PASO 1: 1. ANTES */}
-              <div className="bg-slate-50/90 rounded-2xl p-4 border-2 border-slate-200 hover:border-slate-300 transition space-y-3 min-w-0">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0"></span>
-                    <span className="text-xs sm:text-sm font-bold text-slate-800 uppercase">
-                      1. ANTES (Falla Inicial)
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                      antesEvidences.length > 0 
-                        ? 'bg-emerald-100 text-emerald-800' 
-                        : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {antesEvidences.length > 0 ? `✓ ${antesEvidences.length} foto(s)` : '⚠️ Mínimo 1 obligatoria'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center text-[11px] text-slate-500">
-                  <span>Evidencia de componentes dañados y falla detectada en sitio</span>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEvidenceCapture('antes')}
-                    className="text-[#040057] hover:underline font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>+ Tomar / Subir</span>
-                  </button>
-                </div>
-
-                {/* Listado de evidencias de Antes */}
-                <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
-                  {antesEvidences.map((ev) => (
-                    <div
-                      key={ev.id}
-                      className="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs space-y-2 text-xs min-w-0 hover:border-indigo-300 transition"
-                    >
-                      <div className="relative group rounded-lg overflow-hidden bg-slate-900 cursor-pointer" onClick={() => setLightboxPhoto(ev)}>
-                        <img
-                          src={ev.url}
-                          alt={ev.title}
-                          className="w-full h-36 object-contain bg-slate-950 rounded-lg group-hover:scale-102 transition duration-200"
-                        />
-                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold gap-1">
-                          <Eye className="w-4 h-4" />
-                          <span>Ver en tamaño completo</span>
+                {jefeTallerEvidences.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {jefeTallerEvidences.map((ev, idx) => (
+                      <div
+                        key={ev.id || idx}
+                        className="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs space-y-2 text-xs min-w-0 hover:border-blue-300 transition"
+                      >
+                        <div 
+                          className="relative group rounded-lg overflow-hidden bg-slate-900 cursor-pointer aspect-video" 
+                          onClick={() => setLightboxPhoto(ev)}
+                        >
+                          <img
+                            src={ev.url}
+                            alt={ev.title}
+                            className="w-full h-full object-contain bg-slate-950 group-hover:scale-102 transition duration-200"
+                          />
+                          <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold gap-1">
+                            <Eye className="w-4 h-4" />
+                            <span>Ver a tamaño completo</span>
+                          </div>
+                          <span className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded bg-black/75 text-white text-[10px] font-bold">
+                            Recepción #{idx + 1}
+                          </span>
                         </div>
-                      </div>
 
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="font-bold text-slate-800 line-clamp-1 break-words">{ev.title}</div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-800 line-clamp-1 break-words">
+                            {ev.title}
+                          </div>
                           {ev.notes && (
                             <div className="text-[11px] text-slate-600 line-clamp-2 break-words mt-0.5">
                               {ev.notes}
                             </div>
                           )}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => removeEvidencePhoto(currentOrder.id, ev.id)}
-                          className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 cursor-pointer shrink-0"
-                          title="Eliminar evidencia"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-100">
-                        <span>{new Date(ev.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
-                        <span className="font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">Fase 1: Antes</span>
-                      </div>
-                    </div>
-                  ))}
-
-                  {antesEvidences.length === 0 && (
-                    <div className="p-6 text-center rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50 space-y-2">
-                      <Camera className="w-8 h-8 text-amber-600 mx-auto" />
-                      <div className="font-bold text-amber-900 text-xs">Sin evidencias de "1. Antes"</div>
-                      <p className="text-[11px] text-amber-700 max-w-xs mx-auto">
-                        Captura mínimo 1 fotografía con la cámara para poder continuar al paso 2 (Correctivo realizado).
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEvidenceCapture('antes')}
-                        className="mt-2 px-4 py-1.5 rounded-lg bg-[#040057] text-white font-bold text-xs hover:bg-[#070085] cursor-pointer inline-flex items-center gap-1.5"
-                      >
-                        <Camera className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Tomar Foto del Antes</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* PASO 2: 2. CORRECTIVO REALIZADO */}
-              <div className={`rounded-2xl p-4 border-2 transition space-y-3 min-w-0 ${
-                antesEvidences.length === 0
-                  ? 'bg-slate-100/80 border-slate-300/80'
-                  : 'bg-slate-50/90 border-slate-200 hover:border-slate-300'
-              }`}>
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <div className="flex items-center gap-2">
-                    {antesEvidences.length === 0 ? (
-                      <Lock className="w-4 h-4 text-amber-600 shrink-0" />
-                    ) : (
-                      <span className="w-3 h-3 rounded-full bg-emerald-500 shrink-0"></span>
-                    )}
-                    <span className="text-xs sm:text-sm font-bold text-slate-800 uppercase">
-                      2. CORRECTIVO REALIZADO
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                      antesEvidences.length === 0
-                        ? 'bg-slate-200 text-slate-600'
-                        : correctivoEvidences.length > 0
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {antesEvidences.length === 0
-                        ? 'Bloqueado'
-                        : correctivoEvidences.length > 0
-                        ? `✓ ${correctivoEvidences.length} foto(s)`
-                        : '⚠️ Mínimo 1 obligatoria'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center text-[11px] text-slate-500">
-                  <span>Reparación efectuada, refacciones nuevas montadas y pruebas</span>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEvidenceCapture('correctivo_realizado')}
-                    className="text-[#040057] hover:underline font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>+ Tomar / Subir</span>
-                  </button>
-                </div>
-
-                {/* Listado de evidencias de Correctivo Realizado */}
-                <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
-                  {antesEvidences.length === 0 ? (
-                    <div className="p-6 text-center rounded-xl border-2 border-dashed border-slate-300 bg-white/70 space-y-2">
-                      <Lock className="w-8 h-8 text-amber-500 mx-auto" />
-                      <div className="font-bold text-slate-700 text-xs">Paso 2 Bloqueado</div>
-                      <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
-                        Debes capturar y guardar al menos 1 fotografía en <strong>"1. Antes"</strong> para habilitar este paso.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEvidenceCapture('antes')}
-                        className="mt-2 px-3.5 py-1.5 rounded-lg border border-[#040057] text-[#040057] font-bold text-xs hover:bg-blue-50 cursor-pointer inline-flex items-center gap-1"
-                      >
-                        <span>Ir a Paso 1 (Antes)</span>
-                      </button>
-                    </div>
-                  ) : correctivoEvidences.length === 0 ? (
-                    <div className="p-6 text-center rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 space-y-2">
-                      <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
-                      <div className="font-bold text-emerald-900 text-xs">Paso 1 Completado</div>
-                      <p className="text-[11px] text-emerald-700 max-w-xs mx-auto">
-                        Ahora captura mínimo 1 fotografía del trabajo correctivo finalizado y pruebas.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEvidenceCapture('correctivo_realizado')}
-                        className="mt-2 px-4 py-1.5 rounded-lg bg-[#040057] text-white font-bold text-xs hover:bg-[#070085] cursor-pointer inline-flex items-center gap-1.5"
-                      >
-                        <Camera className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Tomar Foto de Correctivo</span>
-                      </button>
-                    </div>
-                  ) : (
-                    correctivoEvidences.map((ev) => (
-                      <div
-                        key={ev.id}
-                        className="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs space-y-2 text-xs min-w-0 hover:border-emerald-300 transition"
-                      >
-                        <div className="relative group rounded-lg overflow-hidden bg-slate-900 cursor-pointer" onClick={() => setLightboxPhoto(ev)}>
-                          <img
-                            src={ev.url}
-                            alt={ev.title}
-                            className="w-full h-36 object-contain bg-slate-950 rounded-lg group-hover:scale-102 transition duration-200"
-                          />
-                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold gap-1">
-                            <Eye className="w-4 h-4" />
-                            <span>Ver en tamaño completo</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="font-bold text-slate-800 line-clamp-1 break-words">{ev.title}</div>
-                            {ev.notes && (
-                              <div className="text-[11px] text-slate-600 line-clamp-2 break-words mt-0.5">
-                                {ev.notes}
-                              </div>
-                            )}
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => removeEvidencePhoto(currentOrder.id, ev.id)}
-                            className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 cursor-pointer shrink-0"
-                            title="Eliminar evidencia"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {ev.adminComments && (
+                            <div className="mt-1.5 p-1.5 bg-amber-50 rounded-lg border border-amber-200 text-[10px] text-amber-900 line-clamp-2">
+                              <strong>Comentario Admin:</strong> {ev.adminComments}
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-100">
-                          <span>{new Date(ev.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
-                          <span className="font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">Fase 2: Correctivo</span>
+                          <span>{new Date(ev.timestamp).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</span>
+                          <span className="font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded flex items-center gap-1">
+                            <span>Jefe de Taller</span>
+                          </span>
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl border border-dashed border-slate-300 bg-white/70 text-center text-xs text-slate-500">
+                    <p className="font-medium">No se registraron fotografías previas del Jefe de Taller en la recepción de esta unidad.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Puedes iniciar y cargar todas las evidencias técnicas correspondientes en el panel de abajo.</p>
+                  </div>
+                )}
               </div>
 
-            </div>
-          </div>
+              {/* SECCIÓN 2: SUBIDA DIRECTA DE EVIDENCIAS TÉCNICAS (ABAJO DE LAS DEL JEFE DE TALLER - SIN VENTANA FLOTANTE) */}
+              <div className="bg-white rounded-2xl p-4 sm:p-5 border-2 border-indigo-200 shadow-xs space-y-4 min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 min-w-0">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-[#040057] text-sm sm:text-base flex items-center gap-2">
+                      <Camera className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <span>Subir Evidencias Técnicas del Trabajo (Antes y Después)</span>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-bold">
+                        {tecnicoEvidences.length} fotos del técnico
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Toma fotos directamente con tu dispositivo móvil usando el ícono de cámara y agrega cuantas evidencias requieras con el botón (+).
+                    </p>
+                  </div>
+
+                  {/* Botón comparador */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowCompareModal(true)}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#040057] border border-indigo-200 text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                      title="Comparar evidencias de Antes vs Después lado a lado"
+                    >
+                      <Columns className="w-4 h-4 text-indigo-600" />
+                      <span>Comparar Antes vs Después</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Barra de Controles Rápidos: Selector de Fase + Cámara Móvil + Botón (+) */}
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    
+                    {/* Selector de Fase: 1. Antes vs 2. Después */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider text-[11px]">
+                        Fase a Subir:
+                      </span>
+                      <div className="flex items-center gap-1.5 p-1 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => setTechEvidencePhase('antes')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                            techEvidencePhase === 'antes'
+                              ? 'bg-[#040057] text-white shadow-xs'
+                              : 'text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                          <span>1. Antes ({tecnicoEvidences.filter(e => e.phase === 'antes').length})</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTechEvidencePhase('correctivo_realizado')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                            techEvidencePhase === 'correctivo_realizado'
+                              ? 'bg-[#040057] text-white shadow-xs'
+                              : 'text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                          <span>2. Después / Correctivo ({tecnicoEvidences.filter(e => e.phase !== 'antes').length})</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Botones de Captura Directa con Cámara del Móvil y Botón (+) */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Botón Principal: Ícono de Cámara para dispositivo móvil */}
+                      <button
+                        type="button"
+                        onClick={() => handleTriggerMobileCamera()}
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center gap-2"
+                        title="Abrir cámara del dispositivo móvil para tomar foto"
+                      >
+                        <Camera className="w-4 h-4 text-white" />
+                        <span>Tomar Foto con Cámara</span>
+                      </button>
+
+                      {/* Respaldo disparador nativo de cámara */}
+                      <button
+                        type="button"
+                        onClick={() => techCameraInputRef.current?.click()}
+                        className="p-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
+                        title="Disparador nativo de la cámara del teléfono"
+                      >
+                        <Camera className="w-4 h-4 text-slate-600" />
+                      </button>
+
+                      {/* Botón (+) para agregar más evidencias */}
+                      <button
+                        type="button"
+                        onClick={handleAddNewDraftEvidence}
+                        className="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#040057] border border-indigo-200 font-bold text-xs shadow-2xs transition cursor-pointer flex items-center gap-1.5"
+                        title="Agregar otra tarjeta de evidencia para capturar o redactar"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Agregar Evidencia (+)</span>
+                      </button>
+
+                      {/* Subir desde galería del dispositivo */}
+                      <button
+                        type="button"
+                        onClick={() => techGalleryInputRef.current?.click()}
+                        className="px-3 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition cursor-pointer flex items-center gap-1"
+                        title="Subir fotos existentes desde la galería"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Galería</span>
+                      </button>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* FORMULARIO DIRECTO INLINE: Tarjetas de evidencias en borrador listas para guardar */}
+                {draftEvidences.length > 0 && (
+                  <div className="space-y-3 pt-1 border-t border-indigo-100">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Layers className="w-4 h-4 text-indigo-600" />
+                        <span>Nuevas Evidencias por Guardar ({draftEvidences.length})</span>
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        Fase asignada: <strong className="text-[#040057]">{techEvidencePhase === 'antes' ? '1. Antes' : '2. Después / Correctivo'}</strong>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      {draftEvidences.map((draft, idx) => (
+                        <div
+                          key={draft.id}
+                          className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/20 p-3.5 shadow-xs space-y-3"
+                        >
+                          <div className="flex items-center justify-between pb-2 border-b border-indigo-100">
+                            <span className="font-extrabold text-[#040057] text-xs flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-full bg-[#040057] text-white flex items-center justify-center text-[10px]">
+                                {idx + 1}
+                              </span>
+                              <span>Evidencia #{idx + 1}</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDraftEvidence(idx)}
+                              className="text-rose-600 hover:text-rose-800 text-xs font-bold p-1 rounded-lg hover:bg-rose-50 cursor-pointer flex items-center gap-1"
+                              title="Descartar esta evidencia"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Quitar</span>
+                            </button>
+                          </div>
+
+                          {/* Foto o Disparador de Cámara */}
+                          <div>
+                            {draft.url ? (
+                              <div className="relative rounded-xl overflow-hidden aspect-video bg-slate-950 border border-slate-300 group">
+                                <img
+                                  src={draft.url}
+                                  alt={draft.title}
+                                  className="w-full h-full object-contain"
+                                />
+                                <div className="absolute top-2 right-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTriggerMobileCamera(idx)}
+                                    className="px-2.5 py-1 rounded-lg bg-black/80 hover:bg-black text-white text-[11px] font-bold shadow-md flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span>Retomar</span>
+                                  </button>
+                                </div>
+                                <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/75 text-emerald-400 text-[10px] font-bold flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Foto capturada</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleTriggerMobileCamera(idx)}
+                                className="w-full py-6 rounded-xl border-2 border-dashed border-emerald-400 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-800 font-bold text-xs flex flex-col items-center justify-center gap-2 transition cursor-pointer"
+                              >
+                                <div className="p-2 rounded-full bg-emerald-600 text-white">
+                                  <Camera className="w-5 h-5" />
+                                </div>
+                                <span>Tocar aquí para tomar foto con la cámara</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Selector rápido del catálogo de servicios */}
+                          <div>
+                            <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
+                              <span className="font-semibold text-slate-700">Autollenar con servicio del catálogo:</span>
+                            </div>
+                            <select
+                              onChange={(e) => {
+                                const srv = services.find(s => s.id === e.target.value);
+                                if (srv) {
+                                  handleUpdateDraftEvidence(idx, 'title', srv.name);
+                                  handleUpdateDraftEvidence(idx, 'notes', `${srv.description} [Código: ${srv.code}]`);
+                                }
+                              }}
+                              defaultValue=""
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-[#040057]"
+                            >
+                              <option value="">⚡ Seleccionar servicio para autocompletar título...</option>
+                              {services.filter(s => s.isActive).map(s => (
+                                <option key={s.id} value={s.id}>
+                                  [{s.code}] {s.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Título de la Evidencia */}
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                              Título de la Evidencia *
+                            </label>
+                            <input
+                              type="text"
+                              value={draft.title}
+                              onChange={(e) => handleUpdateDraftEvidence(idx, 'title', e.target.value)}
+                              placeholder="Ej. Desgaste en balatas de rueda 3 / Tuercas UNEMON torqueadas"
+                              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:ring-2 focus:ring-[#040057]"
+                            />
+                          </div>
+
+                          {/* Comentarios y Notas Técnicas */}
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                              Comentarios y Notas de la Evidencia
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={draft.notes}
+                              onChange={(e) => handleUpdateDraftEvidence(idx, 'notes', e.target.value)}
+                              placeholder="Observación técnica, mediciones, condición encontrada..."
+                              className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:ring-2 focus:ring-[#040057]"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Botón para Guardar Evidencias en la Orden */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200">
+                      <button
+                        type="button"
+                        onClick={handleAddNewDraftEvidence}
+                        className="px-3.5 py-2 rounded-xl border border-indigo-200 bg-white hover:bg-indigo-50 text-[#040057] font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Agregar Otra Evidencia (+)</span>
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDraftEvidences([])}
+                          className="px-3 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+                        >
+                          Cancelar Borrador
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveDraftEvidencesToOrder}
+                          className="px-5 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center gap-1.5"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          <span>Guardar {draftEvidences.filter(d => d.url).length} Evidencia(s) en la Orden</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* CUADRÍCULA DE EVIDENCIAS YA REGISTRADAS DE LA ORDEN (1. ANTES Y 2. CORRECTIVO) */}
+                <div className="pt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
+                    
+                    {/* COLUMNA 1: 1. ANTES */}
+                    <div className="bg-slate-50/90 rounded-2xl p-4 border-2 border-slate-200 space-y-3 min-w-0">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-amber-500 shrink-0"></span>
+                          <span className="text-xs sm:text-sm font-bold text-slate-800 uppercase">
+                            1. ANTES (Falla Inicial)
+                          </span>
+                        </div>
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                          antesEvidences.length > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {antesEvidences.length > 0 ? `✓ ${antesEvidences.length} foto(s)` : '⚠️ Mínimo 1'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                        {antesEvidences.map((ev) => (
+                          <div
+                            key={ev.id}
+                            className="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs space-y-2 text-xs min-w-0 hover:border-indigo-300 transition"
+                          >
+                            <div 
+                              className="relative group rounded-lg overflow-hidden bg-slate-900 cursor-pointer aspect-video" 
+                              onClick={() => setLightboxPhoto(ev)}
+                            >
+                              <img
+                                src={ev.url}
+                                alt={ev.title}
+                                className="w-full h-full object-contain bg-slate-950 group-hover:scale-102 transition duration-200"
+                              />
+                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold gap-1">
+                                <Eye className="w-4 h-4" />
+                                <span>Ver a tamaño completo</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-bold text-slate-800 line-clamp-1 break-words">{ev.title}</div>
+                                {ev.notes && (
+                                  <div className="text-[11px] text-slate-600 line-clamp-2 break-words mt-0.5">
+                                    {ev.notes}
+                                  </div>
+                                )}
+                                {ev.adminComments && (
+                                  <div className="mt-1 p-1.5 bg-amber-50 rounded-lg border border-amber-200 text-[10px] text-amber-900">
+                                    <strong>Admin:</strong> {ev.adminComments}
+                                  </div>
+                                )}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => removeEvidencePhoto(currentOrder.id, ev.id)}
+                                className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 cursor-pointer shrink-0"
+                                title="Eliminar evidencia"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-100">
+                              <span>{new Date(ev.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                                {ev.uploadedBy === 'jefe_taller' ? 'Recepción' : 'Fase 1: Antes'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+
+                        {antesEvidences.length === 0 && (
+                          <div className="p-6 text-center rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50 space-y-2">
+                            <Camera className="w-8 h-8 text-amber-600 mx-auto" />
+                            <div className="font-bold text-amber-900 text-xs">Sin evidencias de "1. Antes"</div>
+                            <p className="text-[11px] text-amber-700 max-w-xs mx-auto">
+                              Presiona el botón de cámara para tomar fotos con tu dispositivo móvil.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* COLUMNA 2: 2. CORRECTIVO REALIZADO */}
+                    <div className="bg-slate-50/90 rounded-2xl p-4 border-2 border-slate-200 space-y-3 min-w-0">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-emerald-500 shrink-0"></span>
+                          <span className="text-xs sm:text-sm font-bold text-slate-800 uppercase">
+                            2. CORRECTIVO REALIZADO (Después)
+                          </span>
+                        </div>
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                          correctivoEvidences.length > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          {correctivoEvidences.length > 0 ? `✓ ${correctivoEvidences.length} foto(s)` : 'Opcional / Pendiente'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                        {correctivoEvidences.map((ev) => (
+                          <div
+                            key={ev.id}
+                            className="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs space-y-2 text-xs min-w-0 hover:border-emerald-300 transition"
+                          >
+                            <div 
+                              className="relative group rounded-lg overflow-hidden bg-slate-900 cursor-pointer aspect-video" 
+                              onClick={() => setLightboxPhoto(ev)}
+                            >
+                              <img
+                                src={ev.url}
+                                alt={ev.title}
+                                className="w-full h-full object-contain bg-slate-950 group-hover:scale-102 transition duration-200"
+                              />
+                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold gap-1">
+                                <Eye className="w-4 h-4" />
+                                <span>Ver a tamaño completo</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-bold text-slate-800 line-clamp-1 break-words">{ev.title}</div>
+                                {ev.notes && (
+                                  <div className="text-[11px] text-slate-600 line-clamp-2 break-words mt-0.5">
+                                    {ev.notes}
+                                  </div>
+                                )}
+                                {ev.adminComments && (
+                                  <div className="mt-1 p-1.5 bg-amber-50 rounded-lg border border-amber-200 text-[10px] text-amber-900">
+                                    <strong>Admin:</strong> {ev.adminComments}
+                                  </div>
+                                )}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => removeEvidencePhoto(currentOrder.id, ev.id)}
+                                className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 cursor-pointer shrink-0"
+                                title="Eliminar evidencia"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1 border-t border-slate-100">
+                              <span>{new Date(ev.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">Fase 2: Correctivo</span>
+                            </div>
+                          </div>
+                        ))}
+
+                        {correctivoEvidences.length === 0 && (
+                          <div className="p-6 text-center rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 space-y-2">
+                            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
+                            <div className="font-bold text-emerald-900 text-xs">Sin evidencias de Correctivo</div>
+                            <p className="text-[11px] text-emerald-700 max-w-xs mx-auto">
+                              Selecciona la fase "2. Después / Correctivo" y toma fotos del trabajo finalizado.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
 
           {/* SECCIÓN DE REFACCIONES E INSUMOS UTILIZADOS */}
           <div className="space-y-3 pt-3 border-t border-slate-100 min-w-0 max-w-full">
@@ -1463,16 +1849,16 @@ export const TecnicoPortal: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL PARA CARGAR EVIDENCIA FOTOGRÁFICA (Cámara móvil, galería, 1 a 15 fotos) */}
-      {showEvidenceCaptureModal && currentOrder && (
-        <EvidenceCaptureModal
-          isOpen={showEvidenceCaptureModal}
-          onClose={() => setShowEvidenceCaptureModal(false)}
-          order={currentOrder}
-          initialPhase={captureInitialPhase}
-          onSave={handleSaveBatchEvidences}
-        />
-      )}
+      {/* Visor de Cámara en Vivo para Dispositivos Móviles (Activado únicamente al disparar foto) */}
+      <LiveCameraModal
+        isOpen={isLiveCameraOpen}
+        onClose={() => {
+          setIsLiveCameraOpen(false);
+          setActiveDraftIdxForCamera(null);
+        }}
+        onCapture={handleLiveCameraCaptured}
+        title={`Tomar Foto con Cámara Móvil (${techEvidencePhase === 'antes' ? '1. Antes' : '2. Correctivo'})`}
+      />
 
       {/* MODAL LIGHTBOX PARA VISUALIZACIÓN EN TAMAÑO COMPLETO */}
       {lightboxPhoto && (
@@ -1506,12 +1892,25 @@ export const TecnicoPortal: React.FC = () => {
                 className="max-h-[72vh] max-w-full object-contain rounded-lg shadow-lg"
               />
             </div>
-            {lightboxPhoto.notes && (
-              <div className="p-3 bg-slate-950 text-slate-200 text-xs border-t border-slate-800">
-                <strong className="text-blue-300">Notas de inspección: </strong>
-                <span>{lightboxPhoto.notes}</span>
-              </div>
-            )}
+            <div className="p-3 bg-slate-950 text-slate-200 text-xs border-t border-slate-800 space-y-1.5">
+              {lightboxPhoto.notes && (
+                <div>
+                  <strong className="text-blue-300">Notas de inspección: </strong>
+                  <span>{lightboxPhoto.notes}</span>
+                </div>
+              )}
+              {lightboxPhoto.adminComments && (
+                <div className="p-2 bg-amber-950/40 rounded-lg border border-amber-500/40 text-amber-200">
+                  <strong className="text-amber-300">Comentario de Administración / Gerencia / Jefe de Taller: </strong>
+                  <span>{lightboxPhoto.adminComments}</span>
+                  {lightboxPhoto.commentAuthor && (
+                    <span className="text-[10px] text-amber-400/80 block mt-0.5">
+                      — {lightboxPhoto.commentAuthor}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

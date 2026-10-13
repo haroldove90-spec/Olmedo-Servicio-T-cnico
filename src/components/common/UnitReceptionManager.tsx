@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   ClipboardCheck, 
   FileText, 
@@ -26,11 +26,15 @@ import {
   Check,
   UserCheck,
   Eye,
-  Trash2
+  Trash2,
+  Upload,
+  MessageSquare
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceType, VehicleType, EvidencePhoto } from '../../types';
 import { TechnicalReportDocument } from './TechnicalReportDocument';
+import { LiveCameraModal } from './LiveCameraModal';
+import { compressImageFile } from '../../utils/imageUtils';
 
 export const UnitReceptionManager: React.FC = () => {
   const { 
@@ -88,10 +92,17 @@ export const UnitReceptionManager: React.FC = () => {
     currentRole === 'gerencia' ? 'Gerencia / Dirección General' : 'Jefe de Taller'
   );
 
-  // Evidencias fotográficas iniciales tomadas por Jefe de Taller en recepción
-  const [initialPhotos, setInitialPhotos] = useState<{ url: string; title: string; notes?: string }[]>([]);
-  const [photoUrlInput, setPhotoUrlInput] = useState('');
-  const [photoTitleInput, setPhotoTitleInput] = useState('Estado de ingreso de la unidad');
+  // Evidencias fotográficas iniciales tomadas por Jefe de Taller en recepción (sin campo URL, con cámara móvil directa)
+  const [initialPhotos, setInitialPhotos] = useState<{ url: string; title: string; notes?: string; adminComments?: string }[]>([]);
+  const [currentDraftTitle, setCurrentDraftTitle] = useState('Estado de ingreso de la unidad');
+  const [currentDraftComment, setCurrentDraftComment] = useState('');
+  const [isReceptionCameraOpen, setIsReceptionCameraOpen] = useState(false);
+  const receptionCameraInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Update specific photo's title or comment directly
+  const handleUpdateInitialPhoto = (index: number, field: 'title' | 'adminComments', value: string) => {
+    setInitialPhotos(prev => prev.map((item, idx) => idx === index ? { ...item, [field]: value } : item));
+  };
 
   // Feedback Banner & Document Preview
   const [lastSavedOrder, setLastSavedOrder] = useState<ServiceOrder | null>(null);
@@ -240,14 +251,49 @@ export const UnitReceptionManager: React.FC = () => {
     setPriority(target.priority || 'alta');
   };
 
-  // Add initial photo by URL or camera capture
-  const handleAddInitialPhoto = () => {
-    if (!photoUrlInput.trim()) return;
+  // Add initial photo from camera or gallery with its own custom title and comment
+  const handleAddCapturedPhoto = (dataUrl: string) => {
+    const photoNumber = initialPhotos.length + 1;
+    const itemTitle = currentDraftTitle.trim() || `Evidencia de ingreso #${photoNumber}`;
+    const itemComment = currentDraftComment.trim() || '';
+
     setInitialPhotos(prev => [
       ...prev,
-      { url: photoUrlInput.trim(), title: photoTitleInput.trim() || 'Evidencia de ingreso en taller' }
+      { 
+        url: dataUrl, 
+        title: itemTitle,
+        notes: `Capturada en recepción por ${receivedByStaff}`,
+        adminComments: itemComment || undefined,
+      }
     ]);
-    setPhotoUrlInput('');
+    // Reset draft comment for the next photo
+    setCurrentDraftComment('');
+    setCurrentDraftTitle(`Evidencia de ingreso #${photoNumber + 1}`);
+    addToast('success', 'Fotografía Capturada', 'Se adjuntó la evidencia a la ficha de ingreso.');
+  };
+
+  const handleReceptionFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const compressed = await compressImageFile(files[i]);
+        const num = initialPhotos.length + i + 1;
+        setInitialPhotos(prev => [
+          ...prev,
+          {
+            url: compressed,
+            title: currentDraftTitle.trim() || `Evidencia de ingreso #${num}`,
+            notes: `Subida en recepción por ${receivedByStaff}`,
+            adminComments: currentDraftComment.trim() || undefined,
+          }
+        ]);
+      }
+      setCurrentDraftComment('');
+      setCurrentDraftTitle(`Evidencia de ingreso #${initialPhotos.length + files.length + 1}`);
+    } catch (err: any) {
+      alert(`Error al procesar imagen: ${err.message || 'Intenta de nuevo'}`);
+    }
   };
 
   // Submit Handler -> saves and returns to dashboard list
@@ -309,7 +355,12 @@ export const UnitReceptionManager: React.FC = () => {
           phase: 'antes',
           url: p.url,
           title: p.title,
-          notes: `Fotografía de recepción tomada al ingreso por ${receivedByStaff}.`,
+          notes: p.notes || `Fotografía de recepción tomada al ingreso por ${receivedByStaff}.`,
+          adminComments: p.adminComments || undefined,
+          commentAuthor: receivedByStaff,
+          commentUpdatedAt: new Date().toISOString(),
+          uploadedBy: 'jefe_taller',
+          uploaderName: receivedByStaff,
         });
       });
     }
@@ -1382,60 +1433,167 @@ export const UnitReceptionManager: React.FC = () => {
               />
             </div>
 
-            {/* SECCIÓN 7: EVIDENCIAS INICIALES DE INGRESO (JEFE DE TALLER) */}
+            {/* SECCIÓN 7: EVIDENCIAS INICIALES DE INGRESO (INTERFAZ MINIMALISTA: ÍCONO DE CÁMARA Y BOTÓN "+") */}
             <div className="bg-white rounded-2xl p-5 sm:p-7 border border-slate-200/90 shadow-xs space-y-4">
-              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+              {/* Input oculto para cámara nativa / archivo */}
+              <input
+                type="file"
+                ref={receptionCameraInputRef}
+                accept="image/*"
+                capture="environment"
+                onChange={handleReceptionFileChange}
+                className="hidden"
+              />
+
+              <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Camera className="w-5 h-5 text-indigo-600" />
                   <h2 className="text-base font-bold text-[#040057]">
-                    Fotografías Iniciales de Ingreso (Opcional en Recepción)
+                    Fotografías y Evidencias de Ingreso
                   </h2>
+                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-[#040057] text-[10px] font-bold">
+                    {initialPhotos.length} fotos registradas
+                  </span>
                 </div>
                 <span className="text-xs text-slate-500 font-semibold">
-                  Fotos de carrocería, rayones o componentes dañados
+                  Presiona el ícono de cámara para tomar fotos con tu dispositivo móvil o el botón (+) para agregar más
                 </span>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="url"
-                  value={photoUrlInput}
-                  onChange={(e) => setPhotoUrlInput(e.target.value)}
-                  placeholder="URL de fotografía o captura de cámara..."
-                  className="flex-1 px-3 py-2 border rounded-xl text-xs"
-                />
-                <input
-                  type="text"
-                  value={photoTitleInput}
-                  onChange={(e) => setPhotoTitleInput(e.target.value)}
-                  placeholder="Descripción de la foto..."
-                  className="sm:w-64 px-3 py-2 border rounded-xl text-xs"
-                />
+              {/* Entrada rápida para la siguiente foto que se capture */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-50/70 rounded-xl border border-slate-200">
+                <div>
+                  <label className="block font-semibold text-slate-700 text-xs mb-1">
+                    Título / Descripción para la siguiente foto
+                  </label>
+                  <input
+                    type="text"
+                    value={currentDraftTitle}
+                    onChange={(e) => setCurrentDraftTitle(e.target.value)}
+                    placeholder="Ej. Rayón en defensa / Desgaste severo en tambor..."
+                    className="w-full px-3 py-2 border rounded-xl text-xs bg-white focus:ring-2 focus:ring-[#040057]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-amber-950 text-xs mb-1 flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Comentario para la siguiente foto</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={currentDraftComment}
+                    onChange={(e) => setCurrentDraftComment(e.target.value)}
+                    placeholder="Observaciones de recepción que podrá ver y editar gerencia..."
+                    className="w-full px-3 py-2 border border-amber-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Barra de captura táctil: Solo Ícono de Cámara + Botón "+" para agregar más evidencias */}
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                {/* Ícono de Cámara grande directo */}
                 <button
                   type="button"
-                  onClick={handleAddInitialPhoto}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  onClick={() => setIsReceptionCameraOpen(true)}
+                  className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md transition flex items-center gap-2.5 cursor-pointer"
+                  title="Abrir cámara del dispositivo móvil"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Agregar Foto</span>
+                  <div className="p-1 rounded-lg bg-emerald-700">
+                    <Camera className="w-5 h-5 text-white" />
+                  </div>
+                  <span>Tomar Foto con Cámara</span>
+                </button>
+
+                {/* Botón "+" para agregar más evidencias */}
+                <button
+                  type="button"
+                  onClick={() => setIsReceptionCameraOpen(true)}
+                  className="px-4 py-3 rounded-2xl bg-[#040057] hover:bg-[#070085] active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md transition flex items-center gap-2 cursor-pointer"
+                  title="Agregar más evidencias (+)"
+                >
+                  <Plus className="w-5 h-5 text-emerald-400 stroke-[3]" />
+                  <span>Agregar Más Evidencias (+)</span>
+                </button>
+
+                {/* Respaldo cámara nativa táctil */}
+                <button
+                  type="button"
+                  onClick={() => receptionCameraInputRef.current?.click()}
+                  className="p-3 rounded-2xl border border-slate-300 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
+                  title="Abrir con disparador nativo de la cámara del celular"
+                >
+                  <Camera className="w-5 h-5 text-slate-600" />
                 </button>
               </div>
 
+              {/* Cuadrícula interactiva: cada evidencia con su propio título y comentario editable */}
               {initialPhotos.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                  {initialPhotos.map((p, idx) => (
-                    <div key={idx} className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900 group">
-                      <img src={p.url} alt={p.title} className="w-full h-24 object-cover" />
-                      <div className="p-1.5 bg-black/60 text-white text-[10px] truncate">{p.title}</div>
-                      <button
-                        type="button"
-                        onClick={() => setInitialPhotos(prev => prev.filter((_, i) => i !== idx))}
-                        className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition"
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>Evidencias Capturadas ({initialPhotos.length})</span>
+                    <span className="text-[10px] text-slate-500 font-normal normal-case">
+                      — Puedes editar el título y el comentario de cada evidencia aquí mismo:
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {initialPhotos.map((p, idx) => (
+                      <div 
+                        key={idx} 
+                        className="rounded-2xl border-2 border-slate-200 bg-white p-3 shadow-xs space-y-2.5 hover:border-indigo-300 transition"
                       >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
+                        {/* Previsualización de la foto */}
+                        <div className="relative rounded-xl overflow-hidden bg-slate-950 aspect-video">
+                          <img 
+                            src={p.url} 
+                            alt={p.title} 
+                            className="w-full h-full object-contain" 
+                          />
+                          <span className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded bg-black/70 text-white text-[10px] font-bold">
+                            #{idx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setInitialPhotos(prev => prev.filter((_, i) => i !== idx))}
+                            className="absolute top-1.5 right-1.5 p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition cursor-pointer text-xs shadow-md"
+                            title="Eliminar esta foto"
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        {/* Título propio de esta evidencia */}
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-slate-600 mb-0.5">
+                            Título de la Evidencia #{idx + 1} *
+                          </label>
+                          <input
+                            type="text"
+                            value={p.title}
+                            onChange={(e) => handleUpdateInitialPhoto(idx, 'title', e.target.value)}
+                            placeholder="Nombre del componente / falla..."
+                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-[#040057] bg-slate-50/50"
+                          />
+                        </div>
+
+                        {/* Comentario respectivo propio de esta evidencia */}
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase text-amber-900 mb-0.5 flex items-center gap-1">
+                            <MessageSquare className="w-3 h-3 text-amber-600" />
+                            <span>Comentario Respectivo *</span>
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={p.adminComments || ''}
+                            onChange={(e) => handleUpdateInitialPhoto(idx, 'adminComments', e.target.value)}
+                            placeholder="Escribe el comentario específico de esta foto..."
+                            className="w-full px-2.5 py-1.5 border border-amber-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-amber-500 bg-amber-50/30"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -1506,6 +1664,14 @@ export const UnitReceptionManager: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Visor de Cámara Móvil en Vivo para Recepción de Unidades */}
+      <LiveCameraModal
+        isOpen={isReceptionCameraOpen}
+        onClose={() => setIsReceptionCameraOpen(false)}
+        onCapture={handleAddCapturedPhoto}
+        title="Tomar Foto de Ingreso de la Unidad con Cámara Móvil"
+      />
 
     </div>
   );

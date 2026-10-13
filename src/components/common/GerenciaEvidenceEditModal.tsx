@@ -51,6 +51,7 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
   // Single Evidence fields
   const [evidenceTitle, setEvidenceTitle] = useState(evidenceToEdit?.title || '');
   const [evidenceNotes, setEvidenceNotes] = useState(evidenceToEdit?.notes || '');
+  const [adminComments, setAdminComments] = useState(evidenceToEdit?.adminComments || '');
   const [evidencePhase, setEvidencePhase] = useState<'antes' | 'correctivo_realizado'>(
     evidenceToEdit?.phase === 'antes' ? 'antes' : 'correctivo_realizado'
   );
@@ -73,6 +74,7 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
     if (evidenceToEdit) {
       setEvidenceTitle(evidenceToEdit.title || '');
       setEvidenceNotes(evidenceToEdit.notes || '');
+      setAdminComments(evidenceToEdit.adminComments || '');
       setEvidencePhase(evidenceToEdit.phase === 'antes' ? 'antes' : 'correctivo_realizado');
     } else {
       setUnitBrand(order.vehicle.brand || (order.vehicle.brandModel ? order.vehicle.brandModel.split(' ')[0] : ''));
@@ -98,6 +100,9 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
     onSaveEvidence(evidenceToEdit.id, {
       title: evidenceTitle.trim(),
       notes: evidenceNotes.trim() || undefined,
+      adminComments: adminComments.trim() || undefined,
+      commentAuthor: 'Gerencia Administrativa / Supervisión',
+      commentUpdatedAt: new Date().toISOString(),
       phase: evidencePhase,
     });
     onClose();
@@ -230,6 +235,23 @@ export const GerenciaEvidenceEditModal: React.FC<GerenciaEvidenceEditModalProps>
                 placeholder="Detalles de torque, condición del componente, mediciones de presión..."
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#040057] text-xs leading-relaxed"
               />
+            </div>
+
+            {/* Campo Comentarios Administrativos */}
+            <div className="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200 space-y-1.5">
+              <label className="block font-bold text-amber-950 text-xs">
+                Comentarios de la Administración / Gerencia / Jefe de Taller
+              </label>
+              <textarea
+                rows={3}
+                value={adminComments}
+                onChange={(e) => setAdminComments(e.target.value)}
+                placeholder="Escribe tus propios comentarios de supervisión sobre esta evidencia..."
+                className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 text-xs leading-relaxed"
+              />
+              <p className="text-[10px] text-amber-800">
+                Podrás ver, modificar y guardar estos comentarios en cualquier momento.
+              </p>
             </div>
 
             <div className="flex justify-end gap-2 pt-3 border-t">

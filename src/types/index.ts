@@ -57,6 +57,11 @@ export interface EvidencePhoto {
   title: string;
   notes?: string;
   timestamp: string;
+  adminComments?: string; // Comentarios agregados o editados por el admin, gerencia o jefe de taller
+  commentAuthor?: string; // Nombre y rol de quien redactó o modificó el comentario
+  commentUpdatedAt?: string;
+  uploadedBy?: 'jefe_taller' | 'tecnico' | 'gerencia'; // Quién subió la evidencia
+  uploaderName?: string; // Nombre de la persona que subió la foto
 }
 
 export interface PartUsed {

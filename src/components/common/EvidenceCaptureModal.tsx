@@ -11,17 +11,20 @@ import {
   Lock,
   Layers,
   Image as ImageIcon,
-  Wrench
+  Wrench,
+  MessageSquare
 } from 'lucide-react';
 import { EvidencePhoto, ServiceOrder } from '../../types';
 import { compressImageFile } from '../../utils/imageUtils';
 import { useApp } from '../../context/AppContext';
+import { LiveCameraModal } from './LiveCameraModal';
 
 interface DraftEvidenceCard {
   id: string;
   url: string;
   title: string;
   notes: string;
+  adminComments?: string;
   isCapturing?: boolean;
 }
 
@@ -86,6 +89,9 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
   const [lockWarning, setLockWarning] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Live Camera state
+  const [isLiveCameraOpen, setIsLiveCameraOpen] = useState<boolean>(false);
+
   // Hidden file input refs
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -113,6 +119,7 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
           url: c.url,
           title: c.title.trim(),
           notes: c.notes.trim() || undefined,
+          adminComments: c.adminComments?.trim() || undefined,
         }));
         onSave(batchToSave);
         // Reset draft for step 2
@@ -122,6 +129,7 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
             url: '',
             title: '',
             notes: '',
+            adminComments: '',
           },
         ]);
       }
@@ -146,6 +154,7 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
         url: c.url,
         title: c.title.trim(),
         notes: c.notes.trim() || undefined,
+        adminComments: c.adminComments?.trim() || undefined,
       }));
       onSave(batchToSave);
     }
@@ -157,6 +166,7 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
         url: '',
         title: '',
         notes: '',
+        adminComments: '',
       },
     ]);
     setSelectedPhase('correctivo_realizado');
@@ -171,6 +181,7 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
       url: '',
       title: '',
       notes: '',
+      adminComments: '',
     };
     setCards([...cards, newCard]);
   };
@@ -179,7 +190,7 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
   const handleRemoveCard = (index: number) => {
     if (cards.length <= 1) {
       // Reset only
-      setCards([{ id: `draft-${Date.now()}`, url: '', title: '', notes: '' }]);
+      setCards([{ id: `draft-${Date.now()}`, url: '', title: '', notes: '', adminComments: '' }]);
       return;
     }
     setCards(cards.filter((_, idx) => idx !== index));
@@ -190,13 +201,34 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
     setCards(prev => prev.map((c, idx) => idx === index ? { ...c, [field]: value } : c));
   };
 
-  // Trigger camera for a specific card
+  // Open device camera with permissions and live stream
   const triggerCamera = (index: number) => {
+    setActiveCardIndexForUpload(index);
+    setIsLiveCameraOpen(true);
+  };
+
+  // Fallback direct camera click if user prefers standard device camera
+  const triggerNativeCamera = (index: number) => {
     setActiveCardIndexForUpload(index);
     if (cameraInputRef.current) {
       cameraInputRef.current.value = '';
       cameraInputRef.current.click();
     }
+  };
+
+  // When live camera takes picture
+  const handleLiveCameraCapture = (dataUrl: string) => {
+    setCards(prev => prev.map((c, idx) => {
+      if (idx === activeCardIndexForUpload) {
+        return {
+          ...c,
+          url: dataUrl,
+          title: c.title || (selectedPhase === 'antes' ? 'Falla detectada en sitio' : 'Correctivo concluido'),
+        };
+      }
+      return c;
+    }));
+    setFormError(null);
   };
 
   // Trigger file picker for a specific card
@@ -283,6 +315,7 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
       url: c.url,
       title: c.title.trim(),
       notes: c.notes.trim() || undefined,
+      adminComments: c.adminComments?.trim() || undefined,
     }));
 
     onSave(batchToSave);
@@ -474,65 +507,48 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
 
                     {card.url ? (
                       /* Preview de la foto ya tomada */
-                      <div className="relative rounded-xl overflow-hidden border border-slate-300 bg-black/5 group">
+                      <div className="relative rounded-2xl overflow-hidden border border-slate-300 bg-black/5 group">
                         <img
                           src={card.url}
                           alt={`Evidencia ${idx + 1}`}
-                          className="w-full h-44 sm:h-52 object-contain bg-slate-900 rounded-xl"
+                          className="w-full h-48 sm:h-56 object-contain bg-slate-900 rounded-2xl"
                         />
                         <div className="absolute top-2 right-2 flex items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => triggerCamera(idx)}
-                            className="px-2.5 py-1.5 rounded-lg bg-black/70 hover:bg-black text-white text-xs font-bold shadow-md flex items-center gap-1 cursor-pointer backdrop-blur-xs"
+                            className="px-3 py-1.5 rounded-xl bg-black/75 hover:bg-black text-white text-xs font-bold shadow-md flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
                           >
-                            <Camera className="w-3.5 h-3.5" />
-                            <span>Retomar</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => triggerGallery(idx)}
-                            className="px-2.5 py-1.5 rounded-lg bg-black/70 hover:bg-black text-white text-xs font-bold shadow-md flex items-center gap-1 cursor-pointer backdrop-blur-xs"
-                          >
-                            <Upload className="w-3.5 h-3.5" />
-                            <span>Cambiar</span>
+                            <Camera className="w-4 h-4 text-emerald-400" />
+                            <span>Retomar Foto</span>
                           </button>
                         </div>
-                        <div className="absolute bottom-2 left-2 px-2 py-1 rounded bg-black/60 text-white text-[10px] font-semibold flex items-center gap-1 backdrop-blur-xs">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                          <span>Foto lista para enviar</span>
+                        <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-black/70 text-white text-[11px] font-semibold flex items-center gap-1.5 backdrop-blur-xs">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Foto capturada lista</span>
                         </div>
                       </div>
                     ) : (
-                      /* Botones táctiles para tomar foto con cámara o subir archivo */
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 sm:p-4 bg-white rounded-xl border-2 border-dashed border-slate-300 text-center">
-                        
-                        {/* Botón 1: Cámara Móvil */}
+                      /* Botón simplificado: Solo ícono de cámara para tomar foto con celular */
+                      <div className="p-4 bg-white rounded-2xl border-2 border-dashed border-indigo-200 text-center flex flex-col items-center justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => triggerCamera(idx)}
-                          className="flex flex-col items-center justify-center p-4 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#040057] font-bold border border-blue-200 transition cursor-pointer active:scale-98 gap-1.5"
+                          className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2.5 cursor-pointer"
                         >
-                          <div className="w-10 h-10 rounded-full bg-[#040057] text-white flex items-center justify-center shadow-xs">
-                            <Camera className="w-5 h-5 text-emerald-400" />
+                          <div className="p-1.5 rounded-full bg-emerald-700">
+                            <Camera className="w-6 h-6 text-white" />
                           </div>
-                          <span className="text-xs sm:text-sm">Tomar Foto con Cámara</span>
-                          <span className="text-[10px] text-slate-500 font-normal">Abre la cámara de tu celular</span>
+                          <span>Tomar Foto con Cámara del Celular</span>
                         </button>
 
-                        {/* Botón 2: Subir Archivo / Galería */}
                         <button
                           type="button"
-                          onClick={() => triggerGallery(idx)}
-                          className="flex flex-col items-center justify-center p-4 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold border border-slate-200 transition cursor-pointer active:scale-98 gap-1.5"
+                          onClick={() => triggerNativeCamera(idx)}
+                          className="text-[11px] text-slate-500 hover:text-slate-800 font-semibold underline cursor-pointer"
                         >
-                          <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center shadow-xs">
-                            <Upload className="w-5 h-5" />
-                          </div>
-                          <span className="text-xs sm:text-sm">Subir desde Galería</span>
-                          <span className="text-[10px] text-slate-500 font-normal">JPG, PNG o archivos de imagen</span>
+                          O usar aplicación de cámara nativa del teléfono
                         </button>
-
                       </div>
                     )}
                   </div>
@@ -613,6 +629,24 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
                     />
                   </div>
 
+                  {/* Campo Comentarios del Administrador / Supervisión */}
+                  <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200 space-y-1.5">
+                    <label className="block font-bold text-amber-950 text-[11px] flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Comentarios de la Administración / Gerencia / Jefe de Taller</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={card.adminComments || ''}
+                      onChange={(e) => handleUpdateCard(idx, 'adminComments', e.target.value)}
+                      placeholder="Observaciones de supervisión, validación o comentarios para el reporte..."
+                      className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 text-xs"
+                    />
+                    <p className="text-[10px] text-amber-800">
+                      Visible, editable y actualizable por Gerencia, Administración y Jefe de Taller.
+                    </p>
+                  </div>
+
                 </div>
               ))}
             </div>
@@ -683,6 +717,14 @@ export const EvidenceCaptureModal: React.FC<EvidenceCaptureModalProps> = ({
         </form>
 
       </div>
+
+      {/* Visor de Cámara en Vivo para Dispositivos Móviles */}
+      <LiveCameraModal
+        isOpen={isLiveCameraOpen}
+        onClose={() => setIsLiveCameraOpen(false)}
+        onCapture={handleLiveCameraCapture}
+        title={`Tomar Foto • Evidencia #${activeCardIndexForUpload + 1} (${selectedPhase === 'antes' ? '1. Antes' : '2. Correctivo'})`}
+      />
     </div>
   );
 };

@@ -249,6 +249,45 @@ export const TechnicalReportDocument: React.FC<TechnicalReportDocumentProps> = (
           </table>
         </div>
 
+        {/* Fila 7.5: Evidencias Fotográficas y Observaciones Administrativas */}
+        {order.evidences && order.evidences.length > 0 && (
+          <div className="border border-slate-900 mb-6">
+            <div className="bg-slate-100 px-2 py-1 font-extrabold uppercase text-[10px] border-b border-slate-900 flex justify-between items-center">
+              <span>EVIDENCIAS FOTOGRÁFICAS Y DICTAMEN DE REPARACIÓN ({order.evidences.length} FOTOGRAFÍAS)</span>
+              <span className="text-[9px] text-slate-600 font-semibold">OLMEDO SERVICIO TÉCNICO</span>
+            </div>
+            
+            <div className="p-2.5 grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {order.evidences.map((ev, evIdx) => (
+                <div key={ev.id || evIdx} className="border border-slate-300 rounded-lg p-1.5 bg-white space-y-1 text-left">
+                  <img
+                    src={ev.url}
+                    alt={ev.title}
+                    className="w-full h-24 object-contain bg-slate-950 rounded"
+                  />
+                  <div className="text-[10px] font-bold text-slate-900 uppercase truncate" title={ev.title}>
+                    {ev.title}
+                  </div>
+                  <div className="flex items-center justify-between text-[9px] text-slate-500 uppercase font-semibold">
+                    <span>{ev.phase === 'antes' ? '1. Antes' : '2. Correctivo'}</span>
+                    <span>{new Date(ev.timestamp).toLocaleDateString('es-MX')}</span>
+                  </div>
+                  {ev.notes && (
+                    <div className="text-[9px] text-slate-700 italic border-t border-slate-100 pt-1">
+                      {ev.notes}
+                    </div>
+                  )}
+                  {ev.adminComments && (
+                    <div className="text-[9px] bg-amber-50 text-amber-950 p-1 rounded border border-amber-200">
+                      <strong>Dictamen/Admin: </strong>{ev.adminComments}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Fila 8: Firmas del Técnico y del Cliente */}
         <div className="grid grid-cols-2 gap-8 pt-4 pb-2 mt-4">
           <div className="text-center">

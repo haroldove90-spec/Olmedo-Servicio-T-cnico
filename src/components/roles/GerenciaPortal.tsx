@@ -73,7 +73,15 @@ export const GerenciaPortal: React.FC = () => {
   const [editingEvidencePhoto, setEditingEvidencePhoto] = useState<EvidencePhoto | null>(null);
   const [editingTargetOrder, setEditingTargetOrder] = useState<ServiceOrder | null>(null);
   const [showEditTechDataModal, setShowEditTechDataModal] = useState<boolean>(false);
-  const [zoomPhoto, setZoomPhoto] = useState<{ url: string; title: string; notes?: string; phase: string } | null>(null);
+  const [zoomPhoto, setZoomPhoto] = useState<{ 
+    url: string; 
+    title: string; 
+    notes?: string; 
+    phase: string;
+    adminComments?: string;
+    commentAuthor?: string;
+    commentUpdatedAt?: string;
+  } | null>(null);
 
   // Sub-tab de Validación y Registros del Técnico
   const [activeValidationTab, setActiveValidationTab] = useState<'inspecciones' | 'registros_tecnicos'>('inspecciones');
@@ -1062,19 +1070,25 @@ export const GerenciaPortal: React.FC = () => {
                                   </div>
 
                                   <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
+                                    <div className="min-w-0 flex-1 space-y-1">
                                       <div className="font-bold text-slate-900 line-clamp-1">{p.title}</div>
-                                      {p.notes && <p className="text-[11px] text-slate-600 line-clamp-2 mt-0.5">{p.notes}</p>}
+                                      {p.notes && <p className="text-[11px] text-slate-600 line-clamp-2">{p.notes}</p>}
+                                      {p.adminComments && (
+                                        <div className="p-1.5 bg-amber-50 rounded-md border border-amber-200 text-[10px] text-amber-900">
+                                          <strong className="text-amber-800">Comentario Admin: </strong>
+                                          <span>{p.adminComments}</span>
+                                        </div>
+                                      )}
                                     </div>
 
                                     <button
                                       type="button"
                                       onClick={() => handleOpenEditEvidence(targetOrder, p)}
                                       className="px-2 py-1 rounded-md bg-blue-50 text-[#040057] hover:bg-blue-100 font-bold text-[10px] border border-blue-200 flex items-center gap-1 cursor-pointer shrink-0"
-                                      title="Editar título y notas para corregir ortografía"
+                                      title="Editar título, notas y comentarios"
                                     >
                                       <Edit3 className="w-3 h-3 text-amber-500" />
-                                      <span>Corregir</span>
+                                      <span>Editar</span>
                                     </button>
                                   </div>
                                 </div>
@@ -1109,19 +1123,25 @@ export const GerenciaPortal: React.FC = () => {
                                   </div>
 
                                   <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
+                                    <div className="min-w-0 flex-1 space-y-1">
                                       <div className="font-bold text-slate-900 line-clamp-1">{p.title}</div>
-                                      {p.notes && <p className="text-[11px] text-slate-600 line-clamp-2 mt-0.5">{p.notes}</p>}
+                                      {p.notes && <p className="text-[11px] text-slate-600 line-clamp-2">{p.notes}</p>}
+                                      {p.adminComments && (
+                                        <div className="p-1.5 bg-amber-50 rounded-md border border-amber-200 text-[10px] text-amber-900">
+                                          <strong className="text-amber-800">Comentario Admin: </strong>
+                                          <span>{p.adminComments}</span>
+                                        </div>
+                                      )}
                                     </div>
 
                                     <button
                                       type="button"
                                       onClick={() => handleOpenEditEvidence(targetOrder, p)}
                                       className="px-2 py-1 rounded-md bg-blue-50 text-[#040057] hover:bg-blue-100 font-bold text-[10px] border border-blue-200 flex items-center gap-1 cursor-pointer shrink-0"
-                                      title="Editar título y notas para corregir ortografía"
+                                      title="Editar título, notas y comentarios"
                                     >
                                       <Edit3 className="w-3 h-3 text-amber-500" />
-                                      <span>Corregir</span>
+                                      <span>Editar</span>
                                     </button>
                                   </div>
                                 </div>
@@ -2681,12 +2701,25 @@ export const GerenciaPortal: React.FC = () => {
                 className="max-h-[72vh] max-w-full object-contain rounded-lg shadow-lg"
               />
             </div>
-            {zoomPhoto.notes && (
-              <div className="p-3 bg-slate-950 text-slate-200 text-xs border-t border-slate-800">
-                <strong className="text-amber-400">Observaciones técnicas del técnico: </strong>
-                <span>{zoomPhoto.notes}</span>
-              </div>
-            )}
+            <div className="p-3 bg-slate-950 text-slate-200 text-xs border-t border-slate-800 space-y-1.5">
+              {zoomPhoto.notes && (
+                <div>
+                  <strong className="text-amber-400">Observaciones técnicas del técnico: </strong>
+                  <span>{zoomPhoto.notes}</span>
+                </div>
+              )}
+              {zoomPhoto.adminComments && (
+                <div className="p-2 bg-amber-950/40 rounded-lg border border-amber-500/40 text-amber-200">
+                  <strong className="text-amber-300">Comentario del Administrador / Supervisión: </strong>
+                  <span>{zoomPhoto.adminComments}</span>
+                  {zoomPhoto.commentAuthor && (
+                    <span className="text-[10px] text-amber-400/80 block mt-0.5">
+                      — Registrado por: {zoomPhoto.commentAuthor}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

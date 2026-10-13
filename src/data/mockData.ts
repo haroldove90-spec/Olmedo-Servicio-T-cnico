@@ -130,8 +130,12 @@ export const INITIAL_ORDERS: ServiceOrder[] = [
         phase: 'antes',
         url: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&w=600&q=80',
         title: 'Inspección de tambor y birlos sin tuercas en posición 3y4',
-        notes: 'Falta de tuercas UNEMON y balatas cristalizadas con desgaste irregular.',
+        notes: 'Falta de tuercas UNEMON y balatas cristalizadas con desgaste irregular. Fotografía de ingreso al taller.',
         timestamp: '2026-09-28T10:30:00',
+        uploadedBy: 'jefe_taller',
+        uploaderName: 'Jefe de Taller (Recepción)',
+        adminComments: 'Unidad recibida con faltante de birlos. Proceder con reemplazo y torqueo.',
+        commentAuthor: 'Jefe de Taller',
       },
       {
         id: 'ev-023-2',
