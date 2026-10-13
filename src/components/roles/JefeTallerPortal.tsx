@@ -16,7 +16,8 @@ import {
   ClipboardCheck,
   Plus,
   BarChart3,
-  Bell
+  Bell,
+  Archive
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceType, Technician } from '../../types';
@@ -24,6 +25,7 @@ import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
 import { UnitReceptionManager } from '../common/UnitReceptionManager';
 import { MetricsDashboard } from '../common/MetricsDashboard';
 import { NotificationsModule } from '../common/NotificationsModule';
+import { HistorialOrdenesModule } from '../common/HistorialOrdenesModule';
 
 export const JefeTallerPortal: React.FC = () => {
   const { 
@@ -137,6 +139,18 @@ export const JefeTallerPortal: React.FC = () => {
             </button>
 
             <button
+              onClick={() => setActiveModule('historial')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                activeModule === 'historial' 
+                  ? 'bg-[#040057] text-white ring-2 ring-indigo-300' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              }`}
+            >
+              <Archive className="w-4 h-4 text-indigo-500" />
+              <span>Historial y Cierre</span>
+            </button>
+
+            <button
               onClick={() => setActiveModule('notificaciones')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
                 activeModule === 'notificaciones' 
@@ -154,6 +168,11 @@ export const JefeTallerPortal: React.FC = () => {
       {/* MÓDULO PRINCIPAL: MÉTRICAS DE TALLER (PÁGINA DE INICIO) */}
       {(activeModule === 'metricas' || activeModule === 'inicio') && (
         <MetricsDashboard role="jefe_taller" />
+      )}
+
+      {/* MÓDULO: HISTORIAL DE ÓRDENES Y CIERRE DE REPARACIONES */}
+      {activeModule === 'historial' && (
+        <HistorialOrdenesModule forcedRole="jefe_taller" />
       )}
 
       {/* MÓDULO: CENTRO DE NOTIFICACIONES Y ALERTAS */}

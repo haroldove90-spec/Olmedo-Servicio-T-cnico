@@ -157,6 +157,13 @@ export interface ServiceOrder {
   // Cotización y Facturación
   quotation?: Quotation;
   invoice?: Invoice;
+
+  // Cierre Oficial de Orden de Reparación
+  closedAt?: string;
+  closedBy?: string;
+  closedByRole?: UserRole;
+  closingNotes?: string;
+  finalKilometers?: string;
 }
 
 export type EmployeeRole = 'tecnico' | 'jefe_taller' | 'admin' | 'gerencia';
@@ -171,6 +178,7 @@ export interface AppNotification {
   targetRole: UserRole | 'all';
   targetUserId?: string; // ID del técnico u operario
   targetOrderId?: string; // ID de la orden vinculada
+  orderId?: string;
   folio?: string; // Folio OS o RT
   metadata?: {
     technicianName?: string;

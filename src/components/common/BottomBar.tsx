@@ -9,7 +9,8 @@ import {
   ClipboardCheck, 
   Truck,
   BarChart3,
-  Bell
+  Bell,
+  Archive
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -78,6 +79,11 @@ export const BottomBar: React.FC = () => {
             badge: unassigned > 0 ? unassigned : undefined,
           },
           {
+            id: 'historial',
+            label: 'Historial',
+            icon: <Archive className="w-5 h-5" />,
+          },
+          {
             id: 'notificaciones',
             label: 'Avisos',
             icon: <Bell className="w-5 h-5" />,
@@ -89,10 +95,8 @@ export const BottomBar: React.FC = () => {
         const assignedCount = orders.filter(o => 
           o.status === 'asignado' || 
           o.status === 'en_diagnostico_trabajo' || 
-          o.status === 'evidencias_rechazadas' ||
-          o.status === 'liberacion_autorizada'
+          o.status === 'evidencias_rechazadas'
         ).length;
-        const authorized = orders.filter(o => o.status === 'liberacion_autorizada').length;
         return [
           {
             id: 'metricas',
@@ -106,10 +110,9 @@ export const BottomBar: React.FC = () => {
             badge: assignedCount > 0 ? assignedCount : undefined,
           },
           {
-            id: 'liberacion',
-            label: 'Liberación',
-            icon: <Key className="w-5 h-5" />,
-            badge: authorized > 0 ? authorized : undefined,
+            id: 'historial',
+            label: 'Historial',
+            icon: <Archive className="w-5 h-5" />,
           },
           {
             id: 'notificaciones',
@@ -121,7 +124,6 @@ export const BottomBar: React.FC = () => {
 
       case 'gerencia':
         const pendingQuoteCreate = orders.filter(o => o.status === 'liberacion_autorizada' && !o.quotation).length;
-        const approvedQuotes = orders.filter(o => o.status === 'cotizacion_aprobada' && !o.invoice).length;
         return [
           {
             id: 'metricas',
@@ -140,10 +142,9 @@ export const BottomBar: React.FC = () => {
             badge: pendingQuoteCreate > 0 ? pendingQuoteCreate : undefined,
           },
           {
-            id: 'facturacion',
-            label: 'Facturas',
-            icon: <Receipt className="w-5 h-5" />,
-            badge: approvedQuotes > 0 ? approvedQuotes : undefined,
+            id: 'historial',
+            label: 'Historial',
+            icon: <Archive className="w-5 h-5" />,
           },
           {
             id: 'notificaciones',

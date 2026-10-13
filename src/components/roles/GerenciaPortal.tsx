@@ -34,7 +34,8 @@ import {
   ClipboardCheck,
   Users,
   BarChart3,
-  Bell
+  Bell,
+  Archive
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, PartUsed, Quotation, EvidencePhoto, ServiceCatalogItem } from '../../types';
@@ -48,6 +49,7 @@ import { UnitReceptionManager } from '../common/UnitReceptionManager';
 import { EmployeesManager } from '../common/EmployeesManager';
 import { MetricsDashboard } from '../common/MetricsDashboard';
 import { NotificationsModule } from '../common/NotificationsModule';
+import { HistorialOrdenesModule } from '../common/HistorialOrdenesModule';
 
 export const GerenciaPortal: React.FC = () => {
   const { 
@@ -702,6 +704,17 @@ export const GerenciaPortal: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => setActiveModule('historial')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                activeModule === 'historial' ? 'bg-[#040057] text-white ring-2 ring-indigo-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              }`}
+            >
+              <Archive className="w-4 h-4 text-indigo-500" />
+              <span>Historial y Auditoría</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveModule('notificaciones')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
                 activeModule === 'notificaciones' ? 'bg-[#040057] text-white ring-2 ring-rose-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
@@ -718,6 +731,11 @@ export const GerenciaPortal: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* MÓDULO: HISTORIAL INTEGRAL Y AUDITORÍA DE ÓRDENES */}
+      {activeModule === 'historial' && (
+        <HistorialOrdenesModule forcedRole="gerencia" />
+      )}
 
       {/* MÓDULO: RECEPCIÓN DE UNIDADES EN GERENCIA (DASHBOARD EN LISTA + FORMULARIO COMPLETO AL CREAR NUEVA) */}
       {activeModule === 'recepcion_unidades' && (

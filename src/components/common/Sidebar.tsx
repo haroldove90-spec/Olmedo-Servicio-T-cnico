@@ -14,7 +14,8 @@ import {
   BarChart3,
   Bell,
   Wrench,
-  LogOut
+  LogOut,
+  Archive
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -115,6 +116,11 @@ export const Sidebar: React.FC = () => {
                 badge: unassigned > 0 ? unassigned : undefined,
                 badgeColor: 'bg-rose-600',
               },
+              {
+                id: 'historial',
+                label: 'Historial de Reparaciones (Cierre)',
+                icon: <Archive className="w-5 h-5" />,
+              },
             ],
           },
           {
@@ -137,7 +143,6 @@ export const Sidebar: React.FC = () => {
           o.status === 'en_diagnostico_trabajo' || 
           o.status === 'evidencias_rechazadas'
         ).length;
-        const authorized = orders.filter(o => o.status === 'liberacion_autorizada').length;
         return [
           {
             section: 'Métricas y Desempeño',
@@ -160,11 +165,9 @@ export const Sidebar: React.FC = () => {
                 badgeColor: 'bg-blue-600',
               },
               {
-                id: 'liberacion',
-                label: 'Liberación Física de la Unidad',
-                icon: <Key className="w-5 h-5" />,
-                badge: authorized > 0 ? authorized : undefined,
-                badgeColor: 'bg-emerald-600',
+                id: 'historial',
+                label: 'Historial de Reparaciones y Cierre',
+                icon: <Archive className="w-5 h-5" />,
               },
             ],
           },
@@ -236,6 +239,16 @@ export const Sidebar: React.FC = () => {
                 icon: <Receipt className="w-5 h-5" />,
                 badge: approvedQuotes > 0 ? approvedQuotes : undefined,
                 badgeColor: 'bg-emerald-600',
+              },
+            ],
+          },
+          {
+            section: 'Auditoría y Archivo',
+            items: [
+              {
+                id: 'historial',
+                label: 'Historial de Órdenes y Servicios',
+                icon: <Archive className="w-5 h-5" />,
               },
             ],
           },

@@ -34,7 +34,8 @@ import {
   MessageSquare,
   Image as ImageIcon,
   UserCheck,
-  BarChart3
+  BarChart3,
+  Archive
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, EvidencePhoto, PartUsed, RepairLog } from '../../types';
@@ -43,6 +44,7 @@ import { LiveCameraModal } from '../common/LiveCameraModal';
 import { compressImageFile } from '../../utils/imageUtils';
 import { MetricsDashboard } from '../common/MetricsDashboard';
 import { NotificationsModule } from '../common/NotificationsModule';
+import { HistorialOrdenesModule } from '../common/HistorialOrdenesModule';
 
 export const TecnicoPortal: React.FC = () => {
   const { 
@@ -58,6 +60,7 @@ export const TecnicoPortal: React.FC = () => {
     submitEvidencesForReview, 
     correctAndResubmitEvidences, 
     releaseVehiclePhysical,
+    closeRepairOrder,
     updateTechnicalReport,
     addRepairLog,
     updateRepairLog,
@@ -571,15 +574,15 @@ export const TecnicoPortal: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => setActiveModule('liberacion')}
+          onClick={() => setActiveModule('historial')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-            activeModule === 'liberacion'
+            activeModule === 'historial' || activeModule === 'liberacion'
               ? 'bg-[#040057] text-white shadow-xs'
               : 'text-slate-700 hover:bg-white'
           }`}
         >
-          <Key className="w-4 h-4 text-emerald-400" />
-          <span>Liberación Física</span>
+          <Archive className="w-4 h-4 text-emerald-400" />
+          <span>Historial de Reparaciones (Cierre)</span>
         </button>
 
         <button
@@ -599,6 +602,11 @@ export const TecnicoPortal: React.FC = () => {
       {/* MÓDULO: MÉTRICAS DEL TÉCNICO */}
       {(activeModule === 'metricas' || activeModule === 'inicio') && (
         <MetricsDashboard role="tecnico" />
+      )}
+
+      {/* MÓDULO: HISTORIAL DE REPARACIONES Y CIERRE DE ÓRDENES */}
+      {(activeModule === 'historial' || activeModule === 'liberacion') && (
+        <HistorialOrdenesModule forcedRole="tecnico" />
       )}
 
       {/* MÓDULO: CENTRO DE NOTIFICACIONES */}
@@ -740,18 +748,33 @@ export const TecnicoPortal: React.FC = () => {
                       <span className="font-semibold text-slate-700">{photoCount} fotos de evidencias</span>
                     </div>
 
-                    {/* Botón Abrir Orden */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedOrderId(order.id);
-                        setActiveModule('orden_activa');
-                      }}
-                      className="w-full py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
-                    >
-                      <Wrench className="w-4 h-4 text-emerald-400" />
-                      <span>Abrir Orden de Recepción y Comenzar Reparaciones</span>
-                    </button>
+                    {/* Botones Abrir Orden y Cerrar / Historial */}
+                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedOrderId(order.id);
+                          setActiveModule('orden_activa');
+                        }}
+                        className="flex-1 w-full py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
+                      >
+                        <Wrench className="w-4 h-4 text-emerald-400" />
+                        <span>Abrir Orden y Evidencias</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedOrderId(order.id);
+                          setActiveModule('historial');
+                        }}
+                        className="w-full sm:w-auto py-2.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                        title="Ver historial o dar por cerrada la orden"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Cerrar / Historial</span>
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -787,6 +810,16 @@ export const TecnicoPortal: React.FC = () => {
                     Prioridad: <strong className="uppercase text-rose-600">{currentOrder.priority}</strong>
                   </span>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setActiveModule('historial')}
+                  className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
+                  title="Dar por cerrada formalmente la orden"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Cerrar / Historial</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setActiveModule('unidades_asignadas')}

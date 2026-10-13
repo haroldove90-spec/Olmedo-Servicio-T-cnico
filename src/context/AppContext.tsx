@@ -58,6 +58,14 @@ interface AppContextType {
   reviewEvidences: (orderId: string, approved: boolean, notes: string, reviewerName: string) => void;
   correctAndResubmitEvidences: (orderId: string, explanationNotes: string) => void;
   releaseVehiclePhysical: (orderId: string, releasedBy: string, receivedByDriver: string) => void;
+  closeRepairOrder: (orderId: string, closingData: {
+    closedBy: string;
+    closedByRole: UserRole;
+    closingNotes?: string;
+    receivedByDriver?: string;
+    finalKilometers?: string;
+  }) => void;
+  deleteOrder: (orderId: string) => void;
   saveQuotation: (orderId: string, quotationData: {
     laborHours: number;
     laborRatePerHour: number;
@@ -787,6 +795,85 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast('success', 'Unidad Liberada Físicamente', `Entrega completada a ${receivedByDriver}.`);
   };
 
+  // Cierre Oficial de Orden de Reparación (Técnico, Jefe de Taller, Gerencia)
+  const closeRepairOrder = (orderId: string, closingData: {
+    closedBy: string;
+    closedByRole: UserRole;
+    closingNotes?: string;
+    receivedByDriver?: string;
+    finalKilometers?: string;
+  }) => {
+    const now = new Date().toISOString();
+    let targetFolio = '';
+    let techToFree: string | undefined;
+
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        targetFolio = o.folio;
+        techToFree = o.assignedTechnicianId;
+        return {
+          ...o,
+          status: 'cerrado',
+          closedAt: now,
+          closedBy: closingData.closedBy,
+          closedByRole: closingData.closedByRole,
+          closingNotes: closingData.closingNotes || 'Orden de reparación concluida formalmente y archivada en el historial.',
+          receivedByDriver: closingData.receivedByDriver || o.receivedByDriver,
+          physicalReleaseDate: o.physicalReleaseDate || now,
+          releasedBy: o.releasedBy || closingData.closedBy,
+          vehicle: {
+            ...o.vehicle,
+            mileage: closingData.finalKilometers || o.vehicle.mileage,
+            odometerReading: closingData.finalKilometers || o.vehicle.odometerReading,
+          },
+        };
+      }
+      return o;
+    }));
+
+    // Liberar técnico asignado si correspondía
+    if (techToFree) {
+      setTechnicians(prev => prev.map(t => {
+        if (t.id === techToFree) {
+          return { ...t, status: 'disponible', currentOrderId: undefined };
+        }
+        return t;
+      }));
+    }
+
+    // Despacho de notificaciones
+    const roleLabel = closingData.closedByRole === 'tecnico' ? 'El Técnico' :
+                      closingData.closedByRole === 'jefe_taller' ? 'El Jefe de Taller' : 'La Gerencia';
+
+    addNotification({
+      title: `Orden Cerrada: ${targetFolio || orderId}`,
+      message: `${roleLabel} (${closingData.closedBy}) dio por cerrada la orden de reparación. Disponible en el historial operativo.`,
+      type: 'release',
+      targetRole: 'gerencia',
+      orderId,
+      folio: targetFolio,
+    });
+
+    if (closingData.closedByRole !== 'jefe_taller') {
+      addNotification({
+        title: `Unidad Concluida: ${targetFolio || orderId}`,
+        message: `${roleLabel} dio por concluida y cerrada la orden de reparación.`,
+        type: 'release',
+        targetRole: 'jefe_taller',
+        orderId,
+        folio: targetFolio,
+      });
+    }
+
+    addToast('success', 'Orden de Reparación Cerrada', `La orden ${targetFolio || orderId} se cerró correctamente y ya está en el Historial.`);
+  };
+
+  // Eliminación de orden del historial
+  const deleteOrder = (orderId: string) => {
+    setOrders(prev => prev.filter(o => o.id !== orderId));
+    addToast('info', 'Orden Eliminada', 'La orden de servicio fue eliminada del sistema.');
+  };
+
   // PASO H: Gerencia Administrativa genera Cotización
   const saveQuotation = (orderId: string, quotationData: {
     laborHours: number;
@@ -1128,6 +1215,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reviewEvidences,
         correctAndResubmitEvidences,
         releaseVehiclePhysical,
+        closeRepairOrder,
+        deleteOrder,
         saveQuotation,
         clientRespondQuotation,
         emitInvoice,
