@@ -23,6 +23,7 @@ import { useApp } from '../../context/AppContext';
 import { ServiceType, VehicleType, ServiceOrder } from '../../types';
 import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
 import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
+import { NotificationsModule } from '../common/NotificationsModule';
 
 export const ClientePortal: React.FC = () => {
   const { 
@@ -180,6 +181,11 @@ export const ClientePortal: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* MÓDULO: CENTRO DE NOTIFICACIONES */}
+      {activeModule === 'notificaciones' && (
+        <NotificationsModule />
+      )}
 
       {/* MÓDULO: NUEVA SOLICITUD */}
       {activeModule === 'nueva_solicitud' && (

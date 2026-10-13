@@ -2,18 +2,14 @@ import React from 'react';
 import { 
   FilePlus, 
   ListFilter, 
-  CheckSquare, 
-  FileText, 
-  Wrench, 
-  Camera, 
   Key, 
   DollarSign, 
-  Receipt,
-  Clock,
-  Users,
-  Database,
-  ClipboardCheck,
-  Truck
+  Receipt, 
+  Users, 
+  ClipboardCheck, 
+  Truck,
+  BarChart3,
+  Bell
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -26,12 +22,14 @@ interface NavItem {
 }
 
 export const BottomBar: React.FC = () => {
-  const { currentRole, activeModule, setActiveModule, orders, technicians, services } = useApp();
+  const { currentRole, activeModule, setActiveModule, orders, technicians, services, unreadNotificationsCount } = useApp();
 
   if (!currentRole) return null;
 
   // Items según el rol con todos sus módulos correspondientes
   const getNavItems = (role: UserRole): NavItem[] => {
+    const unread = unreadNotificationsCount(role);
+
     switch (role) {
       case 'cliente':
         const pendingQuotes = orders.filter(o => o.quotation?.status === 'enviada').length;
@@ -53,15 +51,21 @@ export const BottomBar: React.FC = () => {
             badge: pendingQuotes > 0 ? pendingQuotes : undefined,
           },
           {
-            id: 'historial',
-            label: 'Historial',
-            icon: <FileText className="w-5 h-5" />,
+            id: 'notificaciones',
+            label: 'Avisos',
+            icon: <Bell className="w-5 h-5" />,
+            badge: unread > 0 ? unread : undefined,
           },
         ];
 
       case 'jefe_taller':
         const unassigned = orders.filter(o => o.status === 'solicitado').length;
         return [
+          {
+            id: 'metricas',
+            label: 'Métricas',
+            icon: <BarChart3 className="w-5 h-5" />,
+          },
           {
             id: 'recepcion_unidades',
             label: 'Recepción',
@@ -74,14 +78,10 @@ export const BottomBar: React.FC = () => {
             badge: unassigned > 0 ? unassigned : undefined,
           },
           {
-            id: 'asignacion_tecnicos',
-            label: 'Asignar',
-            icon: <Users className="w-5 h-5" />,
-          },
-          {
-            id: 'monitoreo_piso',
-            label: 'Monitoreo',
-            icon: <Clock className="w-5 h-5" />,
+            id: 'notificaciones',
+            label: 'Avisos',
+            icon: <Bell className="w-5 h-5" />,
+            badge: unread > 0 ? unread : undefined,
           },
         ];
 
@@ -92,9 +92,13 @@ export const BottomBar: React.FC = () => {
           o.status === 'evidencias_rechazadas' ||
           o.status === 'liberacion_autorizada'
         ).length;
-        const rejected = orders.filter(o => o.status === 'evidencias_rechazadas').length;
         const authorized = orders.filter(o => o.status === 'liberacion_autorizada').length;
         return [
+          {
+            id: 'metricas',
+            label: 'Métricas',
+            icon: <BarChart3 className="w-5 h-5" />,
+          },
           {
             id: 'unidades_asignadas',
             label: 'Unidades',
@@ -102,45 +106,32 @@ export const BottomBar: React.FC = () => {
             badge: assignedCount > 0 ? assignedCount : undefined,
           },
           {
-            id: 'evidencias',
-            label: 'Evidencias',
-            icon: <Camera className="w-5 h-5" />,
-            badge: rejected > 0 ? rejected : undefined,
-          },
-          {
             id: 'liberacion',
             label: 'Liberación',
             icon: <Key className="w-5 h-5" />,
             badge: authorized > 0 ? authorized : undefined,
           },
+          {
+            id: 'notificaciones',
+            label: 'Avisos',
+            icon: <Bell className="w-5 h-5" />,
+            badge: unread > 0 ? unread : undefined,
+          },
         ];
 
       case 'gerencia':
-        const pendingReview = orders.filter(o => o.status === 'evidencias_en_revision').length;
         const pendingQuoteCreate = orders.filter(o => o.status === 'liberacion_autorizada' && !o.quotation).length;
         const approvedQuotes = orders.filter(o => o.status === 'cotizacion_aprobada' && !o.invoice).length;
         return [
           {
+            id: 'metricas',
+            label: 'Métricas',
+            icon: <BarChart3 className="w-5 h-5" />,
+          },
+          {
             id: 'recepcion_unidades',
             label: 'Recepción',
             icon: <ClipboardCheck className="w-5 h-5" />,
-          },
-          {
-            id: 'gestion_personal',
-            label: 'Personal',
-            icon: <Users className="w-5 h-5" />,
-            badge: technicians.length > 0 ? technicians.length : undefined,
-          },
-          {
-            id: 'validacion_evidencias',
-            label: 'Validación',
-            icon: <CheckSquare className="w-5 h-5" />,
-            badge: pendingReview > 0 ? pendingReview : undefined,
-          },
-          {
-            id: 'registros_tecnicos',
-            label: 'Registros',
-            icon: <Camera className="w-5 h-5" />,
           },
           {
             id: 'cotizaciones',
@@ -155,9 +146,10 @@ export const BottomBar: React.FC = () => {
             badge: approvedQuotes > 0 ? approvedQuotes : undefined,
           },
           {
-            id: 'reportes_excel',
-            label: 'Base Datos',
-            icon: <Database className="w-5 h-5" />,
+            id: 'notificaciones',
+            label: 'Avisos',
+            icon: <Bell className="w-5 h-5" />,
+            badge: unread > 0 ? unread : undefined,
           },
         ];
 

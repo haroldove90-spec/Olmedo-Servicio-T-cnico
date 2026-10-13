@@ -161,6 +161,28 @@ export interface ServiceOrder {
 
 export type EmployeeRole = 'tecnico' | 'jefe_taller' | 'admin' | 'gerencia';
 
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+  type: 'assignment' | 'reception' | 'quotation' | 'alert' | 'release' | 'system';
+  targetRole: UserRole | 'all';
+  targetUserId?: string; // ID del técnico u operario
+  targetOrderId?: string; // ID de la orden vinculada
+  folio?: string; // Folio OS o RT
+  metadata?: {
+    technicianName?: string;
+    vehiclePlates?: string;
+    vehicleType?: string;
+    brandModel?: string;
+    priority?: string;
+    clientName?: string;
+    assignedBy?: string;
+  };
+}
+
 export interface Employee {
   id: string;
   name: string;

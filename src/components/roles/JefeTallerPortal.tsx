@@ -14,12 +14,16 @@ import {
   Shield,
   PhoneCall,
   ClipboardCheck,
-  Plus
+  Plus,
+  BarChart3,
+  Bell
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceType, Technician } from '../../types';
 import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
 import { UnitReceptionManager } from '../common/UnitReceptionManager';
+import { MetricsDashboard } from '../common/MetricsDashboard';
+import { NotificationsModule } from '../common/NotificationsModule';
 
 export const JefeTallerPortal: React.FC = () => {
   const { 
@@ -97,33 +101,73 @@ export const JefeTallerPortal: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
-              onClick={() => setActiveModule('recepcion_unidades')}
-              className="px-3.5 py-1.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              onClick={() => setActiveModule('metricas')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                activeModule === 'metricas' || activeModule === 'inicio' 
+                  ? 'bg-[#040057] text-white ring-2 ring-indigo-300' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              }`}
             >
-              <ClipboardCheck className="w-4 h-4 text-emerald-400" />
+              <BarChart3 className="w-4 h-4 text-amber-400" />
+              <span>Métricas (Inicio)</span>
+            </button>
+
+            <button
+              onClick={() => setActiveModule('recepcion_unidades')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                activeModule === 'recepcion_unidades' 
+                  ? 'bg-[#040057] text-white ring-2 ring-emerald-300' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              }`}
+            >
+              <ClipboardCheck className="w-4 h-4 text-emerald-500" />
               <span>Recepción de Unidades</span>
             </button>
 
-            <span className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold flex items-center gap-1.5">
+            <button
+              onClick={() => setActiveModule('bandeja_solicitudes')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                activeModule === 'bandeja_solicitudes' 
+                  ? 'bg-[#040057] text-white ring-2 ring-blue-300' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              }`}
+            >
               <AlertCircle className="w-4 h-4 text-amber-600" />
-              {incomingOrders.length} por Asignar
-            </span>
+              <span>{incomingOrders.length} por Asignar</span>
+            </button>
 
-            <span className="px-3 py-1.5 rounded-xl bg-blue-50 text-[#040057] border border-blue-200 text-xs font-bold flex items-center gap-1.5">
-              <Activity className="w-4 h-4 text-blue-600" />
-              {activeFloorOrders.length} en Piso / Campo
-            </span>
+            <button
+              onClick={() => setActiveModule('notificaciones')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                activeModule === 'notificaciones' 
+                  ? 'bg-[#040057] text-white ring-2 ring-rose-300' 
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              }`}
+            >
+              <Bell className="w-4 h-4 text-blue-600" />
+              <span>Avisos</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* MÓDULO: RECEPCIÓN DE UNIDADES (DASHBOARD EN LISTA + FORMULARIO COMPLETO AL CREAR NUEVA) */}
+      {/* MÓDULO PRINCIPAL: MÉTRICAS DE TALLER (PÁGINA DE INICIO) */}
+      {(activeModule === 'metricas' || activeModule === 'inicio') && (
+        <MetricsDashboard role="jefe_taller" />
+      )}
+
+      {/* MÓDULO: CENTRO DE NOTIFICACIONES Y ALERTAS */}
+      {activeModule === 'notificaciones' && (
+        <NotificationsModule />
+      )}
+
+      {/* MÓDULO: RECEPCIÓN DE UNIDADES */}
       {activeModule === 'recepcion_unidades' && (
         <UnitReceptionManager />
       )}
 
-      {/* MÓDULO 1: BANDEJA DE SOLICITUDES ENTRANTES */}
-      {(activeModule === 'bandeja_solicitudes' || activeModule === 'inicio') && (
+      {/* MÓDULO: BANDEJA DE SOLICITUDES ENTRANTES */}
+      {activeModule === 'bandeja_solicitudes' && (
         <div className="space-y-4">
           
           {/* Filtros de Tipo de Solicitud */}
@@ -254,119 +298,6 @@ export const JefeTallerPortal: React.FC = () => {
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* MÓDULO 2: ASIGNACIÓN Y CATÁLOGO DE TÉCNICOS */}
-      {(activeModule === 'asignacion_tecnicos' || activeModule === 'catalogo_tecnicos') && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200">
-            <h2 className="text-lg font-bold text-[#040057] flex items-center gap-2">
-              <Users className="w-5 h-5 text-indigo-600" />
-              Disponibilidad Operativa de Técnicos
-            </h2>
-            <p className="text-xs text-slate-500">
-              Supervisa la carga de trabajo, zonas y especialidades de los técnicos de taller y cuadrillas móviles.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {technicians.map((tech) => {
-              const currentOrder = orders.find(o => o.id === tech.currentOrderId);
-              return (
-                <div key={tech.id} className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                        tech.status === 'disponible' ? 'bg-emerald-100 text-emerald-800' :
-                        tech.status === 'en_campo' ? 'bg-blue-100 text-[#040057]' : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        {tech.status.replace('_', ' ')}
-                      </span>
-                      <PhoneCall className="w-3.5 h-3.5 text-slate-400" />
-                    </div>
-
-                    <h3 className="font-bold text-[#040057] text-sm">{tech.name}</h3>
-                    <p className="text-xs text-slate-600 font-medium mt-0.5">{tech.specialty}</p>
-
-                    <div className="mt-3 pt-3 border-t border-slate-100 text-xs space-y-1 text-slate-500">
-                      <div>Zona: <span className="text-slate-800 font-semibold">{tech.zone}</span></div>
-                      <div>Tel: <span className="text-slate-800">{tech.phone}</span></div>
-                    </div>
-                  </div>
-
-                  {currentOrder && (
-                    <div className="mt-3 p-2 bg-blue-50/70 rounded-xl border border-blue-200 text-[11px]">
-                      <span className="font-bold text-[#040057]">Orden Asignada: </span>
-                      <span>{currentOrder.folio} ({currentOrder.vehicle.plates})</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* MÓDULO 3: MONITOREO DE PISO Y CAMPO */}
-      {activeModule === 'monitoreo_piso' && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200">
-            <h2 className="text-lg font-bold text-[#040057] flex items-center gap-2">
-              <Clock className="w-5 h-5 text-indigo-600" />
-              Monitoreo de Piso y Cuadrillas en Campo
-            </h2>
-            <p className="text-xs text-slate-500">
-              Supervisión de tiempos de respuesta, avances en diagnóstico y estado de órdenes en progreso.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4">
-            {activeFloorOrders.map((order) => (
-              <div key={order.id} className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
-                  <div className="flex items-center gap-3">
-                    <span className="font-extrabold text-[#040057] text-base">{order.folio}</span>
-                    <StatusSemaphoreBadge 
-                      status={order.status} 
-                      priority={order.priority} 
-                      quotationStatus={order.quotation?.status}
-                      showCategoryHint
-                    />
-                  </div>
-
-                  <div className="text-xs text-slate-500 flex items-center gap-2">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>Tiempo transcurrido: {calculateElapsedTime(order.createdAt)}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 py-3 text-xs">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Técnico a Cargo</span>
-                    <div className="font-bold text-[#040057] text-sm">{order.assignedTechnicianName || 'Por asignar'}</div>
-                    <div className="text-slate-500">Asignado: {order.assignedAt ? new Date(order.assignedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</div>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Unidad y Ubicación</span>
-                    <div className="font-bold text-slate-800">{order.vehicle.type.toUpperCase()} • {order.vehicle.plates}</div>
-                    <div className="text-slate-500 truncate">{order.vehicle.location}</div>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Avance Técnico</span>
-                    <div className="font-semibold text-slate-700">
-                      {order.evidences.length} fotos cargadas • {order.partsUsed.length} refacciones
-                    </div>
-                    {order.initialDiagnosis && (
-                      <div className="text-[11px] text-slate-500 truncate mt-0.5">Diag: {order.initialDiagnosis}</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 

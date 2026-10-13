@@ -33,13 +33,16 @@ import {
   Edit3,
   MessageSquare,
   Image as ImageIcon,
-  UserCheck
+  UserCheck,
+  BarChart3
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, EvidencePhoto, PartUsed, RepairLog } from '../../types';
 import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
 import { LiveCameraModal } from '../common/LiveCameraModal';
 import { compressImageFile } from '../../utils/imageUtils';
+import { MetricsDashboard } from '../common/MetricsDashboard';
+import { NotificationsModule } from '../common/NotificationsModule';
 
 export const TecnicoPortal: React.FC = () => {
   const { 
@@ -542,33 +545,28 @@ export const TecnicoPortal: React.FC = () => {
       <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
         <button
           type="button"
+          onClick={() => setActiveModule('metricas')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeModule === 'metricas' || activeModule === 'inicio'
+              ? 'bg-[#040057] text-white shadow-xs'
+              : 'text-slate-700 hover:bg-white'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4 text-amber-400" />
+          <span>Métricas</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveModule('unidades_asignadas')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-            activeModule === 'unidades_asignadas' || activeModule === 'mis_tareas' || activeModule === 'inicio'
+            activeModule === 'unidades_asignadas' || activeModule === 'mis_tareas' || activeModule === 'orden_activa'
               ? 'bg-[#040057] text-white shadow-xs'
               : 'text-slate-700 hover:bg-white'
           }`}
         >
           <Truck className="w-4 h-4 text-emerald-400" />
           <span>Unidades Asignadas ({myAssignedOrders.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveModule('evidencias')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-            activeModule === 'evidencias'
-              ? 'bg-[#040057] text-white shadow-xs'
-              : 'text-slate-700 hover:bg-white'
-          }`}
-        >
-          <Wrench className="w-4 h-4 text-amber-400" />
-          <span>Reparaciones y Evidencias de la Orden</span>
-          {currentOrder && (
-            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-[#040057] text-[10px] font-extrabold">
-              {currentOrder.folio}
-            </span>
-          )}
         </button>
 
         <button
@@ -583,7 +581,30 @@ export const TecnicoPortal: React.FC = () => {
           <Key className="w-4 h-4 text-emerald-400" />
           <span>Liberación Física</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveModule('notificaciones')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeModule === 'notificaciones'
+              ? 'bg-[#040057] text-white shadow-xs'
+              : 'text-slate-700 hover:bg-white'
+          }`}
+        >
+          <Bell className="w-4 h-4 text-blue-500" />
+          <span>Avisos</span>
+        </button>
       </div>
+
+      {/* MÓDULO: MÉTRICAS DEL TÉCNICO */}
+      {(activeModule === 'metricas' || activeModule === 'inicio') && (
+        <MetricsDashboard role="tecnico" />
+      )}
+
+      {/* MÓDULO: CENTRO DE NOTIFICACIONES */}
+      {activeModule === 'notificaciones' && (
+        <NotificationsModule />
+      )}
 
       {/* MÓDULO 1: UNIDADES ASIGNADAS (DASHBOARD COMPLETO) */}
       {(activeModule === 'unidades_asignadas' || activeModule === 'mis_tareas') && (
@@ -724,7 +745,7 @@ export const TecnicoPortal: React.FC = () => {
                       type="button"
                       onClick={() => {
                         setSelectedOrderId(order.id);
-                        setActiveModule('evidencias');
+                        setActiveModule('orden_activa');
                       }}
                       className="w-full py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-98"
                     >
@@ -739,8 +760,8 @@ export const TecnicoPortal: React.FC = () => {
         </div>
       )}
 
-      {/* MÓDULO 2: ESPACIO DE TRABAJO DE LA ORDEN ACTIVA (REPARACIONES Y EVIDENCIAS) */}
-      {(activeModule === 'evidencias' || activeModule === 'inicio') && (
+      {/* DETALLE Y ESPACIO DE TRABAJO DE LA ORDEN ACTIVA */}
+      {activeModule === 'orden_activa' && (
         <div className="space-y-5">
           {/* Selector de Orden Activa */}
           {myAssignedOrders.length > 0 && (

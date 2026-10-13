@@ -12,9 +12,10 @@ import {
   VehicleInfo,
   ServiceCatalogItem,
   RepairLog,
-  Employee
+  Employee,
+  AppNotification
 } from '../types';
-import { INITIAL_ORDERS, INITIAL_TECHNICIANS, INITIAL_SERVICES } from '../data/mockData';
+import { INITIAL_ORDERS, INITIAL_TECHNICIANS, INITIAL_SERVICES, INITIAL_NOTIFICATIONS } from '../data/mockData';
 
 interface ToastMessage {
   id: string;
@@ -130,7 +131,13 @@ interface AppContextType {
   updateSupabaseConfig: (config: Partial<SupabaseConfig>) => void;
   clearSupabaseRecords: () => Promise<boolean>;
 
-  // Notificaciones
+  // Notificaciones y Alertas
+  notifications: AppNotification[];
+  unreadNotificationsCount: (role: UserRole) => number;
+  markNotificationAsRead: (id: string) => void;
+  markAllNotificationsAsRead: (role: UserRole) => void;
+  deleteNotification: (id: string) => void;
+  addNotification: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
   toasts: ToastMessage[];
   addToast: (type: 'success' | 'info' | 'warning' | 'error', title: string, message: string) => void;
   removeToast: (id: string) => void;
@@ -144,6 +151,7 @@ const STORAGE_SERVICES_KEY = 'olmedo_services_catalog';
 const STORAGE_HIDE_SAMPLE_KEY = 'olmedo_hide_sample_data';
 const STORAGE_SUPABASE_KEY = 'olmedo_supabase_config';
 const STORAGE_ROLE_KEY = 'olmedo_current_role';
+const STORAGE_NOTIFICATIONS_KEY = 'olmedo_notifications_data';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Check if user previously decided to delete/hide sample data
@@ -157,6 +165,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeModule, setActiveModule] = useState<string>('inicio');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Notificaciones del sistema
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    if (hideSample) return [];
+    try {
+      const saved = localStorage.getItem(STORAGE_NOTIFICATIONS_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // fallback
+    }
+    return INITIAL_NOTIFICATIONS;
+  });
 
   // Initialize services catalog
   const [services, setServices] = useState<ServiceCatalogItem[]>(() => {
@@ -208,6 +228,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   });
 
+  // Persist notifications
+  useEffect(() => {
+    localStorage.setItem(STORAGE_NOTIFICATIONS_KEY, JSON.stringify(notifications));
+  }, [notifications]);
+
   // Persist orders
   useEffect(() => {
     localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(orders));
@@ -223,20 +248,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_SERVICES_KEY, JSON.stringify(services));
   }, [services]);
 
-  // Persist role
+  // Persist role & set appropriate default modules
   const setCurrentRole = (role: UserRole | null) => {
     setCurrentRoleState(role);
     if (role) {
       localStorage.setItem(STORAGE_ROLE_KEY, role);
-      // set sensible default module per role
+      // Asignar módulo de inicio según las especificaciones del usuario
       if (role === 'cliente') setActiveModule('mis_solicitudes');
-      else if (role === 'jefe_taller') setActiveModule('bandeja_solicitudes');
-      else if (role === 'tecnico') setActiveModule('mis_tareas');
-      else if (role === 'gerencia') setActiveModule('validacion_evidencias');
+      else if (role === 'jefe_taller') setActiveModule('metricas'); // PÁGINA DE INICIO: Módulo de Métricas
+      else if (role === 'tecnico') setActiveModule('metricas'); // Módulo de Métricas del Técnico
+      else if (role === 'gerencia') setActiveModule('metricas'); // Módulo de Métricas de Gerencia
     } else {
       localStorage.removeItem(STORAGE_ROLE_KEY);
       setActiveModule('inicio');
     }
+  };
+
+  // Helper de conteo de no leídas para un rol específico
+  const unreadNotificationsCount = (role: UserRole): number => {
+    return notifications.filter(n => !n.read && (n.targetRole === role || n.targetRole === 'all')).length;
+  };
+
+  const markNotificationAsRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const markAllNotificationsAsRead = (role: UserRole) => {
+    setNotifications(prev => prev.map(n => 
+      (n.targetRole === role || n.targetRole === 'all') ? { ...n, read: true } : n
+    ));
+    addToast('info', 'Notificaciones al día', 'Todas las notificaciones han sido marcadas como leídas.');
+  };
+
+  const deleteNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const addNotification = (n: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
+    const newNotif: AppNotification = {
+      ...n,
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      read: false,
+    };
+    setNotifications(prev => [newNotif, ...prev]);
   };
 
   const addToast = (type: 'success' | 'info' | 'warning' | 'error', title: string, message: string) => {
@@ -466,7 +521,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return t;
     }));
 
-    addToast('info', 'Técnico Asignado Operativamente', `${tech.name} ha sido asignado a la orden.`);
+    const targetOrder = orders.find(o => o.id === orderId);
+    const folio = targetOrder?.folio || 'OS';
+    const vehicleText = targetOrder ? `${targetOrder.vehicle.type.toUpperCase()} (${targetOrder.vehicle.plates})` : 'Unidad';
+    const finalPriority = priority || targetOrder?.priority || 'alta';
+
+    // 1. Notificación al Técnico asignado
+    addNotification({
+      title: `¡Nueva Unidad Asignada! ${folio}`,
+      message: `El Jefe de Taller te ha asignado la unidad ${vehicleText}. Prioridad: ${finalPriority.toUpperCase()}.`,
+      type: 'assignment',
+      targetRole: 'tecnico',
+      targetUserId: tech.id,
+      targetOrderId: orderId,
+      folio: folio,
+      metadata: {
+        technicianName: tech.name,
+        vehiclePlates: targetOrder?.vehicle.plates,
+        vehicleType: targetOrder?.vehicle.type,
+        priority: finalPriority,
+        clientName: targetOrder?.clientName,
+        assignedBy: 'Jefe de Taller',
+      },
+    });
+
+    // 2. Notificación a Gerencia
+    addNotification({
+      title: `Asignación de Unidad: ${folio}`,
+      message: `Jefe de Taller asignó la orden ${folio} (${vehicleText}) al técnico ${tech.name}. Prioridad: ${finalPriority.toUpperCase()}.`,
+      type: 'assignment',
+      targetRole: 'gerencia',
+      targetOrderId: orderId,
+      folio: folio,
+      metadata: {
+        technicianName: tech.name,
+        vehiclePlates: targetOrder?.vehicle.plates,
+        vehicleType: targetOrder?.vehicle.type,
+        priority: finalPriority,
+        assignedBy: 'Jefe de Taller',
+      },
+    });
+
+    // 3. Notificación al Jefe de Taller
+    addNotification({
+      title: `Asignación Exitosa: ${folio}`,
+      message: `Has asignado correctamente la orden ${folio} (${vehicleText}) a ${tech.name}.`,
+      type: 'assignment',
+      targetRole: 'jefe_taller',
+      targetOrderId: orderId,
+      folio: folio,
+    });
+
+    addToast('success', 'Técnico Asignado y Notificado', `Se ha asignado a ${tech.name} y se enviaron las notificaciones correspondientes a Gerencia y al Técnico.`);
   };
 
   // PASO C: Técnico abre Orden de Servicio e inicia trabajo
@@ -1033,6 +1139,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         supabaseConfig,
         updateSupabaseConfig,
         clearSupabaseRecords,
+        notifications,
+        unreadNotificationsCount,
+        markNotificationAsRead,
+        markAllNotificationsAsRead,
+        deleteNotification,
+        addNotification,
         toasts,
         addToast,
         removeToast,

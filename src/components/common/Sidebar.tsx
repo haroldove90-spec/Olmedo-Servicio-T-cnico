@@ -2,24 +2,19 @@ import React, { useState } from 'react';
 import { 
   FilePlus, 
   ListFilter, 
-  CheckSquare, 
-  FileText, 
-  Wrench, 
-  Camera, 
-  Key, 
   DollarSign, 
   Receipt, 
-  Clock, 
   Users, 
-  LogOut, 
   ChevronLeft, 
   ChevronRight,
-  Shield,
   Layers,
-  Database,
   ClipboardCheck,
   Truck,
-  UserPlus
+  Key,
+  BarChart3,
+  Bell,
+  Wrench,
+  LogOut
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -33,12 +28,23 @@ interface SidebarItem {
 }
 
 export const Sidebar: React.FC = () => {
-  const { currentRole, setCurrentRole, activeModule, setActiveModule, orders, technicians, services } = useApp();
+  const { 
+    currentRole, 
+    setCurrentRole,
+    activeModule, 
+    setActiveModule, 
+    orders, 
+    technicians, 
+    services,
+    unreadNotificationsCount 
+  } = useApp();
   const [collapsed, setCollapsed] = useState(false);
 
   if (!currentRole) return null;
 
   const getRoleItems = (role: UserRole): { section: string; items: SidebarItem[] }[] => {
+    const unreadNotifs = unreadNotificationsCount(role);
+
     switch (role) {
       case 'cliente':
         const pendingQuotes = orders.filter(o => o.quotation?.status === 'enviada').length;
@@ -61,7 +67,7 @@ export const Sidebar: React.FC = () => {
             ],
           },
           {
-            section: 'Finanzas y Seguimiento',
+            section: 'Finanzas y Avisos',
             items: [
               {
                 id: 'cotizaciones',
@@ -71,9 +77,11 @@ export const Sidebar: React.FC = () => {
                 badgeColor: 'bg-amber-500',
               },
               {
-                id: 'historial',
-                label: 'Historial de Servicios y Facturas',
-                icon: <FileText className="w-5 h-5" />,
+                id: 'notificaciones',
+                label: 'Notificaciones y Avisos',
+                icon: <Bell className="w-5 h-5" />,
+                badge: unreadNotifs > 0 ? unreadNotifs : undefined,
+                badgeColor: 'bg-rose-600',
               },
             ],
           },
@@ -81,50 +89,43 @@ export const Sidebar: React.FC = () => {
 
       case 'jefe_taller':
         const unassigned = orders.filter(o => o.status === 'solicitado').length;
-        const inProgress = orders.filter(o => o.status === 'asignado' || o.status === 'en_diagnostico_trabajo').length;
         return [
           {
-            section: 'Recepción e Ingreso a Taller',
+            section: 'Panel Principal (Inicio)',
+            items: [
+              {
+                id: 'metricas',
+                label: 'Métricas de Taller (Inicio)',
+                icon: <BarChart3 className="w-5 h-5" />,
+              },
+            ],
+          },
+          {
+            section: 'Recepción y Despacho Operativo',
             items: [
               {
                 id: 'recepcion_unidades',
                 label: 'Recepción de Unidades',
                 icon: <ClipboardCheck className="w-5 h-5" />,
               },
-            ],
-          },
-          {
-            section: 'Operaciones de Taller',
-            items: [
               {
                 id: 'bandeja_solicitudes',
-                label: 'Bandeja de Solicitudes Entrantes',
+                label: 'Bandeja y Asignación a Técnicos',
                 icon: <ListFilter className="w-5 h-5" />,
                 badge: unassigned > 0 ? unassigned : undefined,
                 badgeColor: 'bg-rose-600',
               },
-              {
-                id: 'asignacion_tecnicos',
-                label: 'Asignación Operativa a Técnicos',
-                icon: <Users className="w-5 h-5" />,
-              },
-              {
-                id: 'monitoreo_piso',
-                label: 'Monitoreo de Piso y Campo',
-                icon: <Clock className="w-5 h-5" />,
-                badge: inProgress > 0 ? inProgress : undefined,
-                badgeColor: 'bg-blue-600',
-              },
             ],
           },
           {
-            section: 'Recursos Humanos',
+            section: 'Comunicación y Alertas',
             items: [
               {
-                id: 'catalogo_tecnicos',
-                label: 'Disponibilidad de Técnicos',
-                icon: <Users className="w-5 h-5" />,
-                badge: technicians.length,
+                id: 'notificaciones',
+                label: 'Centro de Notificaciones',
+                icon: <Bell className="w-5 h-5" />,
+                badge: unreadNotifs > 0 ? unreadNotifs : undefined,
+                badgeColor: 'bg-rose-600',
               },
             ],
           },
@@ -136,11 +137,20 @@ export const Sidebar: React.FC = () => {
           o.status === 'en_diagnostico_trabajo' || 
           o.status === 'evidencias_rechazadas'
         ).length;
-        const rejected = orders.filter(o => o.status === 'evidencias_rechazadas').length;
         const authorized = orders.filter(o => o.status === 'liberacion_autorizada').length;
         return [
           {
-            section: 'Trabajo Operativo y Taller',
+            section: 'Métricas y Desempeño',
+            items: [
+              {
+                id: 'metricas',
+                label: 'Métricas del Técnico',
+                icon: <BarChart3 className="w-5 h-5" />,
+              },
+            ],
+          },
+          {
+            section: 'Trabajo Operativo en Taller',
             items: [
               {
                 id: 'unidades_asignadas',
@@ -148,13 +158,6 @@ export const Sidebar: React.FC = () => {
                 icon: <Truck className="w-5 h-5" />,
                 badge: assignedUnits > 0 ? assignedUnits : undefined,
                 badgeColor: 'bg-blue-600',
-              },
-              {
-                id: 'evidencias',
-                label: 'Evidencias y Reparaciones (Antes / Después)',
-                icon: <Camera className="w-5 h-5" />,
-                badge: rejected > 0 ? rejected : undefined,
-                badgeColor: 'bg-rose-600',
               },
               {
                 id: 'liberacion',
@@ -165,26 +168,42 @@ export const Sidebar: React.FC = () => {
               },
             ],
           },
+          {
+            section: 'Avisos y Alertas',
+            items: [
+              {
+                id: 'notificaciones',
+                label: 'Notificaciones y Asignaciones',
+                icon: <Bell className="w-5 h-5" />,
+                badge: unreadNotifs > 0 ? unreadNotifs : undefined,
+                badgeColor: 'bg-rose-600',
+              },
+            ],
+          },
         ];
 
       case 'gerencia':
-        const pendingReview = orders.filter(o => o.status === 'evidencias_en_revision').length;
         const pendingQuoteCreate = orders.filter(o => o.status === 'liberacion_autorizada' && !o.quotation).length;
         const approvedQuotes = orders.filter(o => o.status === 'cotizacion_aprobada' && !o.invoice).length;
         return [
           {
-            section: 'Recepción e Ingreso de Unidades',
+            section: 'Métricas y Dirección',
+            items: [
+              {
+                id: 'metricas',
+                label: 'Métricas y KPIs Ejecutivos',
+                icon: <BarChart3 className="w-5 h-5" />,
+              },
+            ],
+          },
+          {
+            section: 'Operación y Personal',
             items: [
               {
                 id: 'recepcion_unidades',
                 label: 'Recepción de Unidades',
                 icon: <ClipboardCheck className="w-5 h-5" />,
               },
-            ],
-          },
-          {
-            section: 'Administración de Personal',
-            items: [
               {
                 id: 'gestion_personal',
                 label: 'Registro de Empleados',
@@ -195,29 +214,7 @@ export const Sidebar: React.FC = () => {
             ],
           },
           {
-            section: 'Validación e Inspección',
-            items: [
-              {
-                id: 'validacion_evidencias',
-                label: 'Validación de Evidencias y Servicio',
-                icon: <CheckSquare className="w-5 h-5" />,
-                badge: pendingReview > 0 ? pendingReview : undefined,
-                badgeColor: 'bg-amber-600',
-              },
-              {
-                id: 'registros_tecnicos',
-                label: 'Registros y Evidencias del Técnico',
-                icon: <Camera className="w-5 h-5" />,
-              },
-              {
-                id: 'reportes_excel',
-                label: 'Base de Datos e Historial',
-                icon: <Database className="w-5 h-5" />,
-              },
-            ],
-          },
-          {
-            section: 'Catálogo y Cotizaciones',
+            section: 'Catálogo y Finanzas',
             items: [
               {
                 id: 'servicios',
@@ -239,6 +236,18 @@ export const Sidebar: React.FC = () => {
                 icon: <Receipt className="w-5 h-5" />,
                 badge: approvedQuotes > 0 ? approvedQuotes : undefined,
                 badgeColor: 'bg-emerald-600',
+              },
+            ],
+          },
+          {
+            section: 'Avisos y Alertas',
+            items: [
+              {
+                id: 'notificaciones',
+                label: 'Notificaciones y Alertas',
+                icon: <Bell className="w-5 h-5" />,
+                badge: unreadNotifs > 0 ? unreadNotifs : undefined,
+                badgeColor: 'bg-rose-600',
               },
             ],
           },

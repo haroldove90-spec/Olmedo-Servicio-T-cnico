@@ -32,7 +32,9 @@ import {
   RotateCcw,
   Tag,
   ClipboardCheck,
-  Users
+  Users,
+  BarChart3,
+  Bell
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, PartUsed, Quotation, EvidencePhoto, ServiceCatalogItem } from '../../types';
@@ -44,6 +46,8 @@ import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
 import { getStatusSemaphore } from '../../utils/statusSemaphore';
 import { UnitReceptionManager } from '../common/UnitReceptionManager';
 import { EmployeesManager } from '../common/EmployeesManager';
+import { MetricsDashboard } from '../common/MetricsDashboard';
+import { NotificationsModule } from '../common/NotificationsModule';
 
 export const GerenciaPortal: React.FC = () => {
   const { 
@@ -665,6 +669,17 @@ export const GerenciaPortal: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
+              onClick={() => setActiveModule('metricas')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                activeModule === 'metricas' || activeModule === 'inicio' ? 'bg-[#040057] text-white ring-2 ring-amber-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4 text-amber-400" />
+              <span>Métricas y KPIs</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveModule('recepcion_unidades')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
                 activeModule === 'recepcion_unidades' ? 'bg-[#040057] text-white ring-2 ring-emerald-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
@@ -685,10 +700,16 @@ export const GerenciaPortal: React.FC = () => {
               <span>Registro de Empleados ({technicians.length})</span>
             </button>
 
-            <span className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold flex items-center gap-1.5">
-              <CheckSquare className="w-4 h-4 text-amber-600" />
-              {pendingReviewOrders.length} por Validar
-            </span>
+            <button
+              type="button"
+              onClick={() => setActiveModule('notificaciones')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                activeModule === 'notificaciones' ? 'bg-[#040057] text-white ring-2 ring-rose-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
+              }`}
+            >
+              <Bell className="w-4 h-4 text-blue-600" />
+              <span>Avisos</span>
+            </button>
 
             <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-bold flex items-center gap-1.5">
               <Receipt className="w-4 h-4 text-emerald-600" />
@@ -708,8 +729,18 @@ export const GerenciaPortal: React.FC = () => {
         <EmployeesManager />
       )}
 
-      {/* MÓDULO 1: VALIDACIÓN DE EVIDENCIAS Y SERVICIO + REGISTROS DEL TÉCNICO */}
-      {(activeModule === 'validacion_evidencias' || activeModule === 'inicio' || activeModule === 'registros_tecnicos') && (
+      {/* MÓDULO: MÉTRICAS Y KPIS EJECUTIVOS DE GERENCIA */}
+      {(activeModule === 'metricas' || activeModule === 'inicio') && (
+        <MetricsDashboard role="gerencia" />
+      )}
+
+      {/* MÓDULO: CENTRO DE NOTIFICACIONES Y ALERTAS */}
+      {activeModule === 'notificaciones' && (
+        <NotificationsModule />
+      )}
+
+      {/* MÓDULO REMOVIDO: VALIDACIÓN DE EVIDENCIAS Y REGISTROS DEL TÉCNICO */}
+      {false && (
         <div className="space-y-4">
           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -1168,8 +1199,8 @@ export const GerenciaPortal: React.FC = () => {
         </div>
       )}
 
-      {/* MÓDULO 2: BASE DE DATOS E HISTORIAL INTEGRAL DE SERVICIOS */}
-      {activeModule === 'reportes_excel' && (
+      {/* MÓDULO REMOVIDO: BASE DE DATOS E HISTORIAL */}
+      {false && (
         <div className="space-y-4">
           
           {/* Encabezado del Módulo de Base de Datos */}
