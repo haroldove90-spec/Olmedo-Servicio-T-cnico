@@ -381,50 +381,47 @@ export const ClientePortal: React.FC = () => {
             </div>
           </div>
 
-          {/* Botones en cabecera */}
+          {/* Botón de retorno al inicio cuando no se está en home */}
           <div className="flex items-center gap-2 shrink-0">
             {viewMode !== 'home' && (
               <button
                 type="button"
                 onClick={() => setViewMode('home')}
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs sm:text-sm font-bold transition cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs sm:text-sm font-bold transition cursor-pointer shadow-xs"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Volver al Inicio</span>
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => setViewMode('listado_reportes')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold border transition cursor-pointer ${
-                viewMode === 'listado_reportes'
-                  ? 'bg-blue-50 border-[#040057] text-[#040057]'
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <ListFilter className="w-4 h-4 text-indigo-600" />
-              <span>Mis Reportes ({orders.length})</span>
-            </button>
           </div>
         </div>
       </div>
 
       {/* ======================================================== */}
-      {/* VISTA 1: HOME CON ÚNICAMENTE EL BOTÓN "REPORTAR FALLA" */}
+      {/* VISTA 1: HOME CON LOS BOTONES PRINCIPALES */}
       {/* ======================================================== */}
       {viewMode === 'home' && (
-        <div className="flex flex-col items-center justify-center min-h-[52vh] p-6 text-center animate-fadeIn">
-          <div className="max-w-md w-full space-y-4">
+        <div className="flex flex-col items-center justify-center min-h-[55vh] p-4 sm:p-6 text-center animate-fadeIn">
+          <div className="max-w-lg w-full space-y-4 sm:space-y-5">
             
-            {/* BOTÓN PRINCIPAL ÚNICO SOLICITADO */}
+            {/* BOTÓN 1: REPORTAR FALLA */}
             <button
               type="button"
               onClick={() => setIsOptionsModalOpen(true)}
-              className="w-full inline-flex items-center justify-center gap-3.5 px-8 py-6 rounded-3xl bg-[#040057] hover:bg-[#070085] text-white text-xl sm:text-2xl font-black shadow-2xl hover:shadow-indigo-900/30 transform hover:-translate-y-1 active:translate-y-0 transition cursor-pointer ring-4 ring-indigo-100"
+              className="w-full inline-flex items-center justify-center gap-3.5 px-8 py-6 rounded-3xl bg-[#040057] hover:bg-[#070085] text-white text-xl sm:text-2xl font-black shadow-xl hover:shadow-2xl hover:shadow-indigo-900/30 transform hover:-translate-y-1 active:translate-y-0 transition cursor-pointer ring-4 ring-indigo-100 group"
             >
-              <AlertTriangle className="w-8 h-8 text-amber-400" />
+              <AlertTriangle className="w-8 h-8 text-amber-400 shrink-0 group-hover:scale-110 transition-transform" />
               <span>Reportar Falla</span>
+            </button>
+
+            {/* BOTÓN 2: MIS REPORTES (SIMILAR A REPORTAR FALLA) */}
+            <button
+              type="button"
+              onClick={() => setViewMode('listado_reportes')}
+              className="w-full inline-flex items-center justify-center gap-3.5 px-8 py-6 rounded-3xl bg-[#040057] hover:bg-[#070085] text-white text-xl sm:text-2xl font-black shadow-xl hover:shadow-2xl hover:shadow-indigo-900/30 transform hover:-translate-y-1 active:translate-y-0 transition cursor-pointer ring-4 ring-indigo-100 group"
+            >
+              <ListFilter className="w-8 h-8 text-cyan-400 shrink-0 group-hover:scale-110 transition-transform" />
+              <span>Mis Reportes</span>
             </button>
 
           </div>

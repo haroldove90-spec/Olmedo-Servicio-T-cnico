@@ -56,8 +56,6 @@ export const Sidebar: React.FC = () => {
                 id: 'listado_reportes',
                 label: 'Mis Reportes',
                 icon: <ListFilter className="w-5 h-5" />,
-                badge: orders.length > 0 ? orders.length : undefined,
-                badgeColor: 'bg-[#040057]',
               },
             ],
           },
