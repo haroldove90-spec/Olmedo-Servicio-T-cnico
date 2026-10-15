@@ -10,7 +10,9 @@ import {
   Truck,
   BarChart3,
   Bell,
-  Archive
+  Archive,
+  ClipboardList,
+  Home
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -35,6 +37,11 @@ export const BottomBar: React.FC = () => {
       case 'cliente':
         return [
           {
+            id: 'inicio',
+            label: 'Inicio',
+            icon: <Home className="w-5 h-5" />,
+          },
+          {
             id: 'listado_reportes',
             label: 'Mis Reportes',
             icon: <ListFilter className="w-5 h-5" />,
@@ -42,7 +49,7 @@ export const BottomBar: React.FC = () => {
         ];
 
       case 'jefe_taller':
-        const unassigned = orders.filter(o => o.status === 'solicitado').length;
+        const unassigned = orders.filter(o => o.status === 'solicitado' || o.status === 'por_atender').length;
         return [
           {
             id: 'metricas',
@@ -50,15 +57,15 @@ export const BottomBar: React.FC = () => {
             icon: <BarChart3 className="w-5 h-5" />,
           },
           {
+            id: 'reportes',
+            label: 'Reportes',
+            icon: <ClipboardList className="w-5 h-5" />,
+            badge: unassigned > 0 ? unassigned : undefined,
+          },
+          {
             id: 'recepcion_unidades',
             label: 'Recepción',
             icon: <ClipboardCheck className="w-5 h-5" />,
-          },
-          {
-            id: 'bandeja_solicitudes',
-            label: 'Bandeja',
-            icon: <ListFilter className="w-5 h-5" />,
-            badge: unassigned > 0 ? unassigned : undefined,
           },
           {
             id: 'historial',
@@ -147,7 +154,9 @@ export const BottomBar: React.FC = () => {
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/90 shadow-2xl lg:hidden safe-area-bottom">
       <div className="flex items-center justify-start sm:justify-around h-16 px-1 overflow-x-auto no-scrollbar scroll-smooth">
         {navItems.map((item) => {
-          const isActive = activeModule === item.id;
+          const isActive = activeModule === item.id || 
+            (item.id === 'reportes' && (activeModule === 'bandeja_solicitudes' || activeModule === 'solicitudes')) ||
+            (item.id === 'metricas' && activeModule === 'inicio');
           return (
             <button
               key={item.id}

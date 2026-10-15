@@ -274,3 +274,13 @@ export interface ServiceCatalogItem {
   basePrice: number; // Precio sugerido ($ MXN)
   isActive: boolean;
 }
+
+export interface AssignmentAlertData {
+  order: ServiceOrder;
+  technician: Technician;
+  assignedBy: string;
+  timestamp: string;
+  priority: 'baja' | 'media' | 'alta' | 'urgente';
+  notes?: string;
+}
+

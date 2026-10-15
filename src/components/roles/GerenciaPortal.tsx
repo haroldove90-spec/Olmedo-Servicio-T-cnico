@@ -35,7 +35,8 @@ import {
   Users,
   BarChart3,
   Bell,
-  Archive
+  Archive,
+  ClipboardList
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, PartUsed, Quotation, EvidencePhoto, ServiceCatalogItem } from '../../types';
@@ -704,6 +705,17 @@ export const GerenciaPortal: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => setActiveModule('reportes')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                activeModule === 'reportes' ? 'bg-[#040057] text-white ring-2 ring-indigo-400' : 'bg-indigo-50 hover:bg-indigo-100 text-[#040057] border border-indigo-200'
+              }`}
+            >
+              <ClipboardList className="w-4 h-4 text-amber-500" />
+              <span>Reportes Clientes</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveModule('historial')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
                 activeModule === 'historial' ? 'bg-[#040057] text-white ring-2 ring-indigo-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
@@ -735,6 +747,100 @@ export const GerenciaPortal: React.FC = () => {
       {/* MÓDULO: HISTORIAL INTEGRAL Y AUDITORÍA DE ÓRDENES */}
       {activeModule === 'historial' && (
         <HistorialOrdenesModule forcedRole="gerencia" />
+      )}
+
+      {/* MÓDULO: SUPERVISIÓN DE REPORTES DE CLIENTES Y ASIGNACIÓN */}
+      {activeModule === 'reportes' && (
+        <div className="space-y-6 animate-fadeIn">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg sm:text-xl font-black text-[#040057] flex items-center gap-2">
+                <ClipboardList className="w-6 h-6 text-indigo-600" />
+                Supervisión Ejecutiva de Reportes de Clientes
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Supervisa los reportes de averías enviados por clientes y su estado de despacho con el Jefe de Taller.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-900 border border-indigo-200 text-xs font-bold">
+                {orders.length} Reportes Totales
+              </span>
+              <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-bold">
+                {orders.filter(o => o.assignedTechnicianId).length} Asignados
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {orders.map((order) => {
+              const isRescue = order.requiresRescue || order.serviceType === 'rescate';
+              return (
+                <div 
+                  key={order.id} 
+                  className={`bg-white rounded-3xl p-5 border-2 transition shadow-xs space-y-3 ${
+                    isRescue ? 'border-rose-300 bg-rose-50/15' : 'border-slate-200'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="font-black text-[#040057] text-base">{order.folio}</span>
+                      {isRescue && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black uppercase animate-pulse">
+                          ¡Rescate en Carretera!
+                        </span>
+                      )}
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
+                        order.priority === 'urgente' ? 'bg-rose-100 text-rose-800' :
+                        order.priority === 'alta' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        {order.priority}
+                      </span>
+                      <StatusSemaphoreBadge status={order.status} size="sm" />
+                    </div>
+
+                    <div className="text-xs text-slate-500 font-medium">
+                      Cliente: <strong className="text-slate-800">{order.clientCompany || order.clientName}</strong>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Unidad y Odómetro</span>
+                      <div className="font-bold text-[#040057] mt-0.5">
+                        {order.unitNumber || `Placas ${order.vehicle.plates}`} • Eco: {order.vehicle.economicNumber}
+                      </div>
+                      <div className="text-slate-500">{order.vehicle.mileage || '120,500 KM'}</div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Operador y Ubicación</span>
+                      <div className="font-semibold text-slate-800 mt-0.5">{order.operatorName || order.vehicle.driverContact}</div>
+                      <div className="text-slate-500 truncate">{order.vehicle.location}</div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Despacho Técnico</span>
+                      {order.assignedTechnicianName ? (
+                        <div className="text-emerald-700 font-bold mt-0.5 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Asignado a: {order.assignedTechnicianName}</span>
+                        </div>
+                      ) : (
+                        <div className="text-amber-700 font-bold mt-0.5">
+                          Pendiente de asignación por Jefe de Taller
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-700 font-medium border border-slate-200">
+                    <span className="font-bold text-[#040057]">Falla: </span>
+                    {order.vehicle.failureDescription}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* MÓDULO: RECEPCIÓN DE UNIDADES EN GERENCIA (DASHBOARD EN LISTA + FORMULARIO COMPLETO AL CREAR NUEVA) */}

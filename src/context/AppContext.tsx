@@ -18,10 +18,11 @@ import {
   VideoEvidence,
   ClientObservation,
   ServiceStatus,
-  VehicleType
+  VehicleType,
+  AssignmentAlertData
 } from '../types';
 import { INITIAL_ORDERS, INITIAL_TECHNICIANS, INITIAL_SERVICES, INITIAL_NOTIFICATIONS, INITIAL_UNITS } from '../data/mockData';
-import { playEmergencyAlertSound } from '../utils/audioAlert';
+import { playEmergencyAlertSound, playAssignmentAlertSound } from '../utils/audioAlert';
 
 interface ToastMessage {
   id: string;
@@ -188,6 +189,11 @@ interface AppContextType {
   // Alerta emergente en vivo con sonido para Jefe de Taller y Admin
   incomingAlertOrder: ServiceOrder | null;
   dismissIncomingAlert: () => void;
+
+  // Alerta emergente en vivo cuando Jefe de Taller asigna a un Técnico
+  latestAssignmentAlert: AssignmentAlertData | null;
+  dismissAssignmentAlert: () => void;
+  triggerAssignmentAlert: (order: ServiceOrder, technician: Technician, priority?: 'baja' | 'media' | 'alta' | 'urgente', notes?: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -214,9 +220,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeModule, setActiveModule] = useState<string>('inicio');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Alerta emergente en vivo con sonido para Jefe de Taller y Admin
+  // Alerta emergente en vivo con sonido para Jefe de Taller y Admin (Nuevo Reporte)
   const [incomingAlertOrder, setIncomingAlertOrder] = useState<ServiceOrder | null>(null);
   const dismissIncomingAlert = () => setIncomingAlertOrder(null);
+
+  // Alerta emergente en vivo con sonido cuando Jefe de Taller asigna a un Técnico
+  const [latestAssignmentAlert, setLatestAssignmentAlert] = useState<AssignmentAlertData | null>(null);
+  const dismissAssignmentAlert = () => setLatestAssignmentAlert(null);
+  const triggerAssignmentAlert = (order: ServiceOrder, technician: Technician, priority?: 'baja' | 'media' | 'alta' | 'urgente', notes?: string) => {
+    setLatestAssignmentAlert({
+      order,
+      technician,
+      assignedBy: 'Jefe de Taller',
+      timestamp: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+      priority: priority || order.priority || 'alta',
+      notes,
+    });
+    playAssignmentAlertSound();
+  };
 
   // Catálogo de Unidades (Unidad 1 a 50) dadas de alta por Admin
   const [units, setUnits] = useState<UnitCatalogItem[]>(() => {
@@ -338,7 +359,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (role) {
       localStorage.setItem(STORAGE_ROLE_KEY, role);
       // Asignar módulo de inicio según las especificaciones del usuario
-      if (role === 'cliente') setActiveModule('mis_solicitudes');
+      if (role === 'cliente') setActiveModule('inicio'); // Entra directamente al Home del cliente con los botones
       else if (role === 'jefe_taller') setActiveModule('metricas'); // PÁGINA DE INICIO: Módulo de Métricas
       else if (role === 'tecnico') setActiveModule('metricas'); // Módulo de Métricas del Técnico
       else if (role === 'gerencia') setActiveModule('metricas'); // Módulo de Métricas de Gerencia
@@ -656,7 +677,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       folio: folio,
     });
 
-    addToast('success', 'Técnico Asignado y Notificado', `Se ha asignado a ${tech.name} y se enviaron las notificaciones correspondientes a Gerencia y al Técnico.`);
+    // Ventana emergente flotante con sonido de asignación técnica para Jefe de Taller, Gerencia y Técnico
+    if (targetOrder) {
+      const assignedOrderObj: ServiceOrder = {
+        ...targetOrder,
+        status: 'asignado',
+        assignedTechnicianId: tech.id,
+        assignedTechnicianName: tech.name,
+        assignedAt: new Date().toISOString(),
+        priority: finalPriority,
+      };
+
+      setLatestAssignmentAlert({
+        order: assignedOrderObj,
+        technician: tech,
+        assignedBy: 'Jefe de Taller',
+        timestamp: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+        priority: finalPriority,
+      });
+      playAssignmentAlertSound();
+    }
+
+    addToast('success', 'Técnico Asignado y Notificado', `Se ha asignado a ${tech.name} y se enviaron las notificaciones correspondientes.`);
   };
 
   // PASO C: Técnico abre Orden de Servicio e inicia trabajo
@@ -1497,6 +1539,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateOrderStatus,
         incomingAlertOrder,
         dismissIncomingAlert,
+        latestAssignmentAlert,
+        dismissAssignmentAlert,
+        triggerAssignmentAlert,
       }}
     >
       {children}

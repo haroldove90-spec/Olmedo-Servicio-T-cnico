@@ -15,7 +15,9 @@ import {
   Bell,
   Wrench,
   LogOut,
-  Archive
+  Archive,
+  ClipboardList,
+  Home
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -53,6 +55,11 @@ export const Sidebar: React.FC = () => {
             section: 'Navegación',
             items: [
               {
+                id: 'inicio',
+                label: 'Inicio (Panel)',
+                icon: <Home className="w-5 h-5" />,
+              },
+              {
                 id: 'listado_reportes',
                 label: 'Mis Reportes',
                 icon: <ListFilter className="w-5 h-5" />,
@@ -62,7 +69,7 @@ export const Sidebar: React.FC = () => {
         ];
 
       case 'jefe_taller':
-        const unassigned = orders.filter(o => o.status === 'solicitado').length;
+        const unassigned = orders.filter(o => o.status === 'solicitado' || o.status === 'por_atender').length;
         return [
           {
             section: 'Panel Principal (Inicio)',
@@ -75,19 +82,19 @@ export const Sidebar: React.FC = () => {
             ],
           },
           {
-            section: 'Recepción y Despacho Operativo',
+            section: 'Despacho y Operaciones',
             items: [
+              {
+                id: 'reportes',
+                label: 'Reportes (Asignar a Técnicos)',
+                icon: <ClipboardList className="w-5 h-5" />,
+                badge: unassigned > 0 ? unassigned : undefined,
+                badgeColor: 'bg-rose-600',
+              },
               {
                 id: 'recepcion_unidades',
                 label: 'Recepción de Unidades',
                 icon: <ClipboardCheck className="w-5 h-5" />,
-              },
-              {
-                id: 'bandeja_solicitudes',
-                label: 'Bandeja y Asignación a Técnicos',
-                icon: <ListFilter className="w-5 h-5" />,
-                badge: unassigned > 0 ? unassigned : undefined,
-                badgeColor: 'bg-rose-600',
               },
               {
                 id: 'historial',
@@ -282,7 +289,9 @@ export const Sidebar: React.FC = () => {
             )}
             <div className="space-y-1">
               {sec.items.map((item) => {
-                const isActive = activeModule === item.id;
+                const isActive = activeModule === item.id || 
+                  (item.id === 'reportes' && (activeModule === 'bandeja_solicitudes' || activeModule === 'solicitudes')) ||
+                  (item.id === 'metricas' && activeModule === 'inicio');
                 return (
                   <button
                     key={item.id}

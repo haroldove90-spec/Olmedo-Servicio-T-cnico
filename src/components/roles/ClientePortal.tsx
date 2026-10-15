@@ -52,11 +52,13 @@ export const ClientePortal: React.FC = () => {
   // Ventana flotante que muestra los 2 botones al dar click a "Reportar falla"
   const [isOptionsModalOpen, setIsOptionsModalOpen] = useState(false);
 
-  // Sincronizar con activeModule si viene desde el Sidebar
+  // Sincronizar con activeModule si viene desde el Sidebar o cambio de rol
   useEffect(() => {
-    if (activeModule === 'reportar_falla' || activeModule === 'nueva_solicitud') {
+    if (activeModule === 'inicio' || activeModule === 'home' || !activeModule) {
+      setViewMode('home');
+    } else if (activeModule === 'reportar_falla' || activeModule === 'nueva_solicitud') {
       setViewMode('nuevo_reporte');
-    } else if (activeModule === 'listado_reportes' || activeModule === 'mis_solicitudes') {
+    } else if (activeModule === 'listado_reportes') {
       setViewMode('listado_reportes');
     }
   }, [activeModule]);
@@ -386,7 +388,10 @@ export const ClientePortal: React.FC = () => {
             {viewMode !== 'home' && (
               <button
                 type="button"
-                onClick={() => setViewMode('home')}
+                onClick={() => {
+                  setViewMode('home');
+                  setActiveModule('inicio');
+                }}
                 className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs sm:text-sm font-bold transition cursor-pointer shadow-xs"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -417,7 +422,10 @@ export const ClientePortal: React.FC = () => {
             {/* BOTÓN 2: MIS REPORTES (SIMILAR A REPORTAR FALLA) */}
             <button
               type="button"
-              onClick={() => setViewMode('listado_reportes')}
+              onClick={() => {
+                setViewMode('listado_reportes');
+                setActiveModule('listado_reportes');
+              }}
               className="w-full inline-flex items-center justify-center gap-3.5 px-8 py-6 rounded-3xl bg-[#040057] hover:bg-[#070085] text-white text-xl sm:text-2xl font-black shadow-xl hover:shadow-2xl hover:shadow-indigo-900/30 transform hover:-translate-y-1 active:translate-y-0 transition cursor-pointer ring-4 ring-indigo-100 group"
             >
               <ListFilter className="w-8 h-8 text-cyan-400 shrink-0 group-hover:scale-110 transition-transform" />
@@ -483,6 +491,7 @@ export const ClientePortal: React.FC = () => {
                 onClick={() => {
                   setIsOptionsModalOpen(false);
                   setViewMode('listado_reportes');
+                  setActiveModule('listado_reportes');
                 }}
                 className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-slate-200 hover:border-[#040057] hover:bg-slate-50 text-slate-800 shadow-xs transition transform hover:scale-[1.01] active:scale-100 cursor-pointer text-left"
               >

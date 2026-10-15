@@ -52,11 +52,7 @@ export const EmergencyAlertModal: React.FC = () => {
 
   const handleAttend = () => {
     dismissIncomingAlert();
-    if (currentRole === 'jefe_taller') {
-      setActiveModule('bandeja_solicitudes');
-    } else {
-      setActiveModule('recepcion_unidades');
-    }
+    setActiveModule('reportes');
   };
 
   const handleStatusChange = (newSt: ServiceStatus) => {
@@ -313,7 +309,7 @@ export const EmergencyAlertModal: React.FC = () => {
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
             >
               <ListFilter className="w-4 h-4" />
-              <span>{currentRole === 'jefe_taller' ? 'Ir a Bandeja de Asignación' : 'Gestionar en Recepción'}</span>
+              <span>{currentRole === 'jefe_taller' ? 'Ir al Módulo Reportes y Asignar' : 'Ver en Reportes'}</span>
             </button>
           </div>
         </div>

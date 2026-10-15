@@ -11,6 +11,7 @@ import { GerenciaPortal } from './components/roles/GerenciaPortal';
 import { SupabaseModal } from './components/common/SupabaseModal';
 import { WorkflowModal } from './components/common/WorkflowModal';
 import { EmergencyAlertModal } from './components/common/EmergencyAlertModal';
+import { AssignmentAlertModal } from './components/common/AssignmentAlertModal';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from 'lucide-react';
 
 const DashboardContent: React.FC = () => {
@@ -96,8 +97,11 @@ const DashboardContent: React.FC = () => {
         onClose={() => setIsWorkflowModalOpen(false)}
       />
 
-      {/* Ventana Emergente con Sonido de Alerta en Vivo para Admin y Jefe de Taller */}
+      {/* Ventana Emergente con Sonido de Alerta en Vivo para Admin y Jefe de Taller (Nuevo Reporte de Cliente) */}
       <EmergencyAlertModal />
+
+      {/* Ventana Emergente Flotante con Sonido cuando el Jefe de Taller asigna un Reporte a un Técnico */}
+      <AssignmentAlertModal />
 
       {/* Notificaciones flotantes tipo Toast */}
       <div className="fixed bottom-20 lg:bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
