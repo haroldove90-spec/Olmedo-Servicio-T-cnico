@@ -33,29 +33,12 @@ export const BottomBar: React.FC = () => {
 
     switch (role) {
       case 'cliente':
-        const pendingQuotes = orders.filter(o => o.quotation?.status === 'enviada').length;
         return [
           {
-            id: 'mis_solicitudes',
-            label: 'Solicitudes',
+            id: 'listado_reportes',
+            label: 'Mis Reportes',
             icon: <ListFilter className="w-5 h-5" />,
-          },
-          {
-            id: 'nueva_solicitud',
-            label: 'Nueva',
-            icon: <FilePlus className="w-5 h-5" />,
-          },
-          {
-            id: 'cotizaciones',
-            label: 'Cotizaciones',
-            icon: <DollarSign className="w-5 h-5" />,
-            badge: pendingQuotes > 0 ? pendingQuotes : undefined,
-          },
-          {
-            id: 'notificaciones',
-            label: 'Avisos',
-            icon: <Bell className="w-5 h-5" />,
-            badge: unread > 0 ? unread : undefined,
+            badge: orders.length > 0 ? orders.length : undefined,
           },
         ];
 

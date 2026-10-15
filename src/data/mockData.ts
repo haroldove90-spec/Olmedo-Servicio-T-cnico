@@ -1135,3 +1135,52 @@ export const INITIAL_NOTIFICATIONS: import('../types').AppNotification[] = [
   },
 ];
 
+export interface OperatorOption {
+  id: string;
+  label: string;
+  name: string;
+  phone: string;
+}
+
+export const SAMPLE_OPERATORS: OperatorOption[] = [
+  { id: 'op-1', label: 'Operador 1', name: 'Juan Carlos Pérez', phone: '55 1234 5678' },
+  { id: 'op-2', label: 'Operador 2', name: 'Roberto Ramírez Torres', phone: '55 9876 5432' },
+  { id: 'op-3', label: 'Operador 3', name: 'Miguel Ángel Domínguez', phone: '55 4421 8899' },
+  { id: 'op-4', label: 'Operador 4', name: 'José Luis Hernández', phone: '55 3302 9918' },
+  { id: 'op-5', label: 'Operador 5', name: 'Carlos Alberto Santillán', phone: '55 6677 8899' },
+  { id: 'op-6', label: 'Operador 6', name: 'Francisco Javier Morales', phone: '55 7711 2233' },
+  { id: 'op-7', label: 'Operador 7', name: 'Antonio Gómez Velázquez', phone: '55 8899 0011' },
+  { id: 'op-8', label: 'Operador 8', name: 'Alejandro Vargas Nieto', phone: '55 2233 4455' },
+  { id: 'op-9', label: 'Operador 9', name: 'Eduardo Corona Rivas', phone: '55 1199 8877' },
+  { id: 'op-10', label: 'Operador 10', name: 'Héctor Mendoza Trejo', phone: '55 9988 7766' },
+];
+
+const BRANDS = ['Kenworth T680', 'Freightliner Cascadia', 'International LT', 'Volvo VNL 860', 'Hino 500', 'Mercedes-Benz Actros', 'Mack Anthem', 'Shacman X3000'];
+const TYPES: import('../types').VehicleType[] = ['tractocamion', 'camion', 'tractocamion', 'tractocamion', 'camion'];
+
+export const INITIAL_UNITS: import('../types').UnitCatalogItem[] = Array.from({ length: 50 }, (_, i) => {
+  const num = i + 1;
+  const brand = BRANDS[i % BRANDS.length];
+  const type = TYPES[i % TYPES.length];
+  const platesPrefix = String.fromCharCode(65 + (i % 26)) + String.fromCharCode(65 + ((i * 3) % 26));
+  const platesNum = Math.floor(100 + ((i * 47) % 900));
+  const platesSuffix = String.fromCharCode(65 + ((i * 7) % 26));
+  const eco = `ECO-${String(num).padStart(3, '0')}`;
+  const defaultKm = `${Math.floor(80000 + (num * 12350)).toLocaleString('es-MX')} KM`;
+  const op = SAMPLE_OPERATORS[i % SAMPLE_OPERATORS.length];
+
+  return {
+    id: `unit-${num}`,
+    unitNumber: `Unidad ${num}`,
+    plates: `${platesPrefix}-${platesNum}-${platesSuffix}`,
+    economicNumber: eco,
+    brand: brand.split(' ')[0],
+    model: brand.split(' ').slice(1).join(' '),
+    type,
+    defaultOdometer: defaultKm,
+    assignedOperator: `${op.label} - ${op.name}`,
+    status: num % 7 === 0 ? 'en_taller' : 'activa',
+  };
+});
+
+

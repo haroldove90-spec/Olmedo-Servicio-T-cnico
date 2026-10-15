@@ -1,1080 +1,1489 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  FilePlus, 
-  Truck, 
+  AlertTriangle, 
+  PlusCircle, 
+  ListFilter, 
+  Camera, 
+  Video, 
   MapPin, 
-  AlertCircle, 
-  CheckCircle2, 
+  Phone, 
+  User, 
+  Truck, 
+  Gauge, 
+  Calendar, 
   Clock, 
-  DollarSign, 
-  FileText, 
-  Wrench, 
-  ShieldCheck, 
-  XCircle, 
-  Download,
-  Car,
-  Bus,
-  Search,
-  Filter,
-  PenTool,
-  Printer
+  ExternalLink, 
+  Search, 
+  Filter, 
+  CheckCircle2, 
+  X, 
+  Edit3, 
+  Save, 
+  ChevronRight, 
+  ArrowLeft,
+  FileText,
+  AlertCircle,
+  Play,
+  RotateCcw,
+  Sparkles,
+  Upload,
+  Info
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { ServiceType, VehicleType, ServiceOrder } from '../../types';
-import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
+import { ServiceOrder, ServiceStatus, EvidencePhoto, VideoEvidence, VehicleType } from '../../types';
+import { SAMPLE_OPERATORS, OperatorOption } from '../../data/mockData';
 import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
-import { NotificationsModule } from '../common/NotificationsModule';
+
+type ClientViewMode = 'home' | 'nuevo_reporte' | 'listado_reportes' | 'modificar_reporte';
 
 export const ClientePortal: React.FC = () => {
   const { 
-    activeModule, 
-    setActiveModule, 
     orders, 
-    createServiceOrder, 
-    clientRespondQuotation,
-    clientSignReport
+    units, 
+    createClientFaultReport, 
+    addClientObservation,
+    activeModule,
+    setActiveModule,
+    addToast
   } = useApp();
 
-  // Form states
-  const [clientName, setClientName] = useState('Flotillas Express S.A. de C.V.');
-  const [clientContact, setClientContact] = useState('Ing. Arturo Olmedo (55 4421 8899)');
-  const [clientCompany, setClientCompany] = useState('Flotillas Express S.A.');
-  const [serviceType, setServiceType] = useState<ServiceType>('taller');
-  const [vehicleType, setVehicleType] = useState<VehicleType>('tractocamion');
-  const [plates, setPlates] = useState('');
-  const [economicNumber, setEconomicNumber] = useState('');
-  const [unitBrand, setUnitBrand] = useState('');
-  const [unitModel, setUnitModel] = useState('');
-  const [brandModel, setBrandModel] = useState('');
-  const [location, setLocation] = useState('');
-  const [failureDescription, setFailureDescription] = useState('');
-  const [driverContact, setDriverContact] = useState('');
-  const [priority, setPriority] = useState<'baja' | 'media' | 'alta' | 'urgente'>('alta');
+  // Vista activa dentro del portal del cliente
+  const [viewMode, setViewMode] = useState<ClientViewMode>('home');
+  // Ventana flotante que muestra los 2 botones al dar click a "Reportar falla"
+  const [isOptionsModalOpen, setIsOptionsModalOpen] = useState(false);
 
-  // Search filter
-  const [searchTerm, setSearchTerm] = useState('');
-
-  // Quotation authorization modal
-  const [selectedQuoteOrder, setSelectedQuoteOrder] = useState<ServiceOrder | null>(null);
-  const [authorizerName, setAuthorizerName] = useState('Ing. Arturo Olmedo');
-  const [rejectNotes, setRejectNotes] = useState('');
-  const [showRejectInput, setShowRejectInput] = useState(false);
-
-  // Invoice viewer modal
-  const [viewInvoiceOrder, setViewInvoiceOrder] = useState<ServiceOrder | null>(null);
-
-  // Technical Report modal & signature
-  const [selectedReportOrder, setSelectedReportOrder] = useState<ServiceOrder | null>(null);
-  const [showSignDialog, setShowSignDialog] = useState(false);
-  const [clientSignName, setClientSignName] = useState('Omar Balderas (Operador)');
-
-  const handleSubmitNewOrder = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!plates || !economicNumber || !location || !failureDescription) {
-      alert('Por favor completa todos los campos requeridos de la unidad y avería.');
-      return;
+  // Sincronizar con activeModule si viene desde el Sidebar
+  useEffect(() => {
+    if (activeModule === 'reportar_falla' || activeModule === 'nueva_solicitud') {
+      setViewMode('nuevo_reporte');
+    } else if (activeModule === 'listado_reportes' || activeModule === 'mis_solicitudes') {
+      setViewMode('listado_reportes');
     }
+  }, [activeModule]);
 
-    createServiceOrder({
-      clientName,
-      clientContact,
-      clientCompany,
-      serviceType,
-      priority,
-      vehicle: {
-        type: vehicleType,
-        plates: plates.toUpperCase(),
-        economicNumber: economicNumber.toUpperCase(),
-        brand: unitBrand.trim() || undefined,
-        model: unitModel.trim() || undefined,
-        brandModel: (unitBrand.trim() && unitModel.trim()) 
-          ? `${unitBrand.trim()} ${unitModel.trim()}` 
-          : (unitBrand.trim() || unitModel.trim() || brandModel || undefined),
-        location,
-        failureDescription,
-        driverContact: driverContact || undefined,
-      },
-    });
+  // ==========================================
+  // ESTADOS DEL FORMULARIO "NUEVO REPORTE"
+  // ==========================================
+  
+  // 1. Unidad y Kilometraje
+  const [selectedUnitId, setSelectedUnitId] = useState<string>(units[0]?.id || '');
+  const [odometer, setOdometer] = useState<string>(units[0]?.defaultOdometer || '120,500 KM');
+  const [reportDate, setReportDate] = useState<string>('');
 
-    // Reset form
-    setPlates('');
-    setEconomicNumber('');
-    setUnitBrand('');
-    setUnitModel('');
-    setBrandModel('');
-    setLocation('');
-    setFailureDescription('');
-    setDriverContact('');
-    setActiveModule('mis_solicitudes');
+  // 2. Operador y Teléfono
+  const [selectedOperatorId, setSelectedOperatorId] = useState<string>(SAMPLE_OPERATORS[0].id);
+  const [operatorName, setOperatorName] = useState<string>(SAMPLE_OPERATORS[0].name);
+  const [operatorPhone, setOperatorPhone] = useState<string>(SAMPLE_OPERATORS[0].phone);
+
+  // 3. Falla y Ubicación
+  const [failureDescription, setFailureDescription] = useState<string>('');
+  const [location, setLocation] = useState<string>('');
+
+  // 4. Evidencias Multimedia (Fotos y Video 15s)
+  const [capturedPhotos, setCapturedPhotos] = useState<Array<{ id: string; url: string; title: string; timestamp: string }>>([]);
+  const [capturedVideos, setCapturedVideos] = useState<VideoEvidence[]>([]);
+  const [isRecordingVideo, setIsRecordingVideo] = useState(false);
+  const [videoSeconds, setVideoSeconds] = useState(0);
+  const videoTimerRef = useRef<any>(null);
+
+  // 5. ¿Unidad requiere rescate por no estar operable?
+  const [requiresRescue, setRequiresRescue] = useState<boolean>(false);
+  const [rescueLocationUrl, setRescueLocationUrl] = useState<string>('');
+
+  // ==========================================
+  // ESTADOS DEL LISTADO Y BÚSQUEDA INTELIGENTE
+  // ==========================================
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('todos');
+
+  // ==========================================
+  // ESTADO DE MODIFICACIÓN DE REPORTE
+  // ==========================================
+  const [orderToModify, setOrderToModify] = useState<ServiceOrder | null>(null);
+  const [newObservationText, setNewObservationText] = useState('');
+  const [modifiedOdometer, setModifiedOdometer] = useState('');
+  const [additionalPhotos, setAdditionalPhotos] = useState<EvidencePhoto[]>([]);
+
+  // Actualizar fecha automáticamente
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setReportDate(now.toLocaleString('es-MX', { 
+        weekday: 'short', 
+        day: '2-digit', 
+        month: 'short', 
+        year: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      }));
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Al cambiar la unidad seleccionada en el desplegable
+  const handleUnitChange = (unitId: string) => {
+    setSelectedUnitId(unitId);
+    const unit = units.find(u => u.id === unitId);
+    if (unit) {
+      if (unit.defaultOdometer) {
+        setOdometer(unit.defaultOdometer);
+      }
+    }
   };
 
-  const handleUseCurrentLocation = () => {
+  // Al cambiar el operador seleccionado en el desplegable (Operador 1 a 10)
+  const handleOperatorChange = (opId: string) => {
+    setSelectedOperatorId(opId);
+    const op = SAMPLE_OPERATORS.find(o => o.id === opId);
+    if (op) {
+      setOperatorName(op.name);
+      setOperatorPhone(op.phone);
+    }
+  };
+
+  // Obtener ubicación GPS en vivo con navegador
+  const handleGetLiveGps = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setLocation(`Coordenadas: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)} (Ubicación GPS en vivo)`);
+          const lat = pos.coords.latitude.toFixed(6);
+          const lng = pos.coords.longitude.toFixed(6);
+          const mapsLink = `https://www.google.com/maps?q=${lat},${lng}`;
+          setLocation(`Coordenadas GPS: ${lat}, ${lng} (Ubicación GPS en vivo detectada)`);
+          if (requiresRescue) {
+            setRescueLocationUrl(mapsLink);
+          }
+          addToast('success', 'Ubicación GPS Obtenida', `Coordenadas: ${lat}, ${lng}`);
         },
         () => {
-          setLocation('Autopista México-Querétaro Km 43.5, Caseta Tepotzotlán');
+          setLocation('Autopista México-Querétaro Km 43.5, pasando Caseta Tepotzotlán');
+          if (requiresRescue) {
+            setRescueLocationUrl('https://maps.google.com/?q=19.7144,-99.2241');
+          }
         }
       );
     } else {
-      setLocation('Autopista México-Querétaro Km 43.5, Caseta Tepotzotlán');
+      setLocation('Autopista México-Querétaro Km 43.5, pasando Caseta Tepotzotlán');
     }
   };
 
-  const handleApproveQuote = () => {
-    if (!selectedQuoteOrder) return;
-    clientRespondQuotation(selectedQuoteOrder.id, true, authorizerName);
-    setSelectedQuoteOrder(null);
+  // Subir o tomar foto
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file, index) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const url = event.target?.result as string;
+        setCapturedPhotos(prev => [
+          ...prev,
+          {
+            id: `photo-${Date.now()}-${index}`,
+            url,
+            title: `Evidencia Fotográfica ${prev.length + index + 1}`,
+            timestamp: new Date().toISOString(),
+          }
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
-  const handleRejectQuote = () => {
-    if (!selectedQuoteOrder) return;
-    clientRespondQuotation(selectedQuoteOrder.id, false, authorizerName, rejectNotes || 'Rechazada por presupuesto excedido.');
-    setSelectedQuoteOrder(null);
-    setShowRejectInput(false);
+  // Grabar o simular video de al menos 15 segundos
+  const handleStartVideoRecording = () => {
+    setIsRecordingVideo(true);
+    setVideoSeconds(0);
+
+    videoTimerRef.current = setInterval(() => {
+      setVideoSeconds(sec => {
+        const nextSec = sec + 1;
+        if (nextSec >= 15) {
+          // Ya cumplió el mínimo de 15 segundos
+        }
+        return nextSec;
+      });
+    }, 1000);
   };
 
-  const filteredOrders = orders.filter(o => {
-    const term = searchTerm.toLowerCase();
-    const brand = (o.vehicle.brand || o.vehicle.brandModel?.split(' ')[0] || '').toLowerCase();
-    const model = (o.vehicle.model || o.vehicle.brandModel || '').toLowerCase();
-    return (
-      o.folio.toLowerCase().includes(term) ||
-      o.vehicle.plates.toLowerCase().includes(term) ||
-      o.vehicle.economicNumber.toLowerCase().includes(term) ||
-      brand.includes(term) ||
-      model.includes(term) ||
-      o.vehicle.failureDescription.toLowerCase().includes(term)
-    );
+  const handleStopVideoRecording = () => {
+    if (videoTimerRef.current) {
+      clearInterval(videoTimerRef.current);
+    }
+    setIsRecordingVideo(false);
+
+    if (videoSeconds < 15) {
+      addToast('warning', 'Duración Mínima Requerida', 'El video debe durar por lo menos 15 segundos para documentar la falla.');
+    }
+
+    const duration = Math.max(videoSeconds, 15);
+    // Video de muestra de inspección vehicular para previsualización inmediata
+    const newVideo: VideoEvidence = {
+      id: `vid-${Date.now()}`,
+      url: 'https://assets.mixkit.co/videos/preview/mixkit-car-mechanic-checking-the-engine-of-a-car-42795-large.mp4',
+      duration,
+      timestamp: new Date().toISOString(),
+      title: `Video de Evidencia Operativa (${duration}s)`,
+      notes: `Video de ${duration} segundos grabado por el operador para diagnóstico de la falla.`
+    };
+
+    setCapturedVideos(prev => [...prev, newVideo]);
+    addToast('success', 'Video Grabado Exitosamente', `Video de ${duration} segundos registrado.`);
+  };
+
+  const handleRemovePhoto = (photoId: string) => {
+    setCapturedPhotos(prev => prev.filter(p => p.id !== photoId));
+  };
+
+  const handleRemoveVideo = (vidId: string) => {
+    setCapturedVideos(prev => prev.filter(v => v.id !== vidId));
+  };
+
+  // Enviar el formulario de Nuevo Reporte
+  const handleSubmitNewReport = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const currentUnit = units.find(u => u.id === selectedUnitId) || units[0];
+
+    if (!failureDescription.trim()) {
+      addToast('warning', 'Campo Faltante', 'Por favor describe la falla reportada de la unidad.');
+      return;
+    }
+
+    if (!location.trim()) {
+      addToast('warning', 'Campo Faltante', 'Por favor indica la ubicación o referencias donde se encuentra la unidad.');
+      return;
+    }
+
+    if (requiresRescue && !rescueLocationUrl.trim()) {
+      addToast('warning', 'Enlace Requerido', 'Si la unidad requiere rescate, pega la ubicación de Google Maps o enlace GPS.');
+      return;
+    }
+
+    createClientFaultReport({
+      unitNumber: currentUnit?.unitNumber || 'Unidad 1',
+      plates: currentUnit?.plates || '45-AB-1X',
+      economicNumber: currentUnit?.economicNumber || 'ECO-001',
+      brandModel: currentUnit ? `${currentUnit.brand} ${currentUnit.model}` : 'Tractocamión Kenworth T680',
+      vehicleType: currentUnit?.type || 'tractocamion',
+      odometer: odometer.trim() || '120,000 KM',
+      operatorName: operatorName.trim() || 'Operador',
+      operatorPhone: operatorPhone.trim() || '55 1234 5678',
+      failureDescription: failureDescription.trim(),
+      location: location.trim(),
+      requiresRescue,
+      rescueLocationUrl: requiresRescue ? rescueLocationUrl.trim() : undefined,
+      photos: capturedPhotos,
+      videos: capturedVideos,
+      clientName: 'Flotillas Express S.A. de C.V.',
+      clientCompany: 'Flotillas Express S.A.',
+    });
+
+    // Resetear formulario
+    setFailureDescription('');
+    setLocation('');
+    setRequiresRescue(false);
+    setRescueLocationUrl('');
+    setCapturedPhotos([]);
+    setCapturedVideos([]);
+    
+    // Cambiar vista al listado de reportes
+    setViewMode('listado_reportes');
+  };
+
+  // ==========================================
+  // FILTRADO INTELIGENTE DE REPORTES
+  // ==========================================
+  const filteredOrders = orders.filter(order => {
+    const term = searchTerm.toLowerCase().trim();
+    const matchesSearch = 
+      !term ||
+      order.folio.toLowerCase().includes(term) ||
+      (order.unitNumber || '').toLowerCase().includes(term) ||
+      (order.vehicle.plates || '').toLowerCase().includes(term) ||
+      (order.vehicle.economicNumber || '').toLowerCase().includes(term) ||
+      (order.vehicle.brandModel || '').toLowerCase().includes(term) ||
+      (order.operatorName || '').toLowerCase().includes(term) ||
+      (order.clientContact || '').toLowerCase().includes(term) ||
+      (order.vehicle.failureDescription || '').toLowerCase().includes(term) ||
+      (order.vehicle.location || '').toLowerCase().includes(term) ||
+      (order.status || '').toLowerCase().includes(term);
+
+    if (!matchesSearch) return false;
+
+    if (statusFilter !== 'todos') {
+      if (statusFilter === 'por_atender' && order.status !== 'por_atender' && order.status !== 'solicitado') return false;
+      if (statusFilter === 'en_proceso' && order.status !== 'en_proceso' && order.status !== 'asignado' && order.status !== 'en_diagnostico_trabajo') return false;
+      if (statusFilter === 'pendiente_refacciones' && order.status !== 'pendiente_refacciones') return false;
+      if (statusFilter === 'validando_pruebas' && order.status !== 'validando_pruebas' && order.status !== 'evidencias_en_revision') return false;
+      if (statusFilter === 'habilitada' && order.status !== 'habilitada' && order.status !== 'liberacion_autorizada' && order.status !== 'unidad_liberada') return false;
+      if (statusFilter === 'cerrado' && order.status !== 'cerrado' && order.status !== 'facturado') return false;
+    }
+
+    return true;
   });
 
-  const quotesPending = orders.filter(o => o.quotation && o.quotation.status === 'enviada');
+  // Abrir vista de Modificar Reporte / Agregar Observación
+  const handleOpenModify = (order: ServiceOrder) => {
+    setOrderToModify(order);
+    setNewObservationText('');
+    setModifiedOdometer(order.vehicle.odometerReading || order.vehicle.mileage || '');
+    setAdditionalPhotos([]);
+    setViewMode('modificar_reporte');
+  };
+
+  // Guardar nueva falla u observación en reporte existente
+  const handleSaveObservation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orderToModify) return;
+
+    if (!newObservationText.trim()) {
+      addToast('warning', 'Observación Vacía', 'Por favor escribe la nueva falla u observación que deseas reportar.');
+      return;
+    }
+
+    addClientObservation(
+      orderToModify.id,
+      newObservationText.trim(),
+      operatorName || 'Cliente / Operador',
+      additionalPhotos
+    );
+
+    setNewObservationText('');
+    setAdditionalPhotos([]);
+    setViewMode('listado_reportes');
+  };
+
+  const selectedUnit = units.find(u => u.id === selectedUnitId) || units[0];
 
   return (
     <div className="space-y-6 pb-24 lg:pb-8 w-full max-w-full min-w-0 overflow-x-hidden">
       
-      {/* Resumen del Cliente y Selector de Empresa */}
-      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs min-w-0">
+      {/* ======================================================== */}
+      {/* CABECERA PRINCIPAL DEL PORTAL CLIENTE */}
+      {/* ======================================================== */}
+      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#040057] truncate">
-                Portal Clientes
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#040057] text-white flex items-center justify-center font-black text-xl shadow-md shrink-0">
+              <Truck className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-xs uppercase font-extrabold tracking-wider text-slate-400">Portal de Clientes</span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-[#040057] leading-tight">
+                Flotillas Express S.A. de C.V.
               </h1>
             </div>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Solicitudes de Servicio • Diagnósticos en Vivo • Cotizaciones y Facturación
-            </p>
           </div>
 
+          {/* Botones en cabecera */}
           <div className="flex items-center gap-2 shrink-0">
+            {viewMode !== 'home' && (
+              <button
+                type="button"
+                onClick={() => setViewMode('home')}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs sm:text-sm font-bold transition cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Volver al Inicio</span>
+              </button>
+            )}
+
             <button
-              onClick={() => setActiveModule('nueva_solicitud')}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs sm:text-sm font-semibold shadow-xs transition cursor-pointer"
+              type="button"
+              onClick={() => setViewMode('listado_reportes')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold border transition cursor-pointer ${
+                viewMode === 'listado_reportes'
+                  ? 'bg-blue-50 border-[#040057] text-[#040057]'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
             >
-              <FilePlus className="w-4 h-4" />
-              <span>Nueva Solicitud</span>
+              <ListFilter className="w-4 h-4 text-indigo-600" />
+              <span>Mis Reportes ({orders.length})</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* MÓDULO: CENTRO DE NOTIFICACIONES */}
-      {activeModule === 'notificaciones' && (
-        <NotificationsModule />
-      )}
-
-      {/* MÓDULO: NUEVA SOLICITUD */}
-      {activeModule === 'nueva_solicitud' && (
-        <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs animate-fadeIn">
-          <div className="border-b border-slate-100 pb-3 mb-5">
-            <h2 className="text-lg font-bold text-[#040057] flex items-center gap-2">
-              <FilePlus className="w-5 h-5 text-indigo-600" />
-              Creación de Solicitud de Servicio
-            </h2>
-            <p className="text-xs text-slate-500">
-              Registra la atención para taller, asistencia vial o rescate en carretera con la ficha de la unidad.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmitNewOrder} className="space-y-6">
+      {/* ======================================================== */}
+      {/* VISTA 1: HOME CON ÚNICAMENTE EL BOTÓN "REPORTAR FALLA" */}
+      {/* ======================================================== */}
+      {viewMode === 'home' && (
+        <div className="flex flex-col items-center justify-center min-h-[52vh] p-6 text-center animate-fadeIn">
+          <div className="max-w-md w-full space-y-4">
             
-            {/* 1. Tipo de Atención */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                1. Tipo de Atención Requerida *
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setServiceType('taller')}
-                  className={`p-4 rounded-xl border-2 text-left transition cursor-pointer ${
-                    serviceType === 'taller'
-                      ? 'border-[#040057] bg-blue-50/70 shadow-xs'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-sm text-[#040057]">Visita a Taller</span>
-                    <Wrench className="w-5 h-5 text-[#040057]" />
-                  </div>
-                  <p className="text-xs text-slate-600">
-                    Ingreso programado a instalaciones para mantenimiento mayor o diagnóstico.
-                  </p>
-                </button>
+            {/* BOTÓN PRINCIPAL ÚNICO SOLICITADO */}
+            <button
+              type="button"
+              onClick={() => setIsOptionsModalOpen(true)}
+              className="w-full inline-flex items-center justify-center gap-3.5 px-8 py-6 rounded-3xl bg-[#040057] hover:bg-[#070085] text-white text-xl sm:text-2xl font-black shadow-2xl hover:shadow-indigo-900/30 transform hover:-translate-y-1 active:translate-y-0 transition cursor-pointer ring-4 ring-indigo-100"
+            >
+              <AlertTriangle className="w-8 h-8 text-amber-400" />
+              <span>Reportar Falla</span>
+            </button>
 
-                <button
-                  type="button"
-                  onClick={() => setServiceType('asistencia')}
-                  className={`p-4 rounded-xl border-2 text-left transition cursor-pointer ${
-                    serviceType === 'asistencia'
-                      ? 'border-[#040057] bg-blue-50/70 shadow-xs'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-sm text-[#040057]">Asistencia Vial</span>
-                    <Truck className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <p className="text-xs text-slate-600">
-                    Atención técnica rápida en sitio, patio de maniobras o CEDIS.
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setServiceType('rescate')}
-                  className={`p-4 rounded-xl border-2 text-left transition cursor-pointer ${
-                    serviceType === 'rescate'
-                      ? 'border-rose-600 bg-rose-50/80 shadow-xs'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-sm text-rose-700">Rescate en Carretera</span>
-                    <AlertCircle className="w-5 h-5 text-rose-600" />
-                  </div>
-                  <p className="text-xs text-rose-800">
-                    Unidad varada en autopista / carretera con máxima prioridad de auxilio.
-                  </p>
-                </button>
-              </div>
-            </div>
-
-            {/* 2. Ficha de la Unidad */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-                2. Ficha de la Unidad *
-              </label>
-              
-              {/* Selector de Tipo de Vehículo */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-                {[
-                  { id: 'tractocamion', label: 'Tractocamión', icon: <Truck className="w-4 h-4" /> },
-                  { id: 'camion', label: 'Camión', icon: <Truck className="w-4 h-4" /> },
-                  { id: 'bus', label: 'Autobús / Bus', icon: <Bus className="w-4 h-4" /> },
-                  { id: 'auto', label: 'Automóvil / Pickup', icon: <Car className="w-4 h-4" /> },
-                ].map((v) => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => setVehicleType(v.id as VehicleType)}
-                    className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-semibold transition cursor-pointer ${
-                      vehicleType === v.id
-                        ? 'bg-[#040057] text-white border-[#040057]'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    {v.icon}
-                    <span>{v.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Placas de la Unidad *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={plates}
-                    onChange={(e) => setPlates(e.target.value)}
-                    placeholder="Ej. 82-AF-9K"
-                    className="w-full px-3 py-2 text-xs uppercase border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Número Económico *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={economicNumber}
-                    onChange={(e) => setEconomicNumber(e.target.value)}
-                    placeholder="Ej. ECO-402"
-                    className="w-full px-3 py-2 text-xs uppercase border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Marca de la Unidad
-                  </label>
-                  <input
-                    type="text"
-                    value={unitBrand}
-                    onChange={(e) => setUnitBrand(e.target.value)}
-                    placeholder="Ej. Kenworth, Freightliner..."
-                    className="w-full px-3 py-2 text-xs uppercase border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Modelo y Año
-                  </label>
-                  <input
-                    type="text"
-                    value={unitModel}
-                    onChange={(e) => setUnitModel(e.target.value)}
-                    placeholder="Ej. T680 2023, M2 106..."
-                    className="w-full px-3 py-2 text-xs uppercase border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 3. Ubicación y Avería */}
-            <div className="space-y-3">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Ubicación Exacta / Dirección *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleUseCurrentLocation}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 cursor-pointer"
-                  >
-                    <MapPin className="w-3.5 h-3.5" />
-                    Detectar Ubicación GPS
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  required
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Ej. Autopista México-Querétaro Km 89 acotamiento derecho / Patio Tultitlán"
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Avería / Falla Reportada Detallada *
-                </label>
-                <textarea
-                  required
-                  rows={3}
-                  value={failureDescription}
-                  onChange={(e) => setFailureDescription(e.target.value)}
-                  placeholder="Describe los síntomas observados: códigos en tablero, fugas de aire, ruidos en transmisión, sobrecalentamiento, etc."
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Nombre y Teléfono del Operador en Sitio
-                  </label>
-                  <input
-                    type="text"
-                    value={driverContact}
-                    onChange={(e) => setDriverContact(e.target.value)}
-                    placeholder="Ej. Juan Pérez - 55 9988 7766"
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Prioridad de Atención
-                  </label>
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value as any)}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057] bg-white"
-                  >
-                    <option value="baja">Baja (Mantenimiento preventivo)</option>
-                    <option value="media">Media (Puede rodar despacio)</option>
-                    <option value="alta">Alta (Unidad detenida en patio)</option>
-                    <option value="urgente">Urgente (Rescate carretero / Carga en riesgo)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Botones de acción */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setActiveModule('mis_solicitudes')}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-semibold shadow-xs transition cursor-pointer"
-              >
-                Generar Solicitud de Servicio
-              </button>
-            </div>
-          </form>
+          </div>
         </div>
       )}
 
-      {/* MÓDULO: MIS SOLICITUDES / SEGUIMIENTO EN TIEMPO REAL */}
-      {(activeModule === 'mis_solicitudes' || activeModule === 'inicio') && (
-        <div className="space-y-4">
-          
-          {/* Barra de búsqueda */}
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por placas, económico, folio..."
-                className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl bg-white focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
-              />
-            </div>
-            <div className="text-xs text-slate-500 font-medium self-end sm:self-auto">
-              Total: {filteredOrders.length} solicitudes registradas
-            </div>
-          </div>
-
-          {filteredOrders.length === 0 ? (
-            <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
-              <Truck className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <h3 className="text-base font-bold text-slate-700">No hay solicitudes activas</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
-                No tienes solicitudes en proceso. Genera una nueva solicitud de servicio para iniciar el flujo técnico.
-              </p>
+      {/* ======================================================== */}
+      {/* VENTANA FLOTANTE: 1. NUEVO REPORTE Y 2. ACTUALIZAR REPORTE */}
+      {/* ======================================================== */}
+      {isOptionsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-scaleUp">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                <h3 className="font-black text-base sm:text-lg text-[#040057]">
+                  Reportar Falla
+                </h3>
+              </div>
               <button
-                onClick={() => setActiveModule('nueva_solicitud')}
-                className="px-4 py-2 rounded-xl bg-[#040057] text-white text-xs font-semibold shadow-xs"
+                type="button"
+                onClick={() => setIsOptionsModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition cursor-pointer"
               >
-                Registrar Solicitud Ahora
+                <X className="w-5 h-5" />
               </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {filteredOrders.map((order) => {
-                const getStatusInfo = (status: string) => {
-                  switch (status) {
+
+            <p className="text-xs text-slate-500 font-medium">
+              Selecciona una opción para dar seguimiento a tu unidad:
+            </p>
+
+            <div className="space-y-3 pt-1">
+              {/* Botón 1: 1. Nuevo reporte de falla */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOptionsModalOpen(false);
+                  setViewMode('nuevo_reporte');
+                }}
+                className="w-full flex items-center justify-between p-4 rounded-2xl bg-[#040057] hover:bg-[#070085] text-white shadow-lg transition transform hover:scale-[1.01] active:scale-100 cursor-pointer text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 text-white flex items-center justify-center font-bold shrink-0">
+                    <PlusCircle className="w-6 h-6 text-amber-300" />
+                  </div>
+                  <div>
+                    <div className="font-extrabold text-sm sm:text-base">1. Nuevo Reporte de Falla</div>
+                    <div className="text-[11px] text-indigo-200 font-medium">Formulario con datos de unidad, operador, fotos y video</div>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-white/70" />
+              </button>
+
+              {/* Botón 2: 2. Actualizar reporte existente */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOptionsModalOpen(false);
+                  setViewMode('listado_reportes');
+                }}
+                className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-slate-200 hover:border-[#040057] hover:bg-slate-50 text-slate-800 shadow-xs transition transform hover:scale-[1.01] active:scale-100 cursor-pointer text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold shrink-0">
+                    <ListFilter className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="font-extrabold text-sm sm:text-base text-[#040057]">2. Actualizar Reporte Existente</div>
+                    <div className="text-[11px] text-slate-500 font-medium">Consultar estatus y agregar nuevas observaciones</div>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setIsOptionsModalOpen(false)}
+                className="w-full py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* VISTA 2: FORMULARIO "NUEVO REPORTE" (EN SECCIONES SEPARADAS) */}
+      {/* ======================================================== */}
+      {viewMode === 'nuevo_reporte' && (
+        <div className="space-y-6 animate-fadeIn">
+          
+          <div className="flex items-center justify-between bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setViewMode('home')}
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition cursor-pointer"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h2 className="text-base sm:text-lg font-black text-[#040057] flex items-center gap-2">
+                  <PlusCircle className="w-5 h-5 text-rose-600" />
+                  Formulario: Nuevo Reporte de Falla
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Completa las secciones ordenadas para despachar la atención técnica de inmediato.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setViewMode('listado_reportes')}
+              className="text-xs font-bold text-slate-600 hover:text-[#040057] flex items-center gap-1 cursor-pointer"
+            >
+              <ListFilter className="w-4 h-4" />
+              <span>Ver mis reportes</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmitNewReport} className="space-y-6">
+
+            {/* SECCIÓN 1: UNIDAD Y ODÓMETRO */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-extrabold text-sm">
+                    1
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm sm:text-base text-[#040057]">
+                      Ficha de la Unidad y Kilometraje
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Selecciona la unidad registrada por el administrador y su odómetro actual.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Campo de Fecha Automática */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 flex items-center gap-2 text-xs text-slate-600">
+                  <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Fecha Automática:</span>
+                    <span className="font-bold text-slate-800">{reportDate}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                {/* Botón Desplegable: Unidad (Unidad 1 a Unidad 50) */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Unidad (Seleccionar número de unidad de ejemplo 1 a 50) *
+                  </label>
+                  <select
+                    value={selectedUnitId}
+                    onChange={(e) => handleUnitChange(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#040057] focus:border-[#040057] transition"
+                  >
+                    {units.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.unitNumber} • Placas: {u.plates} • Eco: {u.economicNumber} • {u.brand} {u.model} ({u.type.toUpperCase()})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Sincronizado con el catálogo de flota dado de alta por la administración.
+                  </p>
+                </div>
+
+                {/* Campo para registrar Km / Odómetro */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Kilometraje / Odómetro Actual *
+                  </label>
+                  <div className="relative">
+                    <Gauge className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      value={odometer}
+                      onChange={(e) => setOdometer(e.target.value)}
+                      placeholder="ej. 145,200 KM"
+                      required
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#040057] transition"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Registra la lectura del tablero al momento de presentarse la avería.
+                  </p>
+                </div>
+
+              </div>
+
+              {/* Tarjeta resumen de la unidad seleccionada */}
+              {selectedUnit && (
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-[#040057]" />
+                    <span className="font-bold text-[#040057]">{selectedUnit.unitNumber}:</span>
+                    <span className="text-slate-700 font-semibold">{selectedUnit.brand} {selectedUnit.model}</span>
+                    <span className="text-slate-500">• Placas: <strong className="text-slate-800">{selectedUnit.plates}</strong></span>
+                    <span className="text-slate-500">• Económico: <strong className="text-slate-800">{selectedUnit.economicNumber}</strong></span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                    selectedUnit.status === 'en_taller' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                  }`}>
+                    Estatus: {selectedUnit.status}
+                  </span>
+                </div>
+              )}
+
+            </div>
+
+            {/* SECCIÓN 2: OPERADOR Y TELÉFONO */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-extrabold text-sm">
+                  2
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-[#040057]">
+                    Datos del Operador de la Unidad
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Selecciona el operador (1 a 10) y verifica su número de contacto.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                {/* Botón desplegable para poder seleccionar Operador 1 a 10 */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Operador (Desplegable muestra Operador 1 a 10) *
+                  </label>
+                  <select
+                    value={selectedOperatorId}
+                    onChange={(e) => handleOperatorChange(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#040057] transition"
+                  >
+                    {SAMPLE_OPERATORS.map((op) => (
+                      <option key={op.id} value={op.id}>
+                        {op.label}: {op.name} ({op.phone})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Campo de teléfono de operador (sincronizado) */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Teléfono Celular del Operador *
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                    <input
+                      type="tel"
+                      value={operatorPhone}
+                      onChange={(e) => setOperatorPhone(e.target.value)}
+                      placeholder="ej. 55 1234 5678"
+                      required
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-[#040057] transition"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Número para coordinar con la cuadrilla técnica y enviar enlace de geolocalización.
+                  </p>
+                </div>
+
+              </div>
+            </div>
+
+            {/* SECCIÓN 3: DETALLE DE AVERÍA Y UBICACIÓN */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-extrabold text-sm">
+                  3
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-[#040057]">
+                    Detalle de la Falla y Ubicación
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Describe los síntomas mecánicos y el lugar exacto con referencias.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Falla Reportada por el Operador *
+                </label>
+                <textarea
+                  rows={3}
+                  value={failureDescription}
+                  onChange={(e) => setFailureDescription(e.target.value)}
+                  placeholder="Describe con claridad la avería (ej. Pérdida súbita de potencia en subida, fuga de aire en manguera de frenos traseros, calentamiento de motor a más de 105°C con testigo encendido)..."
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-normal text-slate-800 focus:ring-2 focus:ring-[#040057] transition"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Ubicación (Dirección manual con referencias del lugar) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGetLiveGps}
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>Usar mi GPS en vivo</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="ej. Carretera México-Querétaro Km 43.5, pasando caseta Tepotzotlán frente a gasolinera Pemex"
+                    required
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-medium text-slate-800 focus:ring-2 focus:ring-[#040057] transition"
+                  />
+                </div>
+              </div>
+
+            </div>
+
+            {/* SECCIÓN 4: EVIDENCIAS CON CÁMARA (FOTOS Y VIDEO DE 15 SEGUNDOS) */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-extrabold text-sm">
+                  4
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-[#040057]">
+                    Evidencias Visuales (Cámara y Video de al menos 15 segundos)
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Abre la cámara del dispositivo para capturar fotos y grabar un video de 15s mínimo.
+                  </p>
+                </div>
+              </div>
+
+              {/* Botones de acción multimedia */}
+              <div className="flex flex-wrap items-center gap-3">
+                
+                {/* Botón con icono de cámara para abrir la cámara del dispositivo y tomar fotos */}
+                <label className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold text-xs sm:text-sm transition cursor-pointer">
+                  <Camera className="w-5 h-5 text-indigo-700" />
+                  <span>Tomar Fotos con Cámara</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    multiple
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                  />
+                </label>
+
+                {/* Botón para grabar video de por lo menos 15 segundos */}
+                {!isRecordingVideo ? (
+                  <button
+                    type="button"
+                    onClick={handleStartVideoRecording}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-200 font-bold text-xs sm:text-sm transition cursor-pointer"
+                  >
+                    <Video className="w-5 h-5 text-rose-600" />
+                    <span>Grabar Video (mínimo 15 seg)</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleStopVideoRecording}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm transition cursor-pointer animate-pulse"
+                  >
+                    <div className="w-3 h-3 rounded-full bg-white animate-ping"></div>
+                    <span>Detener Video ({videoSeconds}s / 15s)</span>
+                  </button>
+                )}
+
+              </div>
+
+              {/* Grabador / Contador visual de 15 segundos */}
+              {isRecordingVideo && (
+                <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 text-center space-y-2">
+                  <div className="flex items-center justify-center gap-2 text-rose-700 font-extrabold text-sm sm:text-base">
+                    <span className="w-3 h-3 rounded-full bg-rose-600 animate-ping"></span>
+                    <span>Grabando video de evidencia con la cámara...</span>
+                  </div>
+                  <div className="w-full bg-rose-200 h-3 rounded-full overflow-hidden max-w-md mx-auto">
+                    <div 
+                      className="bg-rose-600 h-full transition-all duration-300"
+                      style={{ width: `${Math.min((videoSeconds / 15) * 100, 100)}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-xs font-bold text-rose-800">
+                    {videoSeconds < 15 
+                      ? `Llevas ${videoSeconds}s (Requerido: al menos 15 segundos)` 
+                      : `¡Mínimo de 15 segundos alcanzado! (${videoSeconds}s) Puedes detener la grabación.`}
+                  </div>
+                </div>
+              )}
+
+              {/* Galería de fotos y videos tomados */}
+              {(capturedPhotos.length > 0 || capturedVideos.length > 0) && (
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs font-bold text-slate-700">
+                    Evidencias listas para adjuntar ({capturedPhotos.length} fotos, {capturedVideos.length} videos):
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {capturedPhotos.map((photo) => (
+                      <div key={photo.id} className="relative rounded-2xl overflow-hidden border border-slate-200 group aspect-video bg-slate-100">
+                        <img src={photo.url} alt={photo.title} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePhoto(photo.id)}
+                          className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/60 text-white hover:bg-rose-600 transition"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                          <Camera className="w-2.5 h-2.5" /> Foto
+                        </span>
+                      </div>
+                    ))}
+
+                    {capturedVideos.map((video) => (
+                      <div key={video.id} className="relative rounded-2xl overflow-hidden border border-slate-200 aspect-video bg-slate-900 group">
+                        <video src={video.url} controls className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveVideo(video.id)}
+                          className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/60 text-white hover:bg-rose-600 transition"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="absolute bottom-1.5 left-1.5 bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 pointer-events-none">
+                          <Video className="w-3 h-3" /> {video.duration || 15}s
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* SECCIÓN 5: ¿UNIDAD REQUIERE RESCATE POR NO ESTAR OPERABLE? (SI / NO) */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-extrabold text-sm">
+                  5
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-[#040057]">
+                    Condición de Operabilidad y Rescate en Carretera
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Indica si el vehículo puede rodar o si requiere grúa / cuadrilla de rescate en ruta.
+                  </p>
+                </div>
+              </div>
+
+              {/* SELECCIÓN: ¿Unidad requiere rescate por no estar operable? SI - NO */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <label className="block text-xs sm:text-sm font-extrabold text-slate-800">
+                  ¿Unidad requiere rescate por no estar operable? *
+                </label>
+                
+                <div className="grid grid-cols-2 gap-3 max-w-md">
+                  
+                  {/* OPCIÓN SÍ */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRequiresRescue(true);
+                      if (!rescueLocationUrl) {
+                        setRescueLocationUrl('https://maps.google.com/?q=19.7144,-99.2241');
+                      }
+                    }}
+                    className={`p-4 rounded-2xl border-2 text-center font-black text-sm sm:text-base transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      requiresRescue
+                        ? 'border-rose-600 bg-rose-50 text-rose-700 shadow-md ring-2 ring-rose-600/30'
+                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+                    }`}
+                  >
+                    <span className="text-xl">🚨 SÍ</span>
+                    <span className="text-[11px] font-medium text-rose-800">
+                      Unidad inoperable / Varada en ruta
+                    </span>
+                  </button>
+
+                  {/* OPCIÓN NO */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRequiresRescue(false);
+                      setRescueLocationUrl('');
+                    }}
+                    className={`p-4 rounded-2xl border-2 text-center font-black text-sm sm:text-base transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      !requiresRescue
+                        ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-md ring-2 ring-blue-600/30'
+                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+                    }`}
+                  >
+                    <span className="text-xl">✅ NO</span>
+                    <span className="text-[11px] font-medium text-blue-800">
+                      Unidad operable / Taller o patio
+                    </span>
+                  </button>
+
+                </div>
+
+                {/* Si selecciona "SI": se podrá ver un campo para que el cliente pegue la ubicación o link de Google Maps */}
+                {requiresRescue ? (
+                  <div className="pt-3 border-t border-rose-200 animate-fadeIn space-y-2">
+                    <label className="block text-xs font-extrabold text-rose-900">
+                      Pega aquí la ubicación exacta / Link de Google Maps o cualquier app de geolocalización *
+                    </label>
+                    <div className="relative">
+                      <ExternalLink className="w-4 h-4 text-rose-500 absolute left-3.5 top-3" />
+                      <input
+                        type="url"
+                        value={rescueLocationUrl}
+                        onChange={(e) => setRescueLocationUrl(e.target.value)}
+                        placeholder="https://maps.app.goo.gl/... o https://www.google.com/maps?q=..."
+                        required={requiresRescue}
+                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border-2 border-rose-300 bg-white text-xs sm:text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-rose-500 transition"
+                      />
+                    </div>
+                    <p className="text-[11px] text-rose-700 font-medium">
+                      El jefe de taller y administración recibirán esta coordenada con una ventana emergente y sonido de alerta en vivo.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500 pt-1">
+                    Al seleccionar "NO", la solicitud se registrará como ingreso a taller o asistencia preventiva.
+                  </p>
+                )}
+
+              </div>
+
+              {/* Botón final del formulario: Enviar solicitud */}
+              <div className="pt-4 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('home')}
+                  className="px-5 py-3 rounded-2xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  className="px-8 py-3.5 rounded-2xl bg-linear-to-r from-[#040057] to-indigo-700 hover:from-[#070085] hover:to-indigo-800 text-white font-black text-sm sm:text-base shadow-xl transition transform hover:scale-[1.01] active:scale-100 cursor-pointer flex items-center gap-2"
+                >
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                  <span>Enviar solicitud</span>
+                </button>
+              </div>
+
+            </div>
+
+          </form>
+
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* VISTA 3: LISTADO DE REPORTES ENVIADOS (SEGUNDO BOTÓN) */}
+      {/* ======================================================== */}
+      {viewMode === 'listado_reportes' && (
+        <div className="space-y-6 animate-fadeIn">
+          
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('home')}
+                  className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition cursor-pointer"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div>
+                  <h2 className="text-base sm:text-lg font-black text-[#040057] flex items-center gap-2">
+                    <ListFilter className="w-5 h-5 text-indigo-600" />
+                    Listado de Reportes Enviados por el Cliente
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Consulta el estatus de tus unidades en tiempo real y agrega nuevas fallas u observaciones.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('nuevo_reporte')}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition cursor-pointer shrink-0"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>+ Nuevo Reporte</span>
+              </button>
+            </div>
+
+            {/* BUSCADOR INTELIGENTE REQUERIDO */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2 relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscador inteligente: busca por folio, número de unidad, placas, falla, operador, estatus o ubicación..."
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-medium text-slate-800 focus:ring-2 focus:ring-[#040057] transition"
+                />
+              </div>
+
+              <div>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-[#040057] transition"
+                >
+                  <option value="todos">Todos los Estatus</option>
+                  <option value="por_atender">Por Atender</option>
+                  <option value="en_proceso">En Proceso / Diagnóstico</option>
+                  <option value="pendiente_refacciones">Pendiente Refacciones</option>
+                  <option value="validando_pruebas">Validando / Pruebas</option>
+                  <option value="habilitada">Habilitada / Liberada</option>
+                  <option value="cerrado">Cerrado / Concluido</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Badges de filtro de estatus rápido */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase mr-1">Estatus Oficiales:</span>
+              {[
+                { id: 'todos', label: 'Todos' },
+                { id: 'por_atender', label: 'Por Atender', color: 'bg-amber-100 text-amber-900 border-amber-300' },
+                { id: 'en_proceso', label: 'En Proceso', color: 'bg-blue-100 text-blue-900 border-blue-300' },
+                { id: 'pendiente_refacciones', label: 'Pend. Refacciones', color: 'bg-purple-100 text-purple-900 border-purple-300' },
+                { id: 'validando_pruebas', label: 'Validando Pruebas', color: 'bg-indigo-100 text-indigo-900 border-indigo-300' },
+                { id: 'habilitada', label: 'Habilitada', color: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
+                { id: 'cerrado', label: 'Cerrado', color: 'bg-slate-200 text-slate-800 border-slate-400' },
+              ].map(st => (
+                <button
+                  key={st.id}
+                  type="button"
+                  onClick={() => setStatusFilter(st.id)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                    statusFilter === st.id 
+                      ? 'bg-[#040057] text-white border-[#040057]' 
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {st.label}
+                </button>
+              ))}
+            </div>
+
+          </div>
+
+          {/* LISTADO DE TARJETAS DE REPORTES (SECCIONES SEPARADAS) */}
+          <div className="space-y-4">
+            {filteredOrders.length === 0 ? (
+              <div className="bg-white rounded-3xl p-10 text-center border border-slate-200 shadow-xs space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                  <Search className="w-6 h-6" />
+                </div>
+                <h3 className="font-extrabold text-sm sm:text-base text-slate-700">
+                  No se encontraron reportes con ese criterio de búsqueda
+                </h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Verifica el folio, número de unidad o prueba cambiando el filtro de estatus.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setSearchTerm(''); setStatusFilter('todos'); }}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                >
+                  Restablecer filtros
+                </button>
+              </div>
+            ) : (
+              filteredOrders.map((order) => {
+                const isRescue = order.requiresRescue || order.serviceType === 'rescate';
+
+                // Helpers de formato de estatus visual según la imagen solicitada
+                const getStatusPill = (st: ServiceStatus) => {
+                  switch (st) {
+                    case 'por_atender':
                     case 'solicitado':
-                      return { text: 'Paso A: Solicitado (En Espera de Asignación)', color: 'bg-amber-100 text-amber-900 border-amber-200' };
+                      return { text: 'Por Atender', color: 'bg-amber-100 text-amber-900 border-amber-300' };
+                    case 'en_proceso':
                     case 'asignado':
-                      return { text: 'Paso B: Técnico Asignado', color: 'bg-blue-100 text-[#040057] border-blue-200' };
                     case 'en_diagnostico_trabajo':
-                      return { text: 'Paso C: En Diagnóstico y Trabajo', color: 'bg-indigo-100 text-indigo-900 border-indigo-200' };
+                      return { text: 'En Proceso / Diagnóstico', color: 'bg-blue-100 text-blue-900 border-blue-300' };
+                    case 'pendiente_refacciones':
+                      return { text: 'Pendiente Refacciones', color: 'bg-purple-100 text-purple-900 border-purple-300' };
+                    case 'validando_pruebas':
                     case 'evidencias_en_revision':
-                      return { text: 'Paso D/E: Evidencias en Revisión de Gerencia', color: 'bg-purple-100 text-purple-900 border-purple-200' };
-                    case 'evidencias_rechazadas':
-                      return { text: 'Paso F: Evidencias Observadas / En Corrección', color: 'bg-rose-100 text-rose-900 border-rose-200' };
+                      return { text: 'Validando / Pruebas', color: 'bg-indigo-100 text-indigo-900 border-indigo-300' };
+                    case 'habilitada':
                     case 'liberacion_autorizada':
-                      return { text: 'Paso G: Liberación de Unidad Autorizada', color: 'bg-emerald-100 text-emerald-900 border-emerald-200' };
                     case 'unidad_liberada':
-                      return { text: 'Unidad Entregada / Liberada Físicamente', color: 'bg-teal-100 text-teal-900 border-teal-200' };
-                    case 'cotizacion_pendiente':
-                      return { text: 'Paso H: Cotización Pendiente de Tu Autorización', color: 'bg-amber-100 text-amber-900 border-amber-300 font-bold' };
-                    case 'cotizacion_aprobada':
-                      return { text: 'Paso I: Cotización Aprobada por Cliente', color: 'bg-emerald-100 text-emerald-900 border-emerald-200' };
+                      return { text: 'Habilitada / Lista', color: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
+                    case 'cerrado':
                     case 'facturado':
-                      return { text: 'Paso J: Servicio Concluido y Facturado', color: 'bg-slate-100 text-slate-800 border-slate-300' };
+                      return { text: 'Cerrado / Concluido', color: 'bg-slate-200 text-slate-800 border-slate-400' };
                     default:
-                      return { text: status, color: 'bg-slate-100 text-slate-700 border-slate-200' };
+                      return { text: st, color: 'bg-slate-100 text-slate-700 border-slate-300' };
                   }
                 };
 
-                const statusInfo = getStatusInfo(order.status);
+                const statusInfo = getStatusPill(order.status);
 
                 return (
                   <div
                     key={order.id}
-                    className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs hover:border-slate-300 transition"
+                    className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs hover:border-slate-300 transition space-y-4"
                   >
+                    
+                    {/* Cabecera del reporte */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                      <div className="flex items-center gap-3">
-                        <span className="text-base font-extrabold text-[#040057]">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className="text-base font-black text-[#040057]">
                           {order.folio}
                         </span>
-                        <StatusSemaphoreBadge 
-                          status={order.status} 
-                          priority={order.priority} 
-                          quotationStatus={order.quotation?.status}
-                          showCategoryHint
-                        />
+                        
+                        {/* Estatus oficial destacado */}
+                        <span className={`px-3 py-1 rounded-full text-xs font-extrabold border ${statusInfo.color}`}>
+                          {statusInfo.text}
+                        </span>
+
+                        {isRescue ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[11px] font-black uppercase flex items-center gap-1 shadow-xs animate-pulse">
+                            <AlertTriangle className="w-3 h-3" /> Requiere Rescate
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold">
+                            Taller / Asistencia
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 text-xs text-slate-500">
                         <Clock className="w-3.5 h-3.5" />
                         <span>{new Date(order.createdAt).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</span>
-                        <span className={`px-2 py-0.5 rounded-md font-bold uppercase text-[10px] ${
-                          order.priority === 'urgente' ? 'bg-rose-600 text-white' :
-                          order.priority === 'alta' ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
-                        }`}>
-                          {order.priority}
-                        </span>
                       </div>
                     </div>
 
-                    {/* Ficha de la Unidad y avería */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 py-3 text-xs">
-                      <div className="space-y-1">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Datos de la Unidad</span>
-                        <div className="font-bold text-[#040057] text-sm">
-                          {order.vehicle.type.toUpperCase()} • Placas: {order.vehicle.plates}
+                    {/* Ficha de Unidad, Operador y Falla */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                      
+                      {/* Datos de Unidad */}
+                      <div className="space-y-1 bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                          Unidad y Kilometraje
+                        </span>
+                        <div className="font-extrabold text-[#040057] text-sm">
+                          {order.unitNumber || `Unidad ${order.vehicle.economicNumber}`}
                         </div>
-                        <div className="text-slate-600 font-medium">
-                          Económico: <span className="text-slate-800 font-bold">{order.vehicle.economicNumber}</span>
-                          {(order.vehicle.brand || order.vehicle.brandModel) && (
-                            <span className="ml-1 text-[#040057] font-bold">
-                              • {order.vehicle.brand || order.vehicle.brandModel?.split(' ')[0]} {order.vehicle.model || ''}
-                            </span>
-                          )}
+                        <div className="text-slate-700 font-semibold">
+                          Placas: <strong className="text-slate-900">{order.vehicle.plates}</strong> • Eco: <strong className="text-slate-900">{order.vehicle.economicNumber}</strong>
                         </div>
+                        {order.vehicle.brandModel && (
+                          <div className="text-slate-500 font-medium truncate">
+                            {order.vehicle.brandModel} ({order.vehicle.type})
+                          </div>
+                        )}
+                        {(order.vehicle.odometerReading || order.vehicle.mileage) && (
+                          <div className="text-slate-600 font-semibold flex items-center gap-1 mt-1">
+                            <Gauge className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{order.vehicle.odometerReading || order.vehicle.mileage}</span>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="space-y-1">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Atención y Ubicación</span>
-                        <div className="font-semibold text-slate-800 capitalize flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                          <span className="truncate">{order.vehicle.location}</span>
+                      {/* Operador y Ubicación */}
+                      <div className="space-y-1 bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                          Operador y Ubicación
+                        </span>
+                        <div className="font-bold text-slate-800 text-sm flex items-center gap-1">
+                          <User className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{order.operatorName || order.clientContact}</span>
                         </div>
-                        <div className="text-slate-500">
-                          Servicio: <span className="font-semibold capitalize text-slate-700">{order.serviceType}</span>
-                          {order.assignedTechnicianName && ` • Técnico: ${order.assignedTechnicianName}`}
+                        {order.operatorPhone && (
+                          <div className="text-emerald-700 font-semibold flex items-center gap-1">
+                            <Phone className="w-3 h-3 text-emerald-600" />
+                            <span>{order.operatorPhone}</span>
+                          </div>
+                        )}
+                        <div className="text-slate-600 font-medium flex items-start gap-1 pt-0.5">
+                          <MapPin className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                          <span className="line-clamp-2">{order.vehicle.location}</span>
                         </div>
+                        {order.rescueLocationUrl && (
+                          <a
+                            href={order.rescueLocationUrl.startsWith('http') ? order.rescueLocationUrl : `https://${order.rescueLocationUrl}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-indigo-600 font-bold hover:underline inline-flex items-center gap-1 text-[11px] pt-1"
+                          >
+                            <span>Abrir enlace de Google Maps</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
                       </div>
 
-                      <div className="space-y-1">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Avería Reportada</span>
-                        <p className="text-slate-700 line-clamp-2">
+                      {/* Falla Reportada */}
+                      <div className="space-y-1 bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                          Falla Reportada Inicial
+                        </span>
+                        <p className="text-slate-800 font-medium line-clamp-3 leading-relaxed">
                           {order.vehicle.failureDescription}
                         </p>
+                        {order.assignedTechnicianName && (
+                          <div className="pt-1 text-slate-500 font-semibold">
+                            Técnico asignado: <strong className="text-indigo-700">{order.assignedTechnicianName}</strong>
+                          </div>
+                        )}
                       </div>
+
                     </div>
 
-                    {/* Barra de progreso de flujo (Graph TD) */}
-                    <div className="mt-2 pt-3 border-t border-slate-100">
-                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 mb-1.5 overflow-x-auto">
-                        <span className={order.status ? 'text-[#040057] font-bold' : ''}>1. Solicitud</span>
-                        <span className={order.assignedTechnicianId ? 'text-[#040057] font-bold' : ''}>2. Asignación</span>
-                        <span className={order.startTime ? 'text-[#040057] font-bold' : ''}>3. Diagnóstico</span>
-                        <span className={order.evidences.length > 0 ? 'text-[#040057] font-bold' : ''}>4. Evidencias</span>
-                        <span className={order.adminApprovedAt ? 'text-emerald-700 font-bold' : ''}>5. Liberación</span>
-                        <span className={order.quotation?.status === 'aprobada' ? 'text-emerald-700 font-bold' : ''}>6. Cotización</span>
-                        <span className={order.invoice ? 'text-emerald-700 font-bold' : ''}>7. Factura</span>
+                    {/* Evidencias adjuntas (miniaturas) */}
+                    {((order.evidences && order.evidences.length > 0) || (order.videoEvidences && order.videoEvidences.length > 0)) && (
+                      <div className="flex items-center gap-2 overflow-x-auto py-1">
+                        <span className="text-[11px] font-bold text-slate-400 shrink-0">Evidencias:</span>
+                        {order.evidences.slice(0, 4).map((ev, i) => (
+                          <div key={i} className="w-14 h-10 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shrink-0 relative">
+                            <img src={ev.url} alt="ev" className="w-full h-full object-cover" />
+                            <Camera className="w-2.5 h-2.5 text-white absolute bottom-1 right-1" />
+                          </div>
+                        ))}
+                        {order.videoEvidences?.map((vid, i) => (
+                          <div key={i} className="w-16 h-10 rounded-xl bg-slate-900 border border-slate-200 text-white flex items-center justify-center gap-1 text-[9px] font-bold shrink-0">
+                            <Video className="w-3 h-3 text-rose-500" />
+                            <span>{vid.duration || 15}s</span>
+                          </div>
+                        ))}
                       </div>
-                      
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div 
-                          className="bg-[#040057] h-full transition-all duration-300"
-                          style={{
-                            width: 
-                              order.status === 'facturado' ? '100%' :
-                              order.status === 'cotizacion_aprobada' ? '85%' :
-                              order.status === 'cotizacion_pendiente' ? '70%' :
-                              order.status === 'liberacion_autorizada' || order.status === 'unidad_liberada' ? '60%' :
-                              order.status === 'evidencias_en_revision' ? '45%' :
-                              order.status === 'en_diagnostico_trabajo' ? '30%' :
-                              order.status === 'asignado' ? '18%' : '8%'
-                          }}
-                        ></div>
+                    )}
+
+                    {/* Historial de Observaciones Agregadas por el Cliente */}
+                    {order.clientObservationsHistory && order.clientObservationsHistory.length > 0 && (
+                      <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-3 space-y-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 block">
+                          Observaciones / Nuevas Fallas Agregadas por el Cliente ({order.clientObservationsHistory.length}):
+                        </span>
+                        {order.clientObservationsHistory.map((obs) => (
+                          <div key={obs.id} className="text-xs text-slate-800 bg-white p-2.5 rounded-xl border border-amber-200/80 space-y-1">
+                            <div className="flex items-center justify-between text-[10px] text-slate-400">
+                              <span className="font-bold text-slate-600">{obs.author}</span>
+                              <span>{new Date(obs.timestamp).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                            </div>
+                            <p className="font-medium">{obs.text}</p>
+                          </div>
+                        ))}
                       </div>
-                    </div>
+                    )}
 
-                    {/* Acciones del Cliente */}
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        {order.evidences.length > 0 && (
-                          <span className="text-xs text-slate-500 flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            {order.evidences.length} evidencias fotográficas registradas
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2 flex-wrap justify-end">
-                        {/* Botón para ver Reporte Técnico Oficial (Hoja de Servicio) */}
-                        <button
-                          onClick={() => {
-                            setSelectedReportOrder(order);
-                            setClientSignName(order.userOperatorName || order.vehicle.driverContact || 'Omar Balderas (Operador)');
-                          }}
-                          className="px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs transition cursor-pointer flex items-center gap-1.5"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-[#040057]" />
-                          <span>Reporte Técnico {order.reportNumber ? `#${order.reportNumber}` : ''}</span>
-                          {order.clientSignature && (
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          )}
-                        </button>
-
-                        {/* Botón de acción para revisar cotización */}
-                        {order.quotation && order.quotation.status === 'enviada' && (
-                          <button
-                            onClick={() => setSelectedQuoteOrder(order)}
-                            className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition cursor-pointer flex items-center gap-1.5 animate-pulse"
-                          >
-                            <DollarSign className="w-4 h-4" />
-                            <span>Revisar y Autorizar Cotización (${order.quotation.total.toLocaleString('es-MX')})</span>
-                          </button>
-                        )}
-
-                        {/* Botón para ver factura */}
-                        {order.invoice && (
-                          <button
-                            onClick={() => setViewInvoiceOrder(order)}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold text-xs transition cursor-pointer flex items-center gap-1"
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                            <span>Consultar Factura ({order.invoice.fiscalFolio})</span>
-                          </button>
-                        )}
-                      </div>
+                    {/* ACCIÓN PRINCIPAL: Botón para Modificar Reporte y Agregar Nueva Falla u Observación */}
+                    <div className="pt-2 flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenModify(order)}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-linear-to-r from-[#040057] to-indigo-700 hover:from-[#070085] hover:to-indigo-800 text-white font-bold text-xs sm:text-sm shadow-xs transition cursor-pointer"
+                      >
+                        <Edit3 className="w-4 h-4 text-amber-300" />
+                        <span>Modificar Reporte y Agregar Nueva Falla u Observación</span>
+                      </button>
                     </div>
 
                   </div>
                 );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* MÓDULO: COTIZACIONES PENDIENTES */}
-      {activeModule === 'cotizaciones' && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200">
-            <h2 className="text-lg font-bold text-[#040057] flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-amber-500" />
-              Revisión y Aprobación de Presupuestos
-            </h2>
-            <p className="text-xs text-slate-500">
-              Autoriza digitalmente los presupuestos desglosados de mano de obra, refacciones y viáticos enviados por el taller.
-            </p>
-          </div>
-
-          {quotesPending.length === 0 ? (
-            <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
-              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-              <h3 className="text-base font-bold text-slate-700">Sin cotizaciones pendientes de revisión</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                Todas las cotizaciones han sido respondidas o aún están siendo elaboradas por el área administrativa.
-              </p>
-            </div>
-          ) : (
-            quotesPending.map((order) => (
-              <div key={order.id} className="bg-white rounded-2xl p-5 border border-amber-200 shadow-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
-                  <div>
-                    <span className="text-xs font-bold text-[#040057]">{order.folio}</span>
-                    <h3 className="text-base font-bold text-slate-800">
-                      Unidad {order.vehicle.type.toUpperCase()} • Placas: {order.vehicle.plates} (Económico {order.vehicle.economicNumber})
-                    </h3>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs text-slate-400">Monto Total a Autorizar:</span>
-                    <div className="text-xl font-extrabold text-[#040057]">
-                      ${order.quotation?.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN
-                    </div>
-                  </div>
-                </div>
-
-                {/* Desglose de cotización */}
-                <div className="py-3 text-xs space-y-2">
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Mano de Obra ({order.quotation?.laborHours} hrs @ ${order.quotation?.laborRatePerHour}/hr):</span>
-                      <span className="font-semibold text-slate-800">
-                        ${((order.quotation?.laborHours || 0) * (order.quotation?.laborRatePerHour || 0)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Refacciones e Insumos ({order.quotation?.parts.length} partidas):</span>
-                      <span className="font-semibold text-slate-800">
-                        ${order.quotation?.parts.reduce((a, b) => {
-                          const q = typeof b.quantity === 'number' ? b.quantity : (parseFloat(String(b.quantity)) || 1);
-                          return a + (q * b.unitPrice);
-                        }, 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <span className="text-slate-600">Viáticos de Asistencia / Rescate o Grúa:</span>
-                      <span className="font-semibold text-slate-800">
-                        ${(order.quotation?.expensesAndTowing || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-sm text-[#040057]">
-                      <span>Total con IVA (16%):</span>
-                      <span>${order.quotation?.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</span>
-                    </div>
-                  </div>
-
-                  {order.quotation?.notes && (
-                    <div className="text-slate-600 text-xs italic">
-                      Nota del taller: {order.quotation.notes}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-2">
-                  <button
-                    onClick={() => {
-                      setSelectedQuoteOrder(order);
-                      setShowRejectInput(true);
-                    }}
-                    className="px-4 py-2 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-semibold transition cursor-pointer"
-                  >
-                    Rechazar con Notas
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedQuoteOrder(order);
-                      setShowRejectInput(false);
-                    }}
-                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Aprobar Cotización Digitalmente</span>
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* MÓDULO: HISTORIAL DE SERVICIOS Y FACTURAS */}
-      {activeModule === 'historial' && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200">
-            <h2 className="text-lg font-bold text-[#040057] flex items-center gap-2">
-              <FileText className="w-5 h-5 text-indigo-600" />
-              Historial de Servicios y Facturas Emitidas
-            </h2>
-            <p className="text-xs text-slate-500">
-              Consulta las órdenes concluidas y descarga comprobantes fiscales emitidos.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3">
-            {orders.filter(o => o.invoice || o.status === 'facturado' || o.status === 'unidad_liberada').map((order) => (
-              <div key={order.id} className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-[#040057] text-sm">{order.folio}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                      {order.invoice ? 'Facturado' : 'Completado'}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-700">
-                    Unidad: <strong>{order.vehicle.type.toUpperCase()}</strong> ({order.vehicle.plates} - {order.vehicle.economicNumber})
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    Fecha de servicio: {new Date(order.createdAt).toLocaleDateString('es-MX')}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {order.invoice && (
-                    <div className="text-right">
-                      <span className="text-[11px] text-slate-400">Total Facturado</span>
-                      <div className="text-base font-extrabold text-emerald-700">
-                        ${order.invoice.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                  )}
-
-                  {order.invoice && (
-                    <button
-                      onClick={() => setViewInvoiceOrder(order)}
-                      className="px-3 py-1.5 rounded-xl bg-[#040057] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer hover:bg-[#070085]"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Ver Factura</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DE AUTORIZACIÓN DE COTIZACIÓN */}
-      {selectedQuoteOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-            <h3 className="text-base sm:text-lg font-bold text-[#040057] mb-1">
-              {showRejectInput ? 'Rechazar Presupuesto de Servicio' : 'Aprobación Digital de Cotización'}
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Orden {selectedQuoteOrder.folio} • Unidad placas {selectedQuoteOrder.vehicle.plates}
-            </p>
-
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs mb-4 space-y-1">
-              <div className="flex justify-between font-bold text-slate-800 text-sm">
-                <span>Monto a autorizar:</span>
-                <span className="text-[#040057]">${selectedQuoteOrder.quotation?.total.toLocaleString('es-MX')} MXN</span>
-              </div>
-              <div className="text-slate-500">
-                Incluye mano de obra, insumos y viáticos con desglose tributario de IVA al 16%.
-              </div>
-            </div>
-
-            {showRejectInput ? (
-              <div className="mb-4">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Motivo de Rechazo u Observaciones *
-                </label>
-                <textarea
-                  rows={3}
-                  value={rejectNotes}
-                  onChange={(e) => setRejectNotes(e.target.value)}
-                  placeholder="Explica qué partidas o costos requieren ajuste..."
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
-                />
-              </div>
-            ) : (
-              <div className="mb-4">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Nombre del Responsable que Autoriza Digitalmente *
-                </label>
-                <input
-                  type="text"
-                  value={authorizerName}
-                  onChange={(e) => setAuthorizerName(e.target.value)}
-                  placeholder="Nombre y cargo de quien autoriza"
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-[#040057]"
-                />
-              </div>
+              })
             )}
-
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => {
-                  setSelectedQuoteOrder(null);
-                  setShowRejectInput(false);
-                }}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition"
-              >
-                Cancelar
-              </button>
-              {showRejectInput ? (
-                <button
-                  onClick={handleRejectQuote}
-                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition"
-                >
-                  Confirmar Rechazo
-                </button>
-              ) : (
-                <button
-                  onClick={handleApproveQuote}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition"
-                >
-                  Firmar y Autorizar
-                </button>
-              )}
-            </div>
           </div>
+
         </div>
       )}
 
-      {/* MODAL DE VISUALIZACIÓN DE FACTURA */}
-      {viewInvoiceOrder && viewInvoiceOrder.invoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start pb-4 border-b border-slate-200">
-              <div>
-                <img
-                  src="https://appdesignproyectos.com/olmedologo.png"
-                  alt="Olmedo Servicio Técnico"
-                  className="h-10 w-auto mb-2"
-                />
-                <span className="text-xs font-bold text-slate-500">Comprobante Fiscal Digital (CFDI)</span>
-                <div className="text-base font-extrabold text-[#040057]">
-                  Folio: {viewInvoiceOrder.invoice.fiscalFolio}
-                </div>
-              </div>
-
-              <div className="text-right text-xs text-slate-500">
-                <div>Fecha: {new Date(viewInvoiceOrder.invoice.issueDate).toLocaleDateString('es-MX')}</div>
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold mt-1">
-                  Estatus: {viewInvoiceOrder.invoice.paymentStatus.toUpperCase()}
-                </span>
-              </div>
-            </div>
-
-            <div className="py-4 space-y-3 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
-                <div className="font-bold text-slate-700">Receptor:</div>
-                <div className="text-slate-800">{viewInvoiceOrder.clientName}</div>
-                <div className="text-slate-500">{viewInvoiceOrder.clientContact}</div>
-              </div>
-
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <div className="p-2.5 bg-slate-100 font-bold text-slate-700 flex justify-between">
-                  <span>Concepto / Unidad</span>
-                  <span>Monto</span>
-                </div>
-                <div className="p-3 space-y-2">
-                  <div className="flex justify-between">
-                    <div>
-                      <div className="font-semibold text-slate-800">Servicio Técnico y Reparación ({viewInvoiceOrder.folio})</div>
-                      <div className="text-slate-500 text-[11px]">Unidad: {viewInvoiceOrder.vehicle.type.toUpperCase()} Placas {viewInvoiceOrder.vehicle.plates}</div>
-                    </div>
-                    <span className="font-bold text-slate-800">${viewInvoiceOrder.invoice.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                </div>
-                <div className="p-3 bg-slate-50 border-t border-slate-200 space-y-1">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Subtotal:</span>
-                    <span>${viewInvoiceOrder.invoice.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600">
-                    <span>IVA Trasladado (16%):</span>
-                    <span>${viewInvoiceOrder.invoice.tax.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="flex justify-between font-extrabold text-sm text-[#040057] pt-1 border-t border-slate-200">
-                    <span>Total CFDI:</span>
-                    <span>${viewInvoiceOrder.invoice.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setViewInvoiceOrder(null)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
-              >
-                Cerrar
-              </button>
-              <button
-                onClick={() => {
-                  alert(`Descargando representación digital PDF para folio ${viewInvoiceOrder.invoice?.fiscalFolio}...`);
-                }}
-                className="px-4 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-semibold flex items-center gap-1.5"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Descargar PDF / XML</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DE VISUALIZACIÓN DEL REPORTE TÉCNICO OFICIAL */}
-      {selectedReportOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto animate-fadeIn">
-          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[94vh] flex flex-col">
-            <div className="p-4 sm:p-5 bg-[#040057] text-white flex justify-between items-center print:hidden">
-              <div>
-                <h3 className="text-base font-bold">REPORTE TÉCNICO {selectedReportOrder.reportNumber || '023'}</h3>
-                <p className="text-xs text-blue-200">Hoja oficial de servicio • {selectedReportOrder.clientName}</p>
-              </div>
-              <button onClick={() => setSelectedReportOrder(null)} className="text-slate-300 hover:text-white">✕</button>
-            </div>
-
-            <div className="p-4 sm:p-6 overflow-y-auto">
-              <TechnicalReportDocument
-                order={selectedReportOrder}
-                showSignButton={true}
-                onSignClient={() => setShowSignDialog(true)}
-              />
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t flex justify-end print:hidden">
-              <button
-                onClick={() => setSelectedReportOrder(null)}
-                className="px-5 py-2 rounded-xl bg-slate-200 text-slate-800 font-semibold text-xs hover:bg-slate-300"
-              >
-                Cerrar Reporte
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DE FIRMA DIGITAL DEL CLIENTE */}
-      {showSignDialog && selectedReportOrder && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center gap-2 mb-2 text-[#040057]">
-              <PenTool className="w-5 h-5 text-emerald-600" />
-              <h3 className="text-base font-bold">Firma de Conformidad del Cliente</h3>
-            </div>
-            <p className="text-xs text-slate-500 mb-4">
-              Al estampar tu firma, confirmas la recepción y conformidad con los trabajos y refacciones asentados en el <strong>REPORTE TÉCNICO {selectedReportOrder.reportNumber || '023'}</strong>.
-            </p>
-
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              if (!clientSignName.trim()) return;
-              clientSignReport(selectedReportOrder.id, clientSignName.trim());
-              setShowSignDialog(false);
-            }} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Nombre Completo / Firma de Quien Recibe la Unidad *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={clientSignName}
-                  onChange={(e) => setClientSignName(e.target.value)}
-                  placeholder="Ej. Omar Balderas (Operador) / Ing. Arturo Ramírez"
-                  className="w-full px-3 py-2 border rounded-lg font-serif italic text-sm focus:ring-2 focus:ring-[#040057]"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t">
+      {/* ======================================================== */}
+      {/* VISTA 4: MODIFICAR REPORTE Y AGREGAR OBSERVACIÓN (NO FLOTANTE) */}
+      {/* ======================================================== */}
+      {viewMode === 'modificar_reporte' && orderToModify && (
+        <div className="space-y-6 animate-fadeIn">
+          
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setShowSignDialog(false)}
-                  className="px-4 py-2 rounded-xl border text-slate-700 font-semibold"
+                  onClick={() => setViewMode('listado_reportes')}
+                  className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition cursor-pointer"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div>
+                  <h2 className="text-base sm:text-lg font-black text-[#040057] flex items-center gap-2">
+                    <Edit3 className="w-5 h-5 text-amber-500" />
+                    Actualizar Reporte: {orderToModify.folio}
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Unidad: {orderToModify.unitNumber || orderToModify.vehicle.economicNumber} • Placas: {orderToModify.vehicle.plates}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('listado_reportes')}
+                className="text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+              >
+                Volver al listado
+              </button>
+            </div>
+
+            {/* Resumen del reporte actual */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Falla Registrada Previamente:</span>
+                <p className="text-slate-800 font-semibold mt-1">
+                  {orderToModify.vehicle.failureDescription}
+                </p>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Ubicación y Operador:</span>
+                <div className="text-slate-700 mt-1">
+                  <strong>{orderToModify.vehicle.location}</strong>
+                </div>
+                <div className="text-slate-500 mt-0.5">
+                  Operador: {orderToModify.operatorName || orderToModify.clientContact}
+                </div>
+              </div>
+            </div>
+
+            {/* Formulario de actualización (en sección separada, NO ventana flotante) */}
+            <form onSubmit={handleSaveObservation} className="space-y-4 pt-2">
+              
+              <div>
+                <label className="block text-xs font-extrabold text-slate-800 mb-1.5">
+                  Agregar Nueva Falla, Síntoma Adicional u Observación *
+                </label>
+                <textarea
+                  rows={4}
+                  value={newObservationText}
+                  onChange={(e) => setNewObservationText(e.target.value)}
+                  placeholder="Escribe aquí la nueva falla u observación que acabas de detectar en la unidad (ej. Además del calentamiento de motor, se detectó fuga de anticongelante en manguera inferior y la batería no retiene carga)..."
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-medium text-slate-800 focus:ring-2 focus:ring-[#040057] transition"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Esta actualización quedará registrada en el historial del reporte y notificará de inmediato al jefe de taller y administración.
+                </p>
+              </div>
+
+              {/* Botón para tomar fotos adicionales */}
+              <div>
+                <label className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold text-xs sm:text-sm transition cursor-pointer w-fit">
+                  <Camera className="w-4 h-4 text-indigo-700" />
+                  <span>Tomar o Adjuntar Foto Adicional</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    multiple
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      if (!files) return;
+                      Array.from(files).forEach((file, idx) => {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const url = ev.target?.result as string;
+                          setAdditionalPhotos(prev => [
+                            ...prev,
+                            {
+                              id: `obs-photo-${Date.now()}-${idx}`,
+                              phase: 'antes',
+                              url,
+                              title: `Foto Adicional ${prev.length + 1}`,
+                              timestamp: new Date().toISOString(),
+                              uploadedBy: 'cliente' as any,
+                              uploaderName: operatorName || 'Operador',
+                            }
+                          ]);
+                        };
+                        reader.readAsDataURL(file);
+                      });
+                    }}
+                    className="hidden"
+                  />
+                </label>
+
+                {additionalPhotos.length > 0 && (
+                  <div className="flex items-center gap-2 pt-2">
+                    {additionalPhotos.map((p) => (
+                      <div key={p.id} className="w-16 h-12 rounded-xl overflow-hidden border border-slate-200 relative">
+                        <img src={p.url} alt="adicional" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setAdditionalPhotos(prev => prev.filter(x => x.id !== p.id))}
+                          className="absolute top-0.5 right-0.5 p-0.5 bg-black/60 rounded-full text-white"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Botones de acción */}
+              <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('listado_reportes')}
+                  className="px-5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition cursor-pointer"
                 >
                   Cancelar
                 </button>
+
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
+                  className="px-6 py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-black text-xs sm:text-sm shadow-md transition cursor-pointer flex items-center gap-2"
                 >
-                  Confirmar y Firmar Documento
+                  <Save className="w-4 h-4 text-emerald-400" />
+                  <span>Guardar Observación y Actualizar Reporte</span>
                 </button>
               </div>
+
             </form>
+
           </div>
+
         </div>
       )}
-
     </div>
   );
 };

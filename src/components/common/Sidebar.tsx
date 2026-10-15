@@ -48,41 +48,16 @@ export const Sidebar: React.FC = () => {
 
     switch (role) {
       case 'cliente':
-        const pendingQuotes = orders.filter(o => o.quotation?.status === 'enviada').length;
-        const myActiveOrders = orders.filter(o => o.status !== 'facturado' && o.status !== 'cerrado').length;
         return [
           {
-            section: 'Gestión de Solicitudes',
+            section: 'Navegación',
             items: [
               {
-                id: 'mis_solicitudes',
-                label: 'Mis Solicitudes Activas',
+                id: 'listado_reportes',
+                label: 'Mis Reportes',
                 icon: <ListFilter className="w-5 h-5" />,
-                badge: myActiveOrders > 0 ? myActiveOrders : undefined,
-              },
-              {
-                id: 'nueva_solicitud',
-                label: 'Nueva Solicitud (Taller/Asistencia/Rescate)',
-                icon: <FilePlus className="w-5 h-5" />,
-              },
-            ],
-          },
-          {
-            section: 'Finanzas y Avisos',
-            items: [
-              {
-                id: 'cotizaciones',
-                label: 'Revisión y Aprobación de Cotizaciones',
-                icon: <DollarSign className="w-5 h-5" />,
-                badge: pendingQuotes > 0 ? pendingQuotes : undefined,
-                badgeColor: 'bg-amber-500',
-              },
-              {
-                id: 'notificaciones',
-                label: 'Notificaciones y Avisos',
-                icon: <Bell className="w-5 h-5" />,
-                badge: unreadNotifs > 0 ? unreadNotifs : undefined,
-                badgeColor: 'bg-rose-600',
+                badge: orders.length > 0 ? orders.length : undefined,
+                badgeColor: 'bg-[#040057]',
               },
             ],
           },

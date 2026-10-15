@@ -13,9 +13,15 @@ import {
   ServiceCatalogItem,
   RepairLog,
   Employee,
-  AppNotification
+  AppNotification,
+  UnitCatalogItem,
+  VideoEvidence,
+  ClientObservation,
+  ServiceStatus,
+  VehicleType
 } from '../types';
-import { INITIAL_ORDERS, INITIAL_TECHNICIANS, INITIAL_SERVICES, INITIAL_NOTIFICATIONS } from '../data/mockData';
+import { INITIAL_ORDERS, INITIAL_TECHNICIANS, INITIAL_SERVICES, INITIAL_NOTIFICATIONS, INITIAL_UNITS } from '../data/mockData';
+import { playEmergencyAlertSound } from '../utils/audioAlert';
 
 interface ToastMessage {
   id: string;
@@ -149,6 +155,39 @@ interface AppContextType {
   toasts: ToastMessage[];
   addToast: (type: 'success' | 'info' | 'warning' | 'error', title: string, message: string) => void;
   removeToast: (id: string) => void;
+
+  // Catálogo de Unidades dadas de alta por el admin
+  units: UnitCatalogItem[];
+  addUnit: (unit: Omit<UnitCatalogItem, 'id'>) => void;
+  updateUnit: (id: string, updates: Partial<UnitCatalogItem>) => void;
+  deleteUnit: (id: string) => void;
+
+  // Reporte de Falla del Cliente
+  createClientFaultReport: (data: {
+    unitNumber: string;
+    plates: string;
+    economicNumber: string;
+    brandModel?: string;
+    vehicleType?: import('../types').VehicleType;
+    odometer: string;
+    operatorName: string;
+    operatorPhone: string;
+    failureDescription: string;
+    location: string;
+    requiresRescue: boolean;
+    rescueLocationUrl?: string;
+    photos: Array<{ id: string; url: string; title: string; timestamp: string }>;
+    videos?: VideoEvidence[];
+    clientName?: string;
+    clientCompany?: string;
+  }) => ServiceOrder;
+
+  addClientObservation: (orderId: string, observationText: string, author?: string, photos?: EvidencePhoto[]) => void;
+  updateOrderStatus: (orderId: string, newStatus: ServiceStatus, notes?: string) => void;
+
+  // Alerta emergente en vivo con sonido para Jefe de Taller y Admin
+  incomingAlertOrder: ServiceOrder | null;
+  dismissIncomingAlert: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -160,6 +199,7 @@ const STORAGE_HIDE_SAMPLE_KEY = 'olmedo_hide_sample_data';
 const STORAGE_SUPABASE_KEY = 'olmedo_supabase_config';
 const STORAGE_ROLE_KEY = 'olmedo_current_role';
 const STORAGE_NOTIFICATIONS_KEY = 'olmedo_notifications_data';
+const STORAGE_UNITS_KEY = 'olmedo_units_catalog';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Check if user previously decided to delete/hide sample data
@@ -173,6 +213,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeModule, setActiveModule] = useState<string>('inicio');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Alerta emergente en vivo con sonido para Jefe de Taller y Admin
+  const [incomingAlertOrder, setIncomingAlertOrder] = useState<ServiceOrder | null>(null);
+  const dismissIncomingAlert = () => setIncomingAlertOrder(null);
+
+  // Catálogo de Unidades (Unidad 1 a 50) dadas de alta por Admin
+  const [units, setUnits] = useState<UnitCatalogItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_UNITS_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return INITIAL_UNITS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_UNITS_KEY, JSON.stringify(units));
+  }, [units]);
+
+  const addUnit = (unit: Omit<UnitCatalogItem, 'id'>) => {
+    const newUnit: UnitCatalogItem = {
+      ...unit,
+      id: `unit-${Date.now()}`,
+    };
+    setUnits(prev => [newUnit, ...prev]);
+    addToast('success', 'Unidad Registrada', `La ${newUnit.unitNumber} (${newUnit.plates}) fue dada de alta.`);
+  };
+
+  const updateUnit = (id: string, updates: Partial<UnitCatalogItem>) => {
+    setUnits(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
+    addToast('success', 'Unidad Actualizada', 'Los datos de la unidad han sido actualizados.');
+  };
+
+  const deleteUnit = (id: string) => {
+    setUnits(prev => prev.filter(u => u.id !== id));
+    addToast('info', 'Unidad Eliminada', 'La unidad ha sido retirada del catálogo.');
+  };
 
   // Notificaciones del sistema
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
@@ -1180,6 +1256,181 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast('success', 'Cotización en PDF Importada', `Se adjuntó exitosamente el archivo "${fileName}" a la orden.`);
   };
 
+  // PASO CLIENTE: Reporte de falla específico con Unidad (1 a 50), Operador, Km, Falla, Fotos, Video 15s, Rescate y Alerta
+  const createClientFaultReport = (data: {
+    unitNumber: string;
+    plates: string;
+    economicNumber: string;
+    brandModel?: string;
+    vehicleType?: VehicleType;
+    odometer: string;
+    operatorName: string;
+    operatorPhone: string;
+    failureDescription: string;
+    location: string;
+    requiresRescue: boolean;
+    rescueLocationUrl?: string;
+    photos: Array<{ id: string; url: string; title: string; timestamp: string }>;
+    videos?: VideoEvidence[];
+    clientName?: string;
+    clientCompany?: string;
+  }): ServiceOrder => {
+    const now = new Date();
+    const folioNum = String(orders.length + 1).padStart(3, '0');
+    const newFolio = `OS-2026-${folioNum}`;
+
+    const newOrder: ServiceOrder = {
+      id: `ord-${Date.now()}`,
+      folio: newFolio,
+      createdAt: now.toISOString(),
+      clientName: data.clientName || 'Flotillas Express S.A. de C.V.',
+      clientContact: `${data.operatorName} (${data.operatorPhone})`,
+      clientCompany: data.clientCompany || 'Flotillas Express S.A.',
+      serviceType: data.requiresRescue ? 'rescate' : 'taller',
+      priority: data.requiresRescue ? 'urgente' : 'alta',
+      status: 'por_atender',
+      unitNumber: data.unitNumber,
+      operatorName: data.operatorName,
+      operatorPhone: data.operatorPhone,
+      requiresRescue: data.requiresRescue,
+      rescueLocationUrl: data.rescueLocationUrl,
+      videoEvidences: data.videos || [],
+      clientObservationsHistory: [],
+      vehicle: {
+        type: data.vehicleType || 'tractocamion',
+        plates: data.plates.toUpperCase(),
+        economicNumber: data.economicNumber.toUpperCase(),
+        brandModel: data.brandModel,
+        location: data.location,
+        failureDescription: data.failureDescription,
+        driverContact: data.operatorPhone,
+        odometerReading: data.odometer,
+        mileage: data.odometer,
+      },
+      evidences: data.photos.map(p => ({
+        id: p.id,
+        phase: 'antes',
+        url: p.url,
+        title: p.title || 'Evidencia de Falla Reportada',
+        timestamp: p.timestamp || now.toISOString(),
+        uploadedBy: 'cliente' as any,
+        uploaderName: data.operatorName || 'Operador',
+      })),
+      partsUsed: [],
+    };
+
+    setOrders(prev => [newOrder, ...prev]);
+
+    // Disparar ventana emergente inmediata para Admin y Jefe de Taller
+    setIncomingAlertOrder(newOrder);
+
+    // Reproducir sonido sintetizado de alerta en vivo (Web Audio API)
+    try {
+      playEmergencyAlertSound();
+    } catch {}
+
+    // Despacho de notificaciones inmediatas a Jefe de Taller y Gerencia
+    addNotification({
+      title: data.requiresRescue 
+        ? `🚨 ¡RESCATE VIAL URGENTE!: ${newFolio}` 
+        : `📋 Nuevo Reporte de Falla: ${newFolio}`,
+      message: `${data.unitNumber} (${data.plates}). Op: ${data.operatorName} (${data.operatorPhone}). Falla: ${data.failureDescription.slice(0, 80)}...`,
+      type: data.requiresRescue ? 'alert' : 'reception',
+      targetRole: 'all',
+      orderId: newOrder.id,
+      folio: newFolio,
+      metadata: {
+        vehiclePlates: data.plates,
+        vehicleType: data.vehicleType || 'tractocamion',
+        priority: data.requiresRescue ? 'urgente' : 'alta',
+        clientName: data.clientName || 'Cliente',
+      }
+    });
+
+    addToast(
+      data.requiresRescue ? 'error' : 'success',
+      data.requiresRescue ? '¡Solicitud de Rescate Enviada!' : 'Reporte de Falla Registrado',
+      `Folio ${newFolio} asignado. Notificación y alerta emergente enviada a Jefe de Taller y Gerencia.`
+    );
+
+    return newOrder;
+  };
+
+  // Agregar observación o nueva falla reportada por el cliente a una orden existente
+  const addClientObservation = (orderId: string, observationText: string, author?: string, photos?: EvidencePhoto[]) => {
+    const now = new Date().toISOString();
+    const newObs: ClientObservation = {
+      id: `obs-${Date.now()}`,
+      text: observationText,
+      timestamp: now,
+      author: author || 'Cliente / Operador',
+      addedPhotos: photos || [],
+    };
+
+    let targetFolio = '';
+
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        targetFolio = o.folio;
+        const currentHistory = o.clientObservationsHistory || [];
+        const currentEvidences = o.evidences || [];
+        return {
+          ...o,
+          clientObservationsHistory: [...currentHistory, newObs],
+          evidences: photos ? [...currentEvidences, ...photos] : currentEvidences,
+        };
+      }
+      return o;
+    }));
+
+    addNotification({
+      title: `Nueva Observación del Cliente: ${targetFolio}`,
+      message: `${author || 'El cliente'} agregó una observación: "${observationText.slice(0, 90)}..."`,
+      type: 'alert',
+      targetRole: 'jefe_taller',
+      orderId,
+      folio: targetFolio,
+    });
+
+    addNotification({
+      title: `Nueva Observación del Cliente: ${targetFolio}`,
+      message: `${author || 'El cliente'} agregó una observación: "${observationText.slice(0, 90)}..."`,
+      type: 'alert',
+      targetRole: 'gerencia',
+      orderId,
+      folio: targetFolio,
+    });
+
+    addToast('success', 'Observación Registrada', 'La nueva falla u observación fue guardada y notificada al taller.');
+  };
+
+  // Actualizar Estatus de Orden (Admin y Jefe de Taller)
+  const updateOrderStatus = (orderId: string, newStatus: ServiceStatus, notes?: string) => {
+    let targetFolio = '';
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        targetFolio = o.folio;
+        return {
+          ...o,
+          status: newStatus,
+          adminReviewNotes: notes ? (o.adminReviewNotes ? `${o.adminReviewNotes} | ${notes}` : notes) : o.adminReviewNotes,
+        };
+      }
+      return o;
+    }));
+
+    addToast('info', 'Estatus Actualizado', `La orden ${targetFolio || orderId} cambió a estatus "${newStatus}".`);
+
+    addNotification({
+      title: `Estatus Actualizado: ${targetFolio}`,
+      message: `El estatus de la orden fue actualizado a "${newStatus}". ${notes ? `Nota: ${notes}` : ''}`,
+      type: 'system',
+      targetRole: 'cliente',
+      orderId,
+      folio: targetFolio,
+    });
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1237,6 +1488,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toasts,
         addToast,
         removeToast,
+        units,
+        addUnit,
+        updateUnit,
+        deleteUnit,
+        createClientFaultReport,
+        addClientObservation,
+        updateOrderStatus,
+        incomingAlertOrder,
+        dismissIncomingAlert,
       }}
     >
       {children}

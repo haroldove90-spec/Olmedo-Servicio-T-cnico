@@ -4,9 +4,21 @@ export type ServiceType = 'taller' | 'asistencia' | 'rescate';
 
 export type VehicleType = 'auto' | 'camion' | 'bus' | 'tractocamion';
 
+export type ClientServiceStatus = 
+  | 'por_atender'              // 1. Por atender (Jefe de taller aún no asigna técnico)
+  | 'en_proceso'               // 2. En proceso (cuando técnico ya fue asignado)
+  | 'pendiente_refacciones'    // 3. Pendiente por refacciones
+  | 'validando_pruebas'        // 4. Validando / Pruebas (Gerente revisa evidencia para liberar)
+  | 'habilitada';              // 5. Habilitada (Se envía notificación al cliente al liberar)
+
 export type ServiceStatus = 
-  | 'solicitado'                // A: Cliente genera solicitud
-  | 'asignado'                  // B: Jefe de taller asigna técnico
+  | 'por_atender'
+  | 'en_proceso'
+  | 'pendiente_refacciones'
+  | 'validando_pruebas'
+  | 'habilitada'
+  | 'solicitado'                // A: Cliente genera solicitud (alias por_atender)
+  | 'asignado'                  // B: Jefe de taller asigna técnico (alias en_proceso)
   | 'en_diagnostico_trabajo'    // C: Técnico abre OS e inicia labores
   | 'evidencias_en_revision'    // D: Técnico subió evidencias fotográficas e insumos
   | 'evidencias_rechazadas'     // F: Administración solicitó corregir evidencias
@@ -164,6 +176,45 @@ export interface ServiceOrder {
   closedByRole?: UserRole;
   closingNotes?: string;
   finalKilometers?: string;
+
+  // Nuevos campos del reporte de falla del cliente
+  unitNumber?: string; // ej. "Unidad 14"
+  operatorName?: string; // ej. "Operador 3 - Roberto Sánchez"
+  operatorPhone?: string; // ej. "55 4433 2211"
+  requiresRescue?: boolean; // ¿Unidad requiere rescate por no estar operable? (SI / NO)
+  rescueLocationUrl?: string; // Enlace de Google Maps / geolocalización
+  videoEvidences?: VideoEvidence[]; // Videos de al menos 15 segundos
+  clientObservationsHistory?: ClientObservation[]; // Observaciones / nuevas fallas agregadas por el cliente
+}
+
+export interface VideoEvidence {
+  id: string;
+  url: string;
+  duration?: number; // Duración en segundos (mínimo 15s)
+  timestamp: string;
+  title: string;
+  notes?: string;
+}
+
+export interface ClientObservation {
+  id: string;
+  text: string;
+  timestamp: string;
+  author: string;
+  addedPhotos?: EvidencePhoto[];
+}
+
+export interface UnitCatalogItem {
+  id: string;
+  unitNumber: string; // ej. "Unidad 1"
+  plates: string; // ej. "82-AF-9K"
+  economicNumber: string; // ej. "ECO-308"
+  brand: string; // ej. "Kenworth"
+  model: string; // ej. "T680 2023"
+  type: VehicleType;
+  defaultOdometer?: string;
+  assignedOperator?: string;
+  status: 'activa' | 'en_taller' | 'inactiva';
 }
 
 export type EmployeeRole = 'tecnico' | 'jefe_taller' | 'admin' | 'gerencia';

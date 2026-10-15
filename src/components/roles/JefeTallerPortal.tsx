@@ -33,7 +33,8 @@ export const JefeTallerPortal: React.FC = () => {
     setActiveModule, 
     orders, 
     technicians, 
-    assignTechnician 
+    assignTechnician,
+    updateOrderStatus 
   } = useApp();
 
   const [selectedServiceType, setSelectedServiceType] = useState<string>('todos');
@@ -41,14 +42,17 @@ export const JefeTallerPortal: React.FC = () => {
   const [selectedTechId, setSelectedTechId] = useState<string>('');
   const [selectedPriority, setSelectedPriority] = useState<'baja' | 'media' | 'alta' | 'urgente'>('alta');
 
-  // Filter incoming orders (solicitado)
-  const incomingOrders = orders.filter(o => o.status === 'solicitado');
+  // Filter incoming orders (solicitado o por_atender)
+  const incomingOrders = orders.filter(o => o.status === 'solicitado' || o.status === 'por_atender');
   const activeFloorOrders = orders.filter(o => 
     o.status === 'asignado' || 
     o.status === 'en_diagnostico_trabajo' || 
     o.status === 'evidencias_en_revision' ||
     o.status === 'evidencias_rechazadas' ||
-    o.status === 'liberacion_autorizada'
+    o.status === 'liberacion_autorizada' ||
+    o.status === 'en_proceso' ||
+    o.status === 'pendiente_refacciones' ||
+    o.status === 'validando_pruebas'
   );
 
   const filteredIncoming = incomingOrders.filter(o => {
@@ -298,13 +302,61 @@ export const JefeTallerPortal: React.FC = () => {
                   </div>
 
                   {/* Detalle de Avería */}
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700 mb-3">
-                    <span className="font-bold text-[#040057]">Avería Reportada: </span>
-                    {order.vehicle.failureDescription}
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700 mb-3 space-y-1.5">
+                    <div>
+                      <span className="font-bold text-[#040057]">Avería Reportada: </span>
+                      {order.vehicle.failureDescription}
+                    </div>
+                    {order.requiresRescue && (
+                      <div className="text-rose-700 font-bold flex items-center gap-1 text-[11px]">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>¡Requiere Rescate Vial en Carretera!</span>
+                        {order.rescueLocationUrl && (
+                          <a 
+                            href={order.rescueLocationUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="underline ml-1 text-indigo-700"
+                          >
+                            Ver en Google Maps
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Botón Asignar */}
-                  <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+                  {/* Observaciones agregadas por el cliente si existen */}
+                  {order.clientObservationsHistory && order.clientObservationsHistory.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-xs text-amber-950 mb-3 space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
+                        Nuevas Observaciones Reportadas por el Cliente:
+                      </span>
+                      {order.clientObservationsHistory.map((obs) => (
+                        <div key={obs.id} className="bg-white p-2 rounded-lg border border-amber-200">
+                          <span className="font-semibold text-slate-700">{obs.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Acciones y Cambio Directo de Estatus */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-500">Cambiar Estatus:</span>
+                      <select
+                        value={order.status}
+                        onChange={(e) => updateOrderStatus(order.id, e.target.value as any)}
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 bg-white"
+                      >
+                        <option value="por_atender">Por Atender</option>
+                        <option value="en_proceso">En Proceso</option>
+                        <option value="pendiente_refacciones">Pendiente Refacciones</option>
+                        <option value="validando_pruebas">Validando / Pruebas</option>
+                        <option value="habilitada">Habilitada</option>
+                        <option value="cerrado">Cerrado</option>
+                      </select>
+                    </div>
+
                     <button
                       onClick={() => handleOpenAssignModal(order)}
                       className="px-4 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"

@@ -111,8 +111,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSupabaseModal, onOpenWorkf
               </div>
             )}
 
-            {/* Campanita de Notificaciones en el Header con Contador y Dropdown */}
-            {currentRole && (
+            {/* Campanita de Notificaciones en el Header con Contador y Dropdown (Oculta para cliente) */}
+            {currentRole && currentRole !== 'cliente' && (
               <div className="relative">
                 <button
                   onClick={() => setShowNotifMenu(!showNotifMenu)}
