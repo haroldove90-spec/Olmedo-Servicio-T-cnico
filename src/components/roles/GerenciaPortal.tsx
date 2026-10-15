@@ -373,6 +373,14 @@ export const GerenciaPortal: React.FC = () => {
 
   const handleApproveInspection = () => {
     if (!inspectOrder) return;
+    const hasBefore = inspectOrder.evidences.some(ev => ev.phase === 'antes') || (inspectOrder.repairs || []).some(r => Boolean(r.evidenceBeforeUrl));
+    const hasAfter = inspectOrder.evidences.some(ev => ev.phase === 'despues' || ev.phase === 'correctivo_realizado') || (inspectOrder.repairs || []).some(r => Boolean(r.evidenceAfterUrl));
+
+    if (!hasBefore || !hasAfter) {
+      alert('⚠️ Candado de Auditoría Técnica: No es posible autorizar y liberar la orden sin contar con al menos 1 evidencia en ANTES y 1 evidencia en DESPUÉS de las reparaciones.');
+      return;
+    }
+
     reviewEvidences(inspectOrder.id, true, approvalNotes, reviewerName);
     setInspectOrder(null);
   };

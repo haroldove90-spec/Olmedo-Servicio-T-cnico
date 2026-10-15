@@ -27,12 +27,17 @@ import {
   RotateCcw,
   Sparkles,
   Upload,
-  Info
+  Info,
+  Lock,
+  ShieldAlert,
+  Smartphone
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceStatus, EvidencePhoto, VideoEvidence, VehicleType } from '../../types';
 import { SAMPLE_OPERATORS, OperatorOption } from '../../data/mockData';
 import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
+import { LiveCameraModal } from '../common/LiveCameraModal';
+import { EvidenceLockWarningModal } from '../common/EvidenceLockWarningModal';
 
 type ClientViewMode = 'home' | 'nuevo_reporte' | 'listado_reportes' | 'modificar_reporte';
 
@@ -88,6 +93,11 @@ export const ClientePortal: React.FC = () => {
   const [videoSeconds, setVideoSeconds] = useState(0);
   const videoTimerRef = useRef<any>(null);
 
+  // Cámara móvil en vivo y candado de fotos
+  const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
+  const [liveCameraMode, setLiveCameraMode] = useState<'photo' | 'video'>('photo');
+  const [showPhotoWarningModal, setShowPhotoWarningModal] = useState(false);
+
   // 5. ¿Unidad requiere rescate por no estar operable?
   const [requiresRescue, setRequiresRescue] = useState<boolean>(false);
   const [rescueLocationUrl, setRescueLocationUrl] = useState<string>('');
@@ -96,7 +106,7 @@ export const ClientePortal: React.FC = () => {
   // ESTADOS DEL LISTADO Y BÚSQUEDA INTELIGENTE
   // ==========================================
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('todos');
+  const [statusFilter, setStatusFilter] = useState<string>('en_proceso');
 
   // ==========================================
   // ESTADO DE MODIFICACIÓN DE REPORTE
@@ -235,6 +245,33 @@ export const ClientePortal: React.FC = () => {
     addToast('success', 'Video Grabado Exitosamente', `Video de ${duration} segundos registrado.`);
   };
 
+  // Manejar captura directa con cámara móvil trasera (Foto o Video)
+  const handleLiveMediaCaptured = (mediaUrl: string, mediaType?: 'image' | 'video', duration?: number) => {
+    if (mediaType === 'video') {
+      const newVideo: VideoEvidence = {
+        id: `vid-${Date.now()}`,
+        url: mediaUrl,
+        duration: duration || 15,
+        timestamp: new Date().toISOString(),
+        title: `Video con Cámara Trasera (${duration || 15}s)`,
+        notes: `Video grabado desde dispositivo móvil para documentar la falla.`
+      };
+      setCapturedVideos(prev => [...prev, newVideo]);
+      addToast('success', 'Video Adjuntado', 'El video capturado con la cámara del celular se ha guardado.');
+    } else {
+      setCapturedPhotos(prev => [
+        ...prev,
+        {
+          id: `photo-${Date.now()}-${prev.length}`,
+          url: mediaUrl,
+          title: `Fotografía Cámara Trasera ${prev.length + 1}`,
+          timestamp: new Date().toISOString()
+        }
+      ]);
+      addToast('success', 'Fotografía Adjuntada', 'Foto capturada con la cámara fotográfica trasera guardada.');
+    }
+  };
+
   const handleRemovePhoto = (photoId: string) => {
     setCapturedPhotos(prev => prev.filter(p => p.id !== photoId));
   };
@@ -248,6 +285,13 @@ export const ClientePortal: React.FC = () => {
     e.preventDefault();
 
     const currentUnit = units.find(u => u.id === selectedUnitId) || units[0];
+
+    // CANDADO OBLIGATORIO: El cliente no puede enviar su reporte de falla sin enviar al menos una foto
+    if (capturedPhotos.length === 0) {
+      setShowPhotoWarningModal(true);
+      addToast('warning', 'Fotografía Obligatoria', 'No puedes enviar tu reporte sin adjuntar al menos una fotografía de la avería.');
+      return;
+    }
 
     if (!failureDescription.trim()) {
       addToast('warning', 'Campo Faltante', 'Por favor describe la falla reportada de la unidad.');
@@ -315,13 +359,18 @@ export const ClientePortal: React.FC = () => {
 
     if (!matchesSearch) return false;
 
-    if (statusFilter !== 'todos') {
-      if (statusFilter === 'por_atender' && order.status !== 'por_atender' && order.status !== 'solicitado') return false;
-      if (statusFilter === 'en_proceso' && order.status !== 'en_proceso' && order.status !== 'asignado' && order.status !== 'en_diagnostico_trabajo') return false;
-      if (statusFilter === 'pendiente_refacciones' && order.status !== 'pendiente_refacciones') return false;
-      if (statusFilter === 'validando_pruebas' && order.status !== 'validando_pruebas' && order.status !== 'evidencias_en_revision') return false;
-      if (statusFilter === 'habilitada' && order.status !== 'habilitada' && order.status !== 'liberacion_autorizada' && order.status !== 'unidad_liberada') return false;
-      if (statusFilter === 'cerrado' && order.status !== 'cerrado' && order.status !== 'facturado') return false;
+    if (statusFilter === 'en_proceso') {
+      const inProcessStatuses = [
+        'en_proceso',
+        'asignado',
+        'en_diagnostico_trabajo',
+        'solicitado',
+        'por_atender',
+        'evidencias_en_revision',
+        'pendiente_refacciones',
+        'validando_pruebas'
+      ];
+      if (!inProcessStatuses.includes(order.status)) return false;
     }
 
     return true;
@@ -633,23 +682,7 @@ export const ClientePortal: React.FC = () => {
 
               </div>
 
-              {/* Tarjeta resumen de la unidad seleccionada */}
-              {selectedUnit && (
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2">
-                    <Truck className="w-4 h-4 text-[#040057]" />
-                    <span className="font-bold text-[#040057]">{selectedUnit.unitNumber}:</span>
-                    <span className="text-slate-700 font-semibold">{selectedUnit.brand} {selectedUnit.model}</span>
-                    <span className="text-slate-500">• Placas: <strong className="text-slate-800">{selectedUnit.plates}</strong></span>
-                    <span className="text-slate-500">• Económico: <strong className="text-slate-800">{selectedUnit.economicNumber}</strong></span>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                    selectedUnit.status === 'en_taller' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                  }`}>
-                    Estatus: {selectedUnit.status}
-                  </span>
-                </div>
-              )}
+
 
             </div>
 
@@ -788,43 +821,89 @@ export const ClientePortal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Botones de acción multimedia */}
+              {/* Banner de Candado Obligatorio */}
+              <div className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold transition ${
+                capturedPhotos.length === 0
+                  ? 'bg-amber-50 border-amber-300 text-amber-900'
+                  : 'bg-emerald-50 border-emerald-300 text-emerald-900'
+              }`}>
+                <div className="flex items-center gap-2.5">
+                  {capturedPhotos.length === 0 ? (
+                    <div className="p-1.5 rounded-xl bg-amber-200/80 text-amber-900">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                  ) : (
+                    <div className="p-1.5 rounded-xl bg-emerald-200/80 text-emerald-900">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                  )}
+                  <div>
+                    <span className="font-extrabold uppercase tracking-wide text-[10px] block">
+                      {capturedPhotos.length === 0 ? '🔒 Candado Activo Requerido' : '✓ Candado de Evidencia Cumplido'}
+                    </span>
+                    <span>
+                      {capturedPhotos.length === 0
+                        ? 'Debes capturar o adjuntar al menos 1 fotografía de la avería para poder enviar tu reporte. (Fotos: 0/1)'
+                        : `Excelente: Has registrado ${capturedPhotos.length} fotografía(s) de la falla. Reporte listo para enviar.`}
+                    </span>
+                  </div>
+                </div>
+
+                {capturedPhotos.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLiveCameraMode('photo');
+                      setIsLiveCameraOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs"
+                  >
+                    Tomar Foto Ahora
+                  </button>
+                )}
+              </div>
+
+              {/* Botones de acción multimedia con solicitud de permisos al celular */}
               <div className="flex flex-wrap items-center gap-3">
                 
-                {/* Botón con icono de cámara para abrir la cámara del dispositivo y tomar fotos */}
-                <label className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold text-xs sm:text-sm transition cursor-pointer">
-                  <Camera className="w-5 h-5 text-indigo-700" />
-                  <span>Tomar Fotos con Cámara</span>
+                {/* 1. Activar Cámara Fotográfica Trasera con solicitud de permisos */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLiveCameraMode('photo');
+                    setIsLiveCameraOpen(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
+                >
+                  <Camera className="w-5 h-5 text-emerald-400" />
+                  <span>Activar Cámara Trasera (Foto)</span>
+                </button>
+
+                {/* 2. Activar Cámara de Video del Dispositivo */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLiveCameraMode('video');
+                    setIsLiveCameraOpen(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
+                >
+                  <Video className="w-5 h-5 text-white" />
+                  <span>Activar Cámara de Video (Video)</span>
+                </button>
+
+                {/* 3. Selector de archivo / galería */}
+                <label className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs sm:text-sm transition cursor-pointer">
+                  <Upload className="w-4 h-4 text-slate-600" />
+                  <span>Subir Fotos de Galería</span>
                   <input
                     type="file"
                     accept="image/*"
-                    capture="environment"
                     multiple
                     onChange={handlePhotoUpload}
                     className="hidden"
                   />
                 </label>
-
-                {/* Botón para grabar video de por lo menos 15 segundos */}
-                {!isRecordingVideo ? (
-                  <button
-                    type="button"
-                    onClick={handleStartVideoRecording}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-200 font-bold text-xs sm:text-sm transition cursor-pointer"
-                  >
-                    <Video className="w-5 h-5 text-rose-600" />
-                    <span>Grabar Video (mínimo 15 seg)</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleStopVideoRecording}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm transition cursor-pointer animate-pulse"
-                  >
-                    <div className="w-3 h-3 rounded-full bg-white animate-ping"></div>
-                    <span>Detener Video ({videoSeconds}s / 15s)</span>
-                  </button>
-                )}
 
               </div>
 
@@ -1001,10 +1080,31 @@ export const ClientePortal: React.FC = () => {
 
                 <button
                   type="submit"
-                  className="px-8 py-3.5 rounded-2xl bg-linear-to-r from-[#040057] to-indigo-700 hover:from-[#070085] hover:to-indigo-800 text-white font-black text-sm sm:text-base shadow-xl transition transform hover:scale-[1.01] active:scale-100 cursor-pointer flex items-center gap-2"
+                  onClick={(e) => {
+                    if (capturedPhotos.length === 0) {
+                      e.preventDefault();
+                      setShowPhotoWarningModal(true);
+                      addToast('warning', 'Fotografía Obligatoria', 'Debes adjuntar al menos una fotografía de la avería para enviar el reporte.');
+                    }
+                  }}
+                  className={`px-8 py-3.5 rounded-2xl text-white font-black text-sm sm:text-base shadow-xl transition transform hover:scale-[1.01] active:scale-100 cursor-pointer flex items-center gap-2 ${
+                    capturedPhotos.length === 0
+                      ? 'bg-amber-600 hover:bg-amber-700'
+                      : 'bg-linear-to-r from-[#040057] to-indigo-700 hover:from-[#070085] hover:to-indigo-800'
+                  }`}
+                  title={capturedPhotos.length === 0 ? 'Candado: Debes adjuntar al menos 1 foto' : 'Enviar reporte de falla'}
                 >
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                  <span>Enviar solicitud</span>
+                  {capturedPhotos.length === 0 ? (
+                    <>
+                      <Lock className="w-5 h-5 text-amber-200" />
+                      <span>Enviar solicitud (Requiere Foto)</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                      <span>Enviar solicitud</span>
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -1069,44 +1169,13 @@ export const ClientePortal: React.FC = () => {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-[#040057] transition"
+                  aria-label="Filtrar por estatus"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-blue-200 bg-blue-50/70 text-xs sm:text-sm font-bold text-[#040057] focus:ring-2 focus:ring-[#040057] transition cursor-pointer shadow-xs"
                 >
-                  <option value="todos">Todos los Estatus</option>
-                  <option value="por_atender">Por Atender</option>
                   <option value="en_proceso">En Proceso / Diagnóstico</option>
-                  <option value="pendiente_refacciones">Pendiente Refacciones</option>
-                  <option value="validando_pruebas">Validando / Pruebas</option>
-                  <option value="habilitada">Habilitada / Liberada</option>
-                  <option value="cerrado">Cerrado / Concluido</option>
+                  <option value="todos">Todos los Reportes</option>
                 </select>
               </div>
-            </div>
-
-            {/* Badges de filtro de estatus rápido */}
-            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-              <span className="text-[11px] font-bold text-slate-400 uppercase mr-1">Estatus Oficiales:</span>
-              {[
-                { id: 'todos', label: 'Todos' },
-                { id: 'por_atender', label: 'Por Atender', color: 'bg-amber-100 text-amber-900 border-amber-300' },
-                { id: 'en_proceso', label: 'En Proceso', color: 'bg-blue-100 text-blue-900 border-blue-300' },
-                { id: 'pendiente_refacciones', label: 'Pend. Refacciones', color: 'bg-purple-100 text-purple-900 border-purple-300' },
-                { id: 'validando_pruebas', label: 'Validando Pruebas', color: 'bg-indigo-100 text-indigo-900 border-indigo-300' },
-                { id: 'habilitada', label: 'Habilitada', color: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
-                { id: 'cerrado', label: 'Cerrado', color: 'bg-slate-200 text-slate-800 border-slate-400' },
-              ].map(st => (
-                <button
-                  key={st.id}
-                  type="button"
-                  onClick={() => setStatusFilter(st.id)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-                    statusFilter === st.id 
-                      ? 'bg-[#040057] text-white border-[#040057]' 
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {st.label}
-                </button>
-              ))}
             </div>
 
           </div>
@@ -1177,10 +1246,18 @@ export const ClientePortal: React.FC = () => {
                         <span className="text-base font-black text-[#040057]">
                           {order.folio}
                         </span>
+
+                        {/* Identificación de Unidad sin tarjeta separada */}
+                        <span className="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-800 text-xs font-bold border border-slate-200 flex items-center gap-1.5">
+                          <Truck className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>{order.unitNumber || `Unidad ${order.vehicle.economicNumber}`}</span>
+                          <span className="text-slate-400">•</span>
+                          <span className="text-slate-600 font-semibold">{order.vehicle.plates}</span>
+                        </span>
                         
-                        {/* Estatus oficial destacado */}
-                        <span className={`px-3 py-1 rounded-full text-xs font-extrabold border ${statusInfo.color}`}>
-                          {statusInfo.text}
+                        {/* Estatus oficial único: En Proceso / Diagnóstico */}
+                        <span className="px-3 py-1 rounded-full text-xs font-extrabold border bg-blue-100 text-blue-900 border-blue-300">
+                          En Proceso / Diagnóstico
                         </span>
 
                         {isRescue ? (
@@ -1200,33 +1277,9 @@ export const ClientePortal: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Ficha de Unidad, Operador y Falla */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    {/* Ficha simplificada: Operador y Falla (Sin tarjeta de Unidad y Kilometraje) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                       
-                      {/* Datos de Unidad */}
-                      <div className="space-y-1 bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                          Unidad y Kilometraje
-                        </span>
-                        <div className="font-extrabold text-[#040057] text-sm">
-                          {order.unitNumber || `Unidad ${order.vehicle.economicNumber}`}
-                        </div>
-                        <div className="text-slate-700 font-semibold">
-                          Placas: <strong className="text-slate-900">{order.vehicle.plates}</strong> • Eco: <strong className="text-slate-900">{order.vehicle.economicNumber}</strong>
-                        </div>
-                        {order.vehicle.brandModel && (
-                          <div className="text-slate-500 font-medium truncate">
-                            {order.vehicle.brandModel} ({order.vehicle.type})
-                          </div>
-                        )}
-                        {(order.vehicle.odometerReading || order.vehicle.mileage) && (
-                          <div className="text-slate-600 font-semibold flex items-center gap-1 mt-1">
-                            <Gauge className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{order.vehicle.odometerReading || order.vehicle.mileage}</span>
-                          </div>
-                        )}
-                      </div>
-
                       {/* Operador y Ubicación */}
                       <div className="space-y-1 bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
@@ -1490,6 +1543,27 @@ export const ClientePortal: React.FC = () => {
 
         </div>
       )}
+
+      {/* MODAL DE CÁMARA MÓVIL EN VIVO CON SOLICITUD DE PERMISOS NATIVOS */}
+      <LiveCameraModal
+        isOpen={isLiveCameraOpen}
+        onClose={() => setIsLiveCameraOpen(false)}
+        onCapture={handleLiveMediaCaptured}
+        title={liveCameraMode === 'photo' ? 'Cámara Fotográfica Trasera' : 'Cámara de Video Trasera'}
+        defaultMode={liveCameraMode}
+      />
+
+      {/* MODAL DE ADVERTENCIA: FOTO OBLIGATORIA */}
+      <EvidenceLockWarningModal
+        isOpen={showPhotoWarningModal}
+        onClose={() => {
+          setShowPhotoWarningModal(false);
+          setLiveCameraMode('photo');
+          setIsLiveCameraOpen(true);
+        }}
+        type="client_photo"
+      />
+
     </div>
   );
 };

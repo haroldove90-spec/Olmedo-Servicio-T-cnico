@@ -35,12 +35,18 @@ import {
   Image as ImageIcon,
   UserCheck,
   BarChart3,
-  Archive
+  Archive,
+  Video,
+  Play,
+  ShieldAlert,
+  Smartphone,
+  X
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, EvidencePhoto, PartUsed, RepairLog } from '../../types';
 import { TechnicalReportDocument } from '../common/TechnicalReportDocument';
 import { LiveCameraModal } from '../common/LiveCameraModal';
+import { EvidenceLockWarningModal } from '../common/EvidenceLockWarningModal';
 import { compressImageFile } from '../../utils/imageUtils';
 import { MetricsDashboard } from '../common/MetricsDashboard';
 import { NotificationsModule } from '../common/NotificationsModule';
@@ -130,12 +136,34 @@ export const TecnicoPortal: React.FC = () => {
   const [receivedByDriverName, setReceivedByDriverName] = useState('');
   const [showReleaseModal, setShowReleaseModal] = useState(false);
 
-  // Reparaciones registradas por el técnico
+  // Reparaciones registradas por el técnico con candado estricto Antes y Después
   const [showAddRepairModal, setShowAddRepairModal] = useState(false);
   const [repairTitle, setRepairTitle] = useState('');
   const [repairDescription, setRepairDescription] = useState('');
   const [repairStatus, setRepairStatus] = useState<'pendiente' | 'en_proceso' | 'terminado'>('en_proceso');
   const [editingRepairId, setEditingRepairId] = useState<string | null>(null);
+
+  // Evidencias antes y después de la reparación
+  const [repairBeforeUrl, setRepairBeforeUrl] = useState('');
+  const [repairBeforeType, setRepairBeforeType] = useState<'image' | 'video'>('image');
+  const [repairBeforeNotes, setRepairBeforeNotes] = useState('');
+  const [repairBeforeTimestamp, setRepairBeforeTimestamp] = useState('');
+
+  const [repairAfterUrl, setRepairAfterUrl] = useState('');
+  const [repairAfterType, setRepairAfterType] = useState<'image' | 'video'>('image');
+  const [repairAfterNotes, setRepairAfterNotes] = useState('');
+  const [repairAfterTimestamp, setRepairAfterTimestamp] = useState('');
+
+  // Candados y advertencias al cerrar ventana ('X') o la orden sin las 2 evidencias
+  const [showRepairLockWarningModal, setShowRepairLockWarningModal] = useState(false);
+  const [showOrderCloseWarningModal, setShowOrderCloseWarningModal] = useState(false);
+  const [orderCloseWarningMessage, setOrderCloseWarningMessage] = useState('');
+
+  const [cameraTarget, setCameraTarget] = useState<'repair_before' | 'repair_after' | 'tech_draft'>('repair_before');
+  const [cameraDefaultMode, setCameraDefaultMode] = useState<'photo' | 'video'>('photo');
+
+  const repairBeforeFileInputRef = useRef<HTMLInputElement | null>(null);
+  const repairAfterFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Modal Comparativo Lado a Lado (Antes vs Después)
   const [showCompareModal, setShowCompareModal] = useState(false);
@@ -198,21 +226,31 @@ export const TecnicoPortal: React.FC = () => {
     setIsLiveCameraOpen(true);
   };
 
-  const handleLiveCameraCaptured = (dataUrl: string) => {
-    if (activeDraftIdxForCamera !== null && activeDraftIdxForCamera < draftEvidences.length) {
-      setDraftEvidences(prev => prev.map((item, idx) => 
-        idx === activeDraftIdxForCamera ? { ...item, url: dataUrl } : item
-      ));
+  const handleLiveCameraCaptured = (mediaUrl: string, mediaType?: 'image' | 'video', duration?: number) => {
+    if (cameraTarget === 'repair_before') {
+      setRepairBeforeUrl(mediaUrl);
+      setRepairBeforeType(mediaType || 'image');
+      setRepairBeforeTimestamp(new Date().toISOString());
+    } else if (cameraTarget === 'repair_after') {
+      setRepairAfterUrl(mediaUrl);
+      setRepairAfterType(mediaType || 'image');
+      setRepairAfterTimestamp(new Date().toISOString());
     } else {
-      setDraftEvidences(prev => [
-        ...prev,
-        {
-          id: `tech-draft-${Date.now()}`,
-          url: dataUrl,
-          title: techEvidencePhase === 'antes' ? `Inspección de componente #${prev.length + 1}` : `Correctivo concluido #${prev.length + 1}`,
-          notes: '',
-        }
-      ]);
+      if (activeDraftIdxForCamera !== null && activeDraftIdxForCamera < draftEvidences.length) {
+        setDraftEvidences(prev => prev.map((item, idx) => 
+          idx === activeDraftIdxForCamera ? { ...item, url: mediaUrl } : item
+        ));
+      } else {
+        setDraftEvidences(prev => [
+          ...prev,
+          {
+            id: `tech-draft-${Date.now()}`,
+            url: mediaUrl,
+            title: techEvidencePhase === 'antes' ? `Inspección de componente #${prev.length + 1}` : `Correctivo concluido #${prev.length + 1}`,
+            notes: mediaType === 'video' ? `Video grabado (${duration || 15}s)` : '',
+          }
+        ]);
+      }
     }
     setIsLiveCameraOpen(false);
     setActiveDraftIdxForCamera(null);
@@ -297,14 +335,30 @@ export const TecnicoPortal: React.FC = () => {
 
   const handleSubmitForReview = () => {
     if (!currentOrder) return;
-    if (antesEvidences.length === 0) {
-      alert('⚠️ Paso 1 Requerido: Debes registrar al menos 1 evidencia fotográfica en "1. Antes" antes de enviar a revisión.');
+
+    // Candado estricto: Verificar que todas las reparaciones tengan sus 2 evidencias (Antes y Después)
+    const repairs = currentOrder.repairs || [];
+    const incompleteRepairs = repairs.filter(r => !r.evidenceBeforeUrl || !r.evidenceAfterUrl);
+
+    if (incompleteRepairs.length > 0) {
+      setOrderCloseWarningMessage(
+        `Candado Obligatorio: Hay ${incompleteRepairs.length} reparación(es) en la bitácora que no cuentan con sus 2 evidencias completas (Antes y Después). Debes registrarlas para continuar.`
+      );
+      setShowOrderCloseWarningModal(true);
       return;
     }
-    if (correctivoEvidences.length === 0) {
-      alert('⚠️ Paso 2 Requerido: Debes registrar al menos 1 evidencia fotográfica en "2. Correctivo realizado" antes de enviar a revisión.');
+
+    const hasAnyBefore = antesEvidences.length > 0 || repairs.some(r => Boolean(r.evidenceBeforeUrl));
+    const hasAnyAfter = correctivoEvidences.length > 0 || repairs.some(r => Boolean(r.evidenceAfterUrl));
+
+    if (!hasAnyBefore || !hasAnyAfter) {
+      setOrderCloseWarningMessage(
+        'Candado Obligatorio: Se requiere al menos 1 evidencia en ANTES y 1 evidencia en DESPUÉS para validar y enviar a revisión administrativa.'
+      );
+      setShowOrderCloseWarningModal(true);
       return;
     }
+
     submitEvidencesForReview(currentOrder.id);
   };
 
@@ -410,10 +464,35 @@ export const TecnicoPortal: React.FC = () => {
     setShowReleaseModal(false);
   };
 
-  // Handlers para el registro de reparaciones por el técnico
-  const handleSaveRepair = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentOrder || !repairTitle.trim()) return;
+  // Handlers para el registro de reparaciones por el técnico con candado Antes y Después
+  const resetRepairForm = () => {
+    setRepairTitle('');
+    setRepairDescription('');
+    setRepairStatus('en_proceso');
+    setEditingRepairId(null);
+    setRepairBeforeUrl('');
+    setRepairBeforeType('image');
+    setRepairBeforeNotes('');
+    setRepairBeforeTimestamp('');
+    setRepairAfterUrl('');
+    setRepairAfterType('image');
+    setRepairAfterNotes('');
+    setRepairAfterTimestamp('');
+  };
+
+  const handleSaveRepair = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!currentOrder) return;
+    if (!repairTitle.trim()) {
+      alert('Por favor ingresa el título o sistema de la reparación realizada.');
+      return;
+    }
+
+    // CANDADO ESTRICTO: Si no sube 2 evidencias (antes y después) no podrá continuar con el proceso
+    if (!repairBeforeUrl.trim() || !repairAfterUrl.trim()) {
+      setShowRepairLockWarningModal(true);
+      return;
+    }
 
     if (editingRepairId) {
       updateRepairLog(currentOrder.id, editingRepairId, {
@@ -421,6 +500,14 @@ export const TecnicoPortal: React.FC = () => {
         description: repairDescription.trim(),
         status: repairStatus,
         completedAt: repairStatus === 'terminado' ? new Date().toISOString() : undefined,
+        evidenceBeforeUrl: repairBeforeUrl.trim(),
+        evidenceBeforeType: repairBeforeType,
+        evidenceBeforeNotes: repairBeforeNotes.trim() || undefined,
+        evidenceBeforeTimestamp: repairBeforeTimestamp || new Date().toISOString(),
+        evidenceAfterUrl: repairAfterUrl.trim(),
+        evidenceAfterType: repairAfterType,
+        evidenceAfterNotes: repairAfterNotes.trim() || undefined,
+        evidenceAfterTimestamp: repairAfterTimestamp || new Date().toISOString(),
       });
     } else {
       addRepairLog(currentOrder.id, {
@@ -429,21 +516,39 @@ export const TecnicoPortal: React.FC = () => {
         status: repairStatus,
         completedAt: repairStatus === 'terminado' ? new Date().toISOString() : undefined,
         technicianName: currentOrder.assignedTechnicianName || 'Técnico',
+        evidenceBeforeUrl: repairBeforeUrl.trim(),
+        evidenceBeforeType: repairBeforeType,
+        evidenceBeforeNotes: repairBeforeNotes.trim() || undefined,
+        evidenceBeforeTimestamp: repairBeforeTimestamp || new Date().toISOString(),
+        evidenceAfterUrl: repairAfterUrl.trim(),
+        evidenceAfterType: repairAfterType,
+        evidenceAfterNotes: repairAfterNotes.trim() || undefined,
+        evidenceAfterTimestamp: repairAfterTimestamp || new Date().toISOString(),
       });
     }
 
     setShowAddRepairModal(false);
-    setRepairTitle('');
-    setRepairDescription('');
-    setRepairStatus('en_proceso');
-    setEditingRepairId(null);
+    resetRepairForm();
+  };
+
+  // Ventana de advertencia si intenta cerrar ('X' o cancelar) sin haber subido las 2 evidencias
+  const handleAttemptCloseRepairModal = () => {
+    if (!repairBeforeUrl.trim() || !repairAfterUrl.trim()) {
+      setShowRepairLockWarningModal(true);
+      return;
+    }
+    setShowAddRepairModal(false);
+    resetRepairForm();
+  };
+
+  const handleForceCloseRepairModal = () => {
+    setShowRepairLockWarningModal(false);
+    setShowAddRepairModal(false);
+    resetRepairForm();
   };
 
   const handleOpenAddRepair = () => {
-    setEditingRepairId(null);
-    setRepairTitle('');
-    setRepairDescription('');
-    setRepairStatus('en_proceso');
+    resetRepairForm();
     setShowAddRepairModal(true);
   };
 
@@ -452,7 +557,49 @@ export const TecnicoPortal: React.FC = () => {
     setRepairTitle(repair.title);
     setRepairDescription(repair.description);
     setRepairStatus(repair.status);
+    setRepairBeforeUrl(repair.evidenceBeforeUrl || '');
+    setRepairBeforeType(repair.evidenceBeforeType || 'image');
+    setRepairBeforeNotes(repair.evidenceBeforeNotes || '');
+    setRepairBeforeTimestamp(repair.evidenceBeforeTimestamp || '');
+    setRepairAfterUrl(repair.evidenceAfterUrl || '');
+    setRepairAfterType(repair.evidenceAfterType || 'image');
+    setRepairAfterNotes(repair.evidenceAfterNotes || '');
+    setRepairAfterTimestamp(repair.evidenceAfterTimestamp || '');
     setShowAddRepairModal(true);
+  };
+
+  const handleRepairBeforeFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type.startsWith('video/')) {
+      const url = URL.createObjectURL(file);
+      setRepairBeforeUrl(url);
+      setRepairBeforeType('video');
+      setRepairBeforeTimestamp(new Date().toISOString());
+    } else {
+      const compressed = await compressImageFile(file);
+      setRepairBeforeUrl(compressed);
+      setRepairBeforeType('image');
+      setRepairBeforeTimestamp(new Date().toISOString());
+    }
+    if (e.target) e.target.value = '';
+  };
+
+  const handleRepairAfterFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type.startsWith('video/')) {
+      const url = URL.createObjectURL(file);
+      setRepairAfterUrl(url);
+      setRepairAfterType('video');
+      setRepairAfterTimestamp(new Date().toISOString());
+    } else {
+      const compressed = await compressImageFile(file);
+      setRepairAfterUrl(compressed);
+      setRepairAfterType('image');
+      setRepairAfterTimestamp(new Date().toISOString());
+    }
+    if (e.target) e.target.value = '';
   };
 
   const handleToggleRepairStatus = (repair: RepairLog) => {
@@ -1060,12 +1207,150 @@ export const TecnicoPortal: React.FC = () => {
                             </div>
                           </div>
 
-                          <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
-                            {rep.description}
-                          </p>
+                          {rep.description && (
+                            <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+                              {rep.description}
+                            </p>
+                          )}
+
+                          {/* Evidencias ANTES y DESPUÉS de la Reparación (Candado Estricto) */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            
+                            {/* Evidencia ANTES */}
+                            <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs ${
+                              rep.evidenceBeforeUrl 
+                                ? 'bg-indigo-50/60 border-indigo-200' 
+                                : 'bg-rose-50/60 border-rose-200 text-rose-800'
+                            }`}>
+                              <div className="flex items-center gap-2 min-w-0">
+                                {rep.evidenceBeforeUrl ? (
+                                  <div 
+                                    className="w-12 h-10 rounded-lg overflow-hidden bg-slate-900 shrink-0 cursor-pointer border border-indigo-300 relative group"
+                                    onClick={() => setLightboxPhoto({
+                                      id: `rep-bef-${rep.id}`,
+                                      phase: 'antes',
+                                      url: rep.evidenceBeforeUrl!,
+                                      title: `[ANTES] ${rep.title}`,
+                                      notes: rep.evidenceBeforeNotes,
+                                      timestamp: rep.evidenceBeforeTimestamp || rep.createdAt,
+                                    })}
+                                    title="Ver foto en tamaño completo"
+                                  >
+                                    {rep.evidenceBeforeType === 'video' ? (
+                                      <div className="w-full h-full flex items-center justify-center text-white bg-slate-900">
+                                        <Play className="w-4 h-4 fill-white text-white" />
+                                      </div>
+                                    ) : (
+                                      <img src={rep.evidenceBeforeUrl} alt="Antes" className="w-full h-full object-cover group-hover:scale-110 transition" />
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                                    <AlertTriangle className="w-4 h-4" />
+                                  </div>
+                                )}
+
+                                <div className="min-w-0">
+                                  <div className="font-extrabold text-[11px] text-slate-800 flex items-center gap-1">
+                                    <span>1. Evidencia ANTES:</span>
+                                    {rep.evidenceBeforeUrl ? (
+                                      <span className="text-emerald-700 text-[10px] font-bold">✓ Subida</span>
+                                    ) : (
+                                      <span className="text-rose-700 text-[10px] font-bold">⚠️ Falta</span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 truncate">
+                                    {rep.evidenceBeforeNotes || (rep.evidenceBeforeUrl ? 'Documentación previa' : 'Pendiente')}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {!rep.evidenceBeforeUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditRepair(rep)}
+                                  className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] shrink-0 cursor-pointer shadow-xs"
+                                >
+                                  Tomar Ahora
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Evidencia DESPUÉS */}
+                            <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 text-xs ${
+                              rep.evidenceAfterUrl 
+                                ? 'bg-emerald-50/60 border-emerald-200' 
+                                : 'bg-rose-50/60 border-rose-200 text-rose-800'
+                            }`}>
+                              <div className="flex items-center gap-2 min-w-0">
+                                {rep.evidenceAfterUrl ? (
+                                  <div 
+                                    className="w-12 h-10 rounded-lg overflow-hidden bg-slate-900 shrink-0 cursor-pointer border border-emerald-300 relative group"
+                                    onClick={() => setLightboxPhoto({
+                                      id: `rep-aft-${rep.id}`,
+                                      phase: 'correctivo_realizado',
+                                      url: rep.evidenceAfterUrl!,
+                                      title: `[DESPUÉS] ${rep.title}`,
+                                      notes: rep.evidenceAfterNotes,
+                                      timestamp: rep.evidenceAfterTimestamp || rep.completedAt || rep.createdAt,
+                                    })}
+                                    title="Ver foto en tamaño completo"
+                                  >
+                                    {rep.evidenceAfterType === 'video' ? (
+                                      <div className="w-full h-full flex items-center justify-center text-white bg-slate-900">
+                                        <Play className="w-4 h-4 fill-white text-white" />
+                                      </div>
+                                    ) : (
+                                      <img src={rep.evidenceAfterUrl} alt="Después" className="w-full h-full object-cover group-hover:scale-110 transition" />
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                                    <AlertTriangle className="w-4 h-4" />
+                                  </div>
+                                )}
+
+                                <div className="min-w-0">
+                                  <div className="font-extrabold text-[11px] text-slate-800 flex items-center gap-1">
+                                    <span>2. Evidencia DESPUÉS:</span>
+                                    {rep.evidenceAfterUrl ? (
+                                      <span className="text-emerald-700 text-[10px] font-bold">✓ Subida</span>
+                                    ) : (
+                                      <span className="text-rose-700 text-[10px] font-bold">⚠️ Falta</span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 truncate">
+                                    {rep.evidenceAfterNotes || (rep.evidenceAfterUrl ? 'Correctivo comprobado' : 'Pendiente')}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {!rep.evidenceAfterUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditRepair(rep)}
+                                  className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] shrink-0 cursor-pointer shadow-xs"
+                                >
+                                  Tomar Ahora
+                                </button>
+                              )}
+                            </div>
+
+                          </div>
 
                           <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100">
-                            <span>Registrado: {new Date(rep.createdAt).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                            <span className="flex items-center gap-1">
+                              {rep.evidenceBeforeUrl && rep.evidenceAfterUrl ? (
+                                <span className="text-emerald-700 font-extrabold flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3" /> Candado 2/2 Cumplido
+                                </span>
+                              ) : (
+                                <span className="text-amber-700 font-bold flex items-center gap-1">
+                                  <Lock className="w-3 h-3 text-amber-600" /> Candado Activo (Requiere 2 evidencias)
+                                </span>
+                              )}
+                              <span>• Registrado: {new Date(rep.createdAt).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                            </span>
                             {rep.completedAt && (
                               <span className="text-emerald-700 font-semibold">
                                 Concluido el: {new Date(rep.completedAt).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
@@ -1796,7 +2081,7 @@ export const TecnicoPortal: React.FC = () => {
 
             {currentOrder.status === 'en_diagnostico_trabajo' && (
               <button
-                onClick={() => submitEvidencesForReview(currentOrder.id)}
+                onClick={handleSubmitForReview}
                 className="w-full sm:w-auto px-4 sm:px-5 py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-2 text-center"
               >
                 <Send className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -1903,7 +2188,7 @@ export const TecnicoPortal: React.FC = () => {
         </div>
       )}
 
-      {/* Visor de Cámara en Vivo para Dispositivos Móviles (Activado únicamente al disparar foto) */}
+      {/* Visor de Cámara en Vivo para Dispositivos Móviles (Foto Trasera o Video Trasero) */}
       <LiveCameraModal
         isOpen={isLiveCameraOpen}
         onClose={() => {
@@ -1911,7 +2196,14 @@ export const TecnicoPortal: React.FC = () => {
           setActiveDraftIdxForCamera(null);
         }}
         onCapture={handleLiveCameraCaptured}
-        title={`Tomar Foto con Cámara Móvil (${techEvidencePhase === 'antes' ? '1. Antes' : '2. Correctivo'})`}
+        title={
+          cameraTarget === 'repair_before'
+            ? 'Captura Evidencia ANTES (Cámara Móvil)'
+            : cameraTarget === 'repair_after'
+            ? 'Captura Evidencia DESPUÉS (Cámara Móvil)'
+            : `Cámara Móvil de Evidencias (${techEvidencePhase === 'antes' ? '1. Antes' : '2. Correctivo'})`
+        }
+        defaultMode={cameraDefaultMode}
       />
 
       {/* MODAL LIGHTBOX PARA VISUALIZACIÓN EN TAMAÑO COMPLETO */}
@@ -2466,6 +2758,395 @@ export const TecnicoPortal: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL PARA AGREGAR O EDITAR REPARACIÓN CON CANDADO ANTES Y DESPUÉS */}
+      {showAddRepairModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-3 sm:p-5 overflow-y-auto animate-fadeIn">
+          {/* Inputs nativos para archivos de evidencias */}
+          <input
+            type="file"
+            ref={repairBeforeFileInputRef}
+            accept="image/*,video/*"
+            capture="environment"
+            onChange={handleRepairBeforeFile}
+            className="hidden"
+          />
+          <input
+            type="file"
+            ref={repairAfterFileInputRef}
+            accept="image/*,video/*"
+            capture="environment"
+            onChange={handleRepairAfterFile}
+            className="hidden"
+          />
+
+          <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[94vh] flex flex-col">
+            
+            {/* Header del Modal con botón 'X' vigilado por el candado */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-[#040057] to-indigo-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+                  <Wrench className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm sm:text-base leading-tight">
+                    {editingRepairId ? 'Editar Reparación en Bitácora' : 'Registrar Nueva Reparación en Bitácora'}
+                  </h3>
+                  <p className="text-[11px] text-slate-300">
+                    Candado obligatorio: Requiere 1 evidencia ANTES y 1 evidencia DESPUÉS para validar el trabajo.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAttemptCloseRepairModal}
+                className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
+                title="Cerrar ventana"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Formulario y Evidencias */}
+            <form onSubmit={handleSaveRepair} className="p-4 sm:p-6 space-y-5 overflow-y-auto flex-1 text-xs">
+              
+              {/* Barra de Estatus del Candado */}
+              <div className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 font-bold transition ${
+                repairBeforeUrl && repairAfterUrl
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                  : 'bg-amber-50 border-amber-300 text-amber-900'
+              }`}>
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-2 rounded-xl ${
+                    repairBeforeUrl && repairAfterUrl ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
+                  }`}>
+                    {repairBeforeUrl && repairAfterUrl ? <CheckCircle2 className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-extrabold block">
+                      {repairBeforeUrl && repairAfterUrl 
+                        ? '✓ Candado Desbloqueado: Ambas evidencias registradas (2/2)' 
+                        : '🔒 Candado Activo: Requiere 2 evidencias obligatorias'}
+                    </span>
+                    <span className="text-[11px] font-medium">
+                      {repairBeforeUrl && repairAfterUrl
+                        ? 'Todo listo: Puedes guardar esta reparación para auditoría técnica y cierre.'
+                        : `Falta: ${!repairBeforeUrl && !repairAfterUrl ? 'Evidencia ANTES y Evidencia DESPUÉS' : !repairBeforeUrl ? 'Evidencia ANTES' : 'Evidencia DESPUÉS'}.`}
+                    </span>
+                  </div>
+                </div>
+
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                  repairBeforeUrl && repairAfterUrl ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'
+                }`}>
+                  {repairBeforeUrl && repairAfterUrl ? '2 / 2 Listas' : repairBeforeUrl || repairAfterUrl ? '1 / 2 Lista' : '0 / 2'}
+                </span>
+              </div>
+
+              {/* Título de la reparación y Estado */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Título o Sistema de la Reparación *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={repairTitle}
+                    onChange={(e) => setRepairTitle(e.target.value)}
+                    placeholder="Ej. Cambio de Balatas POS 3y4, Rectificado de Tambor, Cambio de Sensor MAP..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-semibold text-slate-800 text-xs sm:text-sm focus:ring-2 focus:ring-[#040057]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Estado de la Partida *
+                  </label>
+                  <select
+                    value={repairStatus}
+                    onChange={(e) => setRepairStatus(e.target.value as any)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-bold text-slate-800 text-xs sm:text-sm focus:ring-2 focus:ring-[#040057]"
+                  >
+                    <option value="en_proceso">En Proceso</option>
+                    <option value="terminado">Terminado / Concluido</option>
+                    <option value="pendiente">Pendiente</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Descripción detallada */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Descripción Detallada del Trabajo y Componentes Intervenidos
+                </label>
+                <textarea
+                  rows={2}
+                  value={repairDescription}
+                  onChange={(e) => setRepairDescription(e.target.value)}
+                  placeholder="Detalla los procedimientos realizados, calibraciones, torque a tuercas, presión de aire a 120 PSI, etc..."
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 text-xs focus:ring-2 focus:ring-[#040057]"
+                />
+              </div>
+
+              {/* LAS 2 EVIDENCIAS: ANTES Y DESPUÉS (TARJETAS OBLIGATORIAS) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                
+                {/* 1. TARJETA EVIDENCIA ANTES */}
+                <div className={`p-4 rounded-2xl border-2 transition space-y-3 ${
+                  repairBeforeUrl ? 'bg-emerald-50/50 border-emerald-300' : 'bg-slate-50 border-dashed border-amber-300'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-extrabold text-xs text-slate-800">
+                      <Camera className="w-4 h-4 text-indigo-700" />
+                      <span>1. Evidencia ANTES (Obligatoria)</span>
+                    </div>
+                    {repairBeforeUrl ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Subida
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black uppercase flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> Falta
+                      </span>
+                    )}
+                  </div>
+
+                  {repairBeforeUrl ? (
+                    <div className="space-y-2">
+                      <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-900 border border-slate-200 group">
+                        {repairBeforeType === 'video' ? (
+                          <video src={repairBeforeUrl} controls className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={repairBeforeUrl} alt="Antes" className="w-full h-full object-cover" />
+                        )}
+                        <span className="absolute top-1.5 left-1.5 bg-black/70 text-white text-[9px] px-2 py-0.5 rounded-md font-mono uppercase">
+                          {repairBeforeType === 'video' ? '📹 Video Antes' : '📸 Foto Antes'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <input
+                          type="text"
+                          value={repairBeforeNotes}
+                          onChange={(e) => setRepairBeforeNotes(e.target.value)}
+                          placeholder="Nota breve de la evidencia previa..."
+                          className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setRepairBeforeUrl('')}
+                          className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                          title="Eliminar y volver a capturar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 text-center space-y-2.5">
+                      <p className="text-[11px] text-slate-500">
+                        Captura o sube la foto/video de cómo se encontraba la pieza o componente dañado antes de intervenir.
+                      </p>
+
+                      <div className="flex flex-col gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCameraTarget('repair_before');
+                            setCameraDefaultMode('photo');
+                            setIsLiveCameraOpen(true);
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                        >
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                          <span>Tomar Foto (Cámara Trasera)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCameraTarget('repair_before');
+                            setCameraDefaultMode('video');
+                            setIsLiveCameraOpen(true);
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                        >
+                          <Video className="w-4 h-4 text-white" />
+                          <span>Grabar Video (Cámara Trasera)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => repairBeforeFileInputRef.current?.click()}
+                          className="w-full px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Subir desde Archivo / Galería</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. TARJETA EVIDENCIA DESPUÉS */}
+                <div className={`p-4 rounded-2xl border-2 transition space-y-3 ${
+                  repairAfterUrl ? 'bg-emerald-50/50 border-emerald-300' : 'bg-slate-50 border-dashed border-amber-300'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-extrabold text-xs text-slate-800">
+                      <Camera className="w-4 h-4 text-emerald-600" />
+                      <span>2. Evidencia DESPUÉS (Obligatoria)</span>
+                    </div>
+                    {repairAfterUrl ? (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Subida
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black uppercase flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> Falta
+                      </span>
+                    )}
+                  </div>
+
+                  {repairAfterUrl ? (
+                    <div className="space-y-2">
+                      <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-900 border border-slate-200 group">
+                        {repairAfterType === 'video' ? (
+                          <video src={repairAfterUrl} controls className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={repairAfterUrl} alt="Después" className="w-full h-full object-cover" />
+                        )}
+                        <span className="absolute top-1.5 left-1.5 bg-black/70 text-white text-[9px] px-2 py-0.5 rounded-md font-mono uppercase">
+                          {repairAfterType === 'video' ? '📹 Video Después' : '📸 Foto Después'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <input
+                          type="text"
+                          value={repairAfterNotes}
+                          onChange={(e) => setRepairAfterNotes(e.target.value)}
+                          placeholder="Nota breve del correctivo instalado..."
+                          className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setRepairAfterUrl('')}
+                          className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer"
+                          title="Eliminar y volver a capturar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 text-center space-y-2.5">
+                      <p className="text-[11px] text-slate-500">
+                        Captura o sube la foto/video de la refacción nueva instalada, torque final o prueba de funcionamiento.
+                      </p>
+
+                      <div className="flex flex-col gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCameraTarget('repair_after');
+                            setCameraDefaultMode('photo');
+                            setIsLiveCameraOpen(true);
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                        >
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                          <span>Tomar Foto (Cámara Trasera)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCameraTarget('repair_after');
+                            setCameraDefaultMode('video');
+                            setIsLiveCameraOpen(true);
+                          }}
+                          className="w-full px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                        >
+                          <Video className="w-4 h-4 text-white" />
+                          <span>Grabar Video (Cámara Trasera)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => repairAfterFileInputRef.current?.click()}
+                          className="w-full px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Subir desde Archivo / Galería</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Botones de acción del Modal */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={handleAttemptCloseRepairModal}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  className={`px-6 py-2.5 rounded-xl text-white font-extrabold text-xs shadow-md transition flex items-center gap-2 cursor-pointer ${
+                    repairBeforeUrl && repairAfterUrl
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-amber-600 hover:bg-amber-700'
+                  }`}
+                  title={repairBeforeUrl && repairAfterUrl ? 'Guardar reparación en bitácora' : 'Candado: Requiere Antes y Después'}
+                >
+                  {repairBeforeUrl && repairAfterUrl ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                      <span>Guardar Reparación (2/2 Evidencias ✓)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4 text-amber-200" />
+                      <span>Guardar (Faltan Evidencias ⚠️)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ADVERTENCIA: CANDADO DE REPARACIÓN (AL CERRAR 'X' O CANCELAR) */}
+      <EvidenceLockWarningModal
+        isOpen={showRepairLockWarningModal}
+        onClose={() => setShowRepairLockWarningModal(false)}
+        onConfirmExit={handleForceCloseRepairModal}
+        type="repair"
+        hasBefore={Boolean(repairBeforeUrl)}
+        hasAfter={Boolean(repairAfterUrl)}
+        repairTitle={repairTitle || 'Partida de Reparación'}
+      />
+
+      {/* MODAL DE ADVERTENCIA: CANDADO AL CERRAR LA ORDEN O ENVIAR A REVISIÓN */}
+      <EvidenceLockWarningModal
+        isOpen={showOrderCloseWarningModal}
+        onClose={() => setShowOrderCloseWarningModal(false)}
+        type="order_close"
+        subtitle={orderCloseWarningMessage}
+        hasBefore={Boolean(antesEvidences.length > 0 || (currentOrder?.repairs || []).some(r => Boolean(r.evidenceBeforeUrl)))}
+        hasAfter={Boolean(correctivoEvidences.length > 0 || (currentOrder?.repairs || []).some(r => Boolean(r.evidenceAfterUrl)))}
+      />
 
     </div>
   );

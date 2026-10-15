@@ -24,12 +24,15 @@ import {
   Layers,
   FileSpreadsheet,
   PlusCircle,
-  HelpCircle
+  HelpCircle,
+  Lock,
+  AlertTriangle
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, UserRole } from '../../types';
 import { TechnicalReportDocument } from './TechnicalReportDocument';
 import { StatusSemaphoreBadge } from './StatusSemaphoreBadge';
+import { EvidenceLockWarningModal } from './EvidenceLockWarningModal';
 
 interface HistorialOrdenesModuleProps {
   forcedRole?: UserRole;
@@ -131,6 +134,9 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
   const closedCount = orders.filter(o => o.status === 'cerrado' || o.status === 'unidad_liberada' || o.status === 'facturado').length;
   const openCount = orders.filter(o => o.status !== 'cerrado' && o.status !== 'unidad_liberada' && o.status !== 'facturado').length;
 
+  const [showCloseWarningModal, setShowCloseWarningModal] = useState(false);
+  const [closeWarningMessage, setCloseWarningMessage] = useState('');
+
   // Apertura de modal de cierre
   const handleOpenCloseModal = (order: ServiceOrder) => {
     setOrderToClose(order);
@@ -140,10 +146,22 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
     setClosingNotes(order.closingNotes || 'Servicio y reparaciones concluidas a satisfacción. Unidad probada y liberada.');
   };
 
-  // Confirmar Cierre
+  // Confirmar Cierre con candado de evidencias
   const handleConfirmClose = (e: React.FormEvent) => {
     e.preventDefault();
     if (!orderToClose) return;
+
+    const hasBefore = orderToClose.evidences.some(ev => ev.phase === 'antes') || (orderToClose.repairs || []).some(r => Boolean(r.evidenceBeforeUrl));
+    const hasAfter = orderToClose.evidences.some(ev => ev.phase === 'despues' || ev.phase === 'correctivo_realizado') || (orderToClose.repairs || []).some(r => Boolean(r.evidenceAfterUrl));
+
+    // CANDADO ESTRICTO: no podrá continuar con el proceso si no sube 2 evidencias (antes y después)
+    if (!hasBefore || !hasAfter) {
+      setCloseWarningMessage(
+        'Candado Obligatorio: No es posible cerrar la orden sin contar con al menos 1 evidencia ANTES y 1 evidencia DESPUÉS de las reparaciones realizadas.'
+      );
+      setShowCloseWarningModal(true);
+      return;
+    }
 
     closeRepairOrder(orderToClose.id, {
       closedBy: closerName.trim() || defaultCloserName,
@@ -153,6 +171,22 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
       finalKilometers: finalKm.trim() || undefined,
     });
 
+    setOrderToClose(null);
+  };
+
+  // Advertencia al pulsar 'X' o cancelar si faltan evidencias
+  const handleAttemptCloseOrderModal = () => {
+    if (!orderToClose) return;
+    const hasBefore = orderToClose.evidences.some(ev => ev.phase === 'antes') || (orderToClose.repairs || []).some(r => Boolean(r.evidenceBeforeUrl));
+    const hasAfter = orderToClose.evidences.some(ev => ev.phase === 'despues' || ev.phase === 'correctivo_realizado') || (orderToClose.repairs || []).some(r => Boolean(r.evidenceAfterUrl));
+
+    if (!hasBefore || !hasAfter) {
+      setCloseWarningMessage(
+        '¡Atención! Para que no se te olvide tomar tu evidencia ANTES y tu evidencia DESPUÉS, recuerda que son indispensables para auditar el servicio. ¿Deseas salir de todas formas?'
+      );
+      setShowCloseWarningModal(true);
+      return;
+    }
     setOrderToClose(null);
   };
 
@@ -699,7 +733,7 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
                 </h3>
               </div>
               <button
-                onClick={() => setOrderToClose(null)}
+                onClick={handleAttemptCloseOrderModal}
                 className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -782,7 +816,7 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setOrderToClose(null)}
+                  onClick={handleAttemptCloseOrderModal}
                   className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold transition cursor-pointer"
                 >
                   Cancelar
@@ -800,6 +834,20 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
           </div>
         </div>
       )}
+
+      {/* MODAL DE ADVERTENCIA: CANDADO AL CERRAR LA ORDEN */}
+      <EvidenceLockWarningModal
+        isOpen={showCloseWarningModal}
+        onClose={() => setShowCloseWarningModal(false)}
+        onConfirmExit={() => {
+          setShowCloseWarningModal(false);
+          setOrderToClose(null);
+        }}
+        type="order_close"
+        subtitle={closeWarningMessage}
+        hasBefore={Boolean(orderToClose?.evidences.some(ev => ev.phase === 'antes') || (orderToClose?.repairs || []).some(r => Boolean(r.evidenceBeforeUrl)))}
+        hasAfter={Boolean(orderToClose?.evidences.some(ev => ev.phase === 'despues' || ev.phase === 'correctivo_realizado') || (orderToClose?.repairs || []).some(r => Boolean(r.evidenceAfterUrl)))}
+      />
 
       {/* MODAL 2: EDICIÓN Y ACTUALIZACIÓN DE ORDEN */}
       {editingOrder && (

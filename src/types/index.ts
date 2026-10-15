@@ -60,6 +60,17 @@ export interface RepairLog {
   completedAt?: string;
   technicianName?: string;
   position?: string;
+  // Evidencias de la reparación: 1 ANTES y 1 DESPUÉS obligatorias (Candado estricto)
+  evidenceBeforeUrl?: string;
+  evidenceBeforeTitle?: string;
+  evidenceBeforeNotes?: string;
+  evidenceBeforeTimestamp?: string;
+  evidenceBeforeType?: 'image' | 'video';
+  evidenceAfterUrl?: string;
+  evidenceAfterTitle?: string;
+  evidenceAfterNotes?: string;
+  evidenceAfterTimestamp?: string;
+  evidenceAfterType?: 'image' | 'video';
 }
 
 export interface EvidencePhoto {

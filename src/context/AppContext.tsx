@@ -1209,14 +1209,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
+        const extraEvidences: EvidencePhoto[] = [];
+        if (newRepair.evidenceBeforeUrl) {
+          extraEvidences.push({
+            id: `ev-rep-bef-${Date.now()}`,
+            phase: 'antes',
+            url: newRepair.evidenceBeforeUrl,
+            title: newRepair.evidenceBeforeTitle || `[ANTES] ${newRepair.title}`,
+            notes: newRepair.evidenceBeforeNotes || `Evidencia previa de ${newRepair.title}`,
+            timestamp: newRepair.evidenceBeforeTimestamp || new Date().toISOString(),
+            uploadedBy: 'tecnico',
+            uploaderName: newRepair.technicianName || 'Técnico Asignado'
+          });
+        }
+        if (newRepair.evidenceAfterUrl) {
+          extraEvidences.push({
+            id: `ev-rep-aft-${Date.now() + 1}`,
+            phase: 'correctivo_realizado',
+            url: newRepair.evidenceAfterUrl,
+            title: newRepair.evidenceAfterTitle || `[DESPUÉS] ${newRepair.title}`,
+            notes: newRepair.evidenceAfterNotes || `Evidencia posterior/correctivo de ${newRepair.title}`,
+            timestamp: newRepair.evidenceAfterTimestamp || new Date().toISOString(),
+            uploadedBy: 'tecnico',
+            uploaderName: newRepair.technicianName || 'Técnico Asignado'
+          });
+        }
+
         return {
           ...o,
           repairs: [...(o.repairs || []), newRepair],
+          evidences: [...o.evidences, ...extraEvidences]
         };
       }
       return o;
     }));
-    addToast('success', 'Reparación Registrada', `Se registró: "${newRepair.title}".`);
+    addToast('success', 'Reparación Registrada', `Se registró: "${newRepair.title}" con sus 2 evidencias.`);
   };
 
   const updateRepairLog = (orderId: string, repairId: string, updates: Partial<RepairLog>) => {
@@ -1229,7 +1256,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return o;
     }));
-    addToast('info', 'Reparación Actualizada', 'Los datos del trabajo técnico han sido actualizados.');
+    addToast('info', 'Reparación Actualizada', 'Los datos y evidencias de la reparación han sido actualizados.');
   };
 
   const removeRepairLog = (orderId: string, repairId: string) => {
