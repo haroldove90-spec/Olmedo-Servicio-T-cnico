@@ -215,8 +215,23 @@ export interface ClientObservation {
   addedPhotos?: EvidencePhoto[];
 }
 
+export interface ClientCompany {
+  id: string;
+  companyName: string; // Nombre de la empresa
+  representativeName: string; // Nombre del representante
+  address: string; // Dirección completa
+  phone: string; // Teléfono fijo o de oficina
+  whatsapp: string; // Número de WhatsApp para contacto directo
+  logoUrl?: string; // Logotipo de la empresa
+  email?: string; // Correo de contacto
+  notes?: string; // Observaciones o condiciones especiales
+  createdAt: string;
+}
+
 export interface UnitCatalogItem {
   id: string;
+  companyId?: string; // ID de la empresa a la que pertenece
+  companyName?: string; // Nombre de la empresa
   unitNumber: string; // ej. "Unidad 1"
   plates: string; // ej. "82-AF-9K"
   economicNumber: string; // ej. "ECO-308"

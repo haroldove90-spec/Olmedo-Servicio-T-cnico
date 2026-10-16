@@ -1194,6 +1194,57 @@ export const SAMPLE_OPERATORS: OperatorOption[] = [
 const BRANDS = ['Kenworth T680', 'Freightliner Cascadia', 'International LT', 'Volvo VNL 860', 'Hino 500', 'Mercedes-Benz Actros', 'Mack Anthem', 'Shacman X3000'];
 const TYPES: import('../types').VehicleType[] = ['tractocamion', 'camion', 'tractocamion', 'tractocamion', 'camion'];
 
+export const INITIAL_CLIENTS: import('../types').ClientCompany[] = [
+  {
+    id: 'cli-1',
+    companyName: 'GRUPO SATI S.A. DE C.V.',
+    representativeName: 'Ing. Rodrigo Sánchez',
+    address: 'Av. Central 450, Parque Industrial Cuautitlán, Cuautitlán Izcalli, Edo. Méx. C.P. 54730',
+    phone: '55 4912 8840',
+    whatsapp: '5549128840',
+    email: 'rsanchez@gruposati.com.mx',
+    logoUrl: 'https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=200&auto=format&fit=crop&q=60',
+    notes: 'Flota pesada dedicada a rutas centro-norte. Atención prioritaria en carretera.',
+    createdAt: '2026-01-15T08:00:00Z',
+  },
+  {
+    id: 'cli-2',
+    companyName: 'Transportes Express del Bajío S.A. de C.V.',
+    representativeName: 'Ing. Rodrigo Lara',
+    address: 'Carretera Federal Querétaro-San Luis Potosí Km 22, Parque Opción, Querétaro, Qro.',
+    phone: '55 1209 4433',
+    whatsapp: '5512094433',
+    email: 'contacto@expressdelbajio.com',
+    logoUrl: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&auto=format&fit=crop&q=60',
+    notes: 'Transporte refrigerado y seco. Facturación a crédito 15 días.',
+    createdAt: '2026-02-10T10:30:00Z',
+  },
+  {
+    id: 'cli-3',
+    companyName: 'Logística Fletera Frontera S.A.',
+    representativeName: 'Lic. Mariana Guzmán',
+    address: 'Blvd. Manuel Ávila Camacho 1900, Col. San Andrés, Tlalnepantla, Edo. Méx.',
+    phone: '55 4567 8901',
+    whatsapp: '5545678901',
+    email: 'mguzman@fleterafrontera.mx',
+    logoUrl: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=200&auto=format&fit=crop&q=60',
+    notes: 'Servicios de logística y distribución metropolitana.',
+    createdAt: '2026-03-01T14:15:00Z',
+  },
+  {
+    id: 'cli-4',
+    companyName: 'Flotillas Express S.A. de C.V.',
+    representativeName: 'Lic. Alejandro Durán',
+    address: 'Calzada Vallejo 1120, Industrial Vallejo, Azcapotzalco, CDMX',
+    phone: '55 8899 1122',
+    whatsapp: '5588991122',
+    email: 'flotas@expresssa.com.mx',
+    logoUrl: 'https://images.unsplash.com/photo-1554774853-719586f82d77?w=200&auto=format&fit=crop&q=60',
+    notes: 'Cliente corporativo con 15 unidades de carga consolidada.',
+    createdAt: '2026-03-20T11:00:00Z',
+  },
+];
+
 export const INITIAL_UNITS: import('../types').UnitCatalogItem[] = Array.from({ length: 50 }, (_, i) => {
   const num = i + 1;
   const brand = BRANDS[i % BRANDS.length];
@@ -1205,8 +1256,12 @@ export const INITIAL_UNITS: import('../types').UnitCatalogItem[] = Array.from({ 
   const defaultKm = `${Math.floor(80000 + (num * 12350)).toLocaleString('es-MX')} KM`;
   const op = SAMPLE_OPERATORS[i % SAMPLE_OPERATORS.length];
 
+  const assignedClient = INITIAL_CLIENTS[i % INITIAL_CLIENTS.length];
+
   return {
     id: `unit-${num}`,
+    companyId: assignedClient.id,
+    companyName: assignedClient.companyName,
     unitNumber: `Unidad ${num}`,
     plates: `${platesPrefix}-${platesNum}-${platesSuffix}`,
     economicNumber: eco,
@@ -1218,5 +1273,6 @@ export const INITIAL_UNITS: import('../types').UnitCatalogItem[] = Array.from({ 
     status: num % 7 === 0 ? 'en_taller' : 'activa',
   };
 });
+
 
 

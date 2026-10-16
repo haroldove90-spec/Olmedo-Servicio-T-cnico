@@ -38,6 +38,7 @@ import { SAMPLE_OPERATORS, OperatorOption } from '../../data/mockData';
 import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
 import { LiveCameraModal } from '../common/LiveCameraModal';
 import { EvidenceLockWarningModal } from '../common/EvidenceLockWarningModal';
+import { ClientReportPdfModal } from '../common/ClientReportPdfModal';
 
 type ClientViewMode = 'home' | 'nuevo_reporte' | 'listado_reportes' | 'modificar_reporte';
 
@@ -107,6 +108,7 @@ export const ClientePortal: React.FC = () => {
   // ==========================================
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('en_proceso');
+  const [viewingPdfOrder, setViewingPdfOrder] = useState<ServiceOrder | null>(null);
 
   // ==========================================
   // ESTADO DE MODIFICACIÓN DE REPORTE
@@ -805,7 +807,7 @@ export const ClientePortal: React.FC = () => {
 
             </div>
 
-            {/* SECCIÓN 4: EVIDENCIAS CON CÁMARA (FOTOS Y VIDEO DE 15 SEGUNDOS) */}
+            {/* SECCIÓN 4: EVIDENCIAS FOTOGRÁFICAS (CÁMARA TRASERA Y GALERÍA) */}
             <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
               <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
                 <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-extrabold text-sm">
@@ -813,10 +815,10 @@ export const ClientePortal: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-sm sm:text-base text-[#040057]">
-                    Evidencias Visuales (Cámara y Video de al menos 15 segundos)
+                    Evidencias Visuales (Fotografías de Avería)
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Abre la cámara del dispositivo para capturar fotos y grabar un video de 15s mínimo.
+                    Abre la cámara del dispositivo para capturar fotos de la falla o adjúntalas desde tu galería.
                   </p>
                 </div>
               </div>
@@ -879,20 +881,7 @@ export const ClientePortal: React.FC = () => {
                   <span>Activar Cámara Trasera (Foto)</span>
                 </button>
 
-                {/* 2. Activar Cámara de Video del Dispositivo */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLiveCameraMode('video');
-                    setIsLiveCameraOpen(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
-                >
-                  <Video className="w-5 h-5 text-white" />
-                  <span>Activar Cámara de Video (Video)</span>
-                </button>
-
-                {/* 3. Selector de archivo / galería */}
+                {/* 2. Selector de archivo / galería */}
                 <label className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs sm:text-sm transition cursor-pointer">
                   <Upload className="w-4 h-4 text-slate-600" />
                   <span>Subir Fotos de Galería</span>
@@ -1366,15 +1355,24 @@ export const ClientePortal: React.FC = () => {
                       </div>
                     )}
 
-                    {/* ACCIÓN PRINCIPAL: Botón para Modificar Reporte y Agregar Nueva Falla u Observación */}
-                    <div className="pt-2 flex items-center justify-end">
+                    {/* ACCIONES: Descargar PDF y Modificar Reporte */}
+                    <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => setViewingPdfOrder(order)}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs sm:text-sm shadow-xs transition cursor-pointer"
+                      >
+                        <FileText className="w-4 h-4 text-rose-300" />
+                        <span>Descargar Reporte en PDF</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => handleOpenModify(order)}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-linear-to-r from-[#040057] to-indigo-700 hover:from-[#070085] hover:to-indigo-800 text-white font-bold text-xs sm:text-sm shadow-xs transition cursor-pointer"
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm transition cursor-pointer"
                       >
-                        <Edit3 className="w-4 h-4 text-amber-300" />
-                        <span>Modificar Reporte y Agregar Nueva Falla u Observación</span>
+                        <Edit3 className="w-4 h-4 text-indigo-600" />
+                        <span>Modificar Reporte y Agregar Observación</span>
                       </button>
                     </div>
 
@@ -1562,6 +1560,12 @@ export const ClientePortal: React.FC = () => {
           setIsLiveCameraOpen(true);
         }}
         type="client_photo"
+      />
+
+      {/* MODAL OFICIAL PARA DESCARGA E IMPRESIÓN DE REPORTE EN PDF */}
+      <ClientReportPdfModal
+        order={viewingPdfOrder}
+        onClose={() => setViewingPdfOrder(null)}
       />
 
     </div>

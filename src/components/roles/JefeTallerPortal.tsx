@@ -29,7 +29,8 @@ import {
   AlertTriangle,
   Sparkles,
   Eye,
-  X
+  X,
+  Building2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceType, Technician, ServiceStatus } from '../../types';
@@ -38,6 +39,7 @@ import { UnitReceptionManager } from '../common/UnitReceptionManager';
 import { MetricsDashboard } from '../common/MetricsDashboard';
 import { NotificationsModule } from '../common/NotificationsModule';
 import { HistorialOrdenesModule } from '../common/HistorialOrdenesModule';
+import { ClientesEmpresasManager } from '../common/ClientesEmpresasManager';
 import { playEmergencyAlertSound } from '../../utils/audioAlert';
 
 export const JefeTallerPortal: React.FC = () => {
@@ -46,6 +48,7 @@ export const JefeTallerPortal: React.FC = () => {
     setActiveModule, 
     orders, 
     technicians, 
+    clients,
     assignTechnician,
     updateOrderStatus,
     createClientFaultReport,
@@ -224,6 +227,22 @@ export const JefeTallerPortal: React.FC = () => {
                   {unassignedOrders.length} por Asignar
                 </span>
               )}
+            </button>
+
+            {/* BOTÓN MÓDULO CLIENTES Y EMPRESAS */}
+            <button
+              onClick={() => setActiveModule('clientes')}
+              className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                activeModule === 'clientes'
+                  ? 'bg-[#040057] text-white ring-2 ring-indigo-300' 
+                  : 'bg-indigo-50/70 hover:bg-indigo-100 text-[#040057] border border-indigo-200'
+              }`}
+            >
+              <Building2 className="w-4 h-4 text-indigo-600" />
+              <span>Clientes</span>
+              <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-indigo-200 text-indigo-900">
+                {clients.length}
+              </span>
             </button>
 
             <button
@@ -687,6 +706,11 @@ export const JefeTallerPortal: React.FC = () => {
       {/* MÓDULO: RECEPCIÓN DE UNIDADES */}
       {activeModule === 'recepcion_unidades' && (
         <UnitReceptionManager />
+      )}
+
+      {/* MÓDULO: CLIENTES Y EMPRESAS */}
+      {activeModule === 'clientes' && (
+        <ClientesEmpresasManager />
       )}
 
       {/* ======================================================== */}

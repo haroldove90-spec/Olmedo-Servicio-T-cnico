@@ -19,9 +19,10 @@ import {
   ClientObservation,
   ServiceStatus,
   VehicleType,
-  AssignmentAlertData
+  AssignmentAlertData,
+  ClientCompany
 } from '../types';
-import { INITIAL_ORDERS, INITIAL_TECHNICIANS, INITIAL_SERVICES, INITIAL_NOTIFICATIONS, INITIAL_UNITS } from '../data/mockData';
+import { INITIAL_ORDERS, INITIAL_TECHNICIANS, INITIAL_SERVICES, INITIAL_NOTIFICATIONS, INITIAL_UNITS, INITIAL_CLIENTS } from '../data/mockData';
 import { playEmergencyAlertSound, playAssignmentAlertSound } from '../utils/audioAlert';
 
 interface ToastMessage {
@@ -163,6 +164,12 @@ interface AppContextType {
   updateUnit: (id: string, updates: Partial<UnitCatalogItem>) => void;
   deleteUnit: (id: string) => void;
 
+  // Catálogo y Expediente de Clientes / Empresas
+  clients: ClientCompany[];
+  addClient: (client: Omit<ClientCompany, 'id' | 'createdAt'>) => ClientCompany;
+  updateClient: (id: string, updates: Partial<ClientCompany>) => void;
+  deleteClient: (id: string) => void;
+
   // Reporte de Falla del Cliente
   createClientFaultReport: (data: {
     unitNumber: string;
@@ -206,6 +213,7 @@ const STORAGE_SUPABASE_KEY = 'olmedo_supabase_config';
 const STORAGE_ROLE_KEY = 'olmedo_current_role';
 const STORAGE_NOTIFICATIONS_KEY = 'olmedo_notifications_data';
 const STORAGE_UNITS_KEY = 'olmedo_units_catalog';
+const STORAGE_CLIENTS_KEY = 'olmedo_clients_catalog_v1';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Check if user previously decided to delete/hide sample data
@@ -269,6 +277,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteUnit = (id: string) => {
     setUnits(prev => prev.filter(u => u.id !== id));
     addToast('info', 'Unidad Eliminada', 'La unidad ha sido retirada del catálogo.');
+  };
+
+  // Catálogo y Registro de Clientes / Empresas
+  const [clients, setClients] = useState<ClientCompany[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_CLIENTS_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return INITIAL_CLIENTS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_CLIENTS_KEY, JSON.stringify(clients));
+  }, [clients]);
+
+  const addClient = (clientData: Omit<ClientCompany, 'id' | 'createdAt'>): ClientCompany => {
+    const newClient: ClientCompany = {
+      ...clientData,
+      id: `cli-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setClients(prev => [newClient, ...prev]);
+    addToast('success', 'Empresa Registrada', `La empresa "${newClient.companyName}" ha sido dada de alta exitosamente.`);
+    return newClient;
+  };
+
+  const updateClient = (id: string, updates: Partial<ClientCompany>) => {
+    setClients(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    addToast('success', 'Cliente Actualizado', 'Los datos del cliente han sido actualizados.');
+  };
+
+  const deleteClient = (id: string) => {
+    setClients(prev => prev.filter(c => c.id !== id));
+    addToast('info', 'Cliente Eliminado', 'La empresa ha sido eliminada del catálogo.');
   };
 
   // Notificaciones del sistema
@@ -1561,6 +1603,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addUnit,
         updateUnit,
         deleteUnit,
+        clients,
+        addClient,
+        updateClient,
+        deleteClient,
         createClientFaultReport,
         addClientObservation,
         updateOrderStatus,
