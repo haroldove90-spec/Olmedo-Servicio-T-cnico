@@ -195,7 +195,7 @@ export const JefeTallerPortal: React.FC = () => {
       
       {/* Resumen Superior de Operaciones */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-xs min-w-0">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0 animate-pulse"></span>
@@ -206,92 +206,6 @@ export const JefeTallerPortal: React.FC = () => {
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
               Despacho Operativo • Asignación de Cuadrillas a Reportes de Clientes • Control Técnico
             </p>
-          </div>
-
-          {/* Accesos directos a módulos con el módulo REPORTES como protagonista */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            
-            {/* BOTÓN MÓDULO REPORTES SOLICITADO */}
-            <button
-              onClick={() => setActiveModule('reportes')}
-              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition flex items-center gap-2 cursor-pointer shadow-xs ${
-                activeModule === 'reportes' || activeModule === 'bandeja_solicitudes'
-                  ? 'bg-[#040057] text-white ring-2 ring-indigo-300' 
-                  : 'bg-indigo-50 hover:bg-indigo-100 text-[#040057] border border-indigo-200'
-              }`}
-            >
-              <ClipboardList className="w-4 h-4 text-amber-400" />
-              <span>Reportes</span>
-              {unassignedOrders.length > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[11px] font-black animate-pulse">
-                  {unassignedOrders.length} por Asignar
-                </span>
-              )}
-            </button>
-
-            {/* BOTÓN MÓDULO CLIENTES Y EMPRESAS */}
-            <button
-              onClick={() => setActiveModule('clientes')}
-              className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                activeModule === 'clientes'
-                  ? 'bg-[#040057] text-white ring-2 ring-indigo-300' 
-                  : 'bg-indigo-50/70 hover:bg-indigo-100 text-[#040057] border border-indigo-200'
-              }`}
-            >
-              <Building2 className="w-4 h-4 text-indigo-600" />
-              <span>Clientes</span>
-              <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-indigo-200 text-indigo-900">
-                {clients.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setActiveModule('metricas')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                activeModule === 'metricas' || activeModule === 'inicio' 
-                  ? 'bg-[#040057] text-white ring-2 ring-indigo-300' 
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4 text-amber-500" />
-              <span>Métricas</span>
-            </button>
-
-            <button
-              onClick={() => setActiveModule('recepcion_unidades')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                activeModule === 'recepcion_unidades' 
-                  ? 'bg-[#040057] text-white ring-2 ring-emerald-300' 
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-              }`}
-            >
-              <ClipboardCheck className="w-4 h-4 text-emerald-500" />
-              <span>Recepción de Unidades</span>
-            </button>
-
-            <button
-              onClick={() => setActiveModule('historial')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                activeModule === 'historial' 
-                  ? 'bg-[#040057] text-white ring-2 ring-indigo-300' 
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-              }`}
-            >
-              <Archive className="w-4 h-4 text-indigo-500" />
-              <span>Historial</span>
-            </button>
-
-            <button
-              onClick={() => setActiveModule('notificaciones')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                activeModule === 'notificaciones' 
-                  ? 'bg-[#040057] text-white ring-2 ring-rose-300' 
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-              }`}
-            >
-              <Bell className="w-4 h-4 text-blue-600" />
-              <span>Avisos</span>
-            </button>
           </div>
         </div>
       </div>

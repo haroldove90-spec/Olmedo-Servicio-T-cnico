@@ -12,7 +12,8 @@ import {
   Bell,
   Archive,
   ClipboardList,
-  Home
+  Home,
+  Building2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -61,6 +62,11 @@ export const BottomBar: React.FC = () => {
             label: 'Reportes',
             icon: <ClipboardList className="w-5 h-5" />,
             badge: unassigned > 0 ? unassigned : undefined,
+          },
+          {
+            id: 'clientes',
+            label: 'Clientes',
+            icon: <Building2 className="w-5 h-5" />,
           },
           {
             id: 'recepcion_unidades',

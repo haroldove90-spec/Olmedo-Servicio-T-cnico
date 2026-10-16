@@ -17,7 +17,8 @@ import {
   LogOut,
   Archive,
   ClipboardList,
-  Home
+  Home,
+  Building2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
@@ -38,6 +39,7 @@ export const Sidebar: React.FC = () => {
     setActiveModule, 
     orders, 
     technicians, 
+    clients,
     services,
     unreadNotificationsCount 
   } = useApp();
@@ -90,6 +92,13 @@ export const Sidebar: React.FC = () => {
                 icon: <ClipboardList className="w-5 h-5" />,
                 badge: unassigned > 0 ? unassigned : undefined,
                 badgeColor: 'bg-rose-600',
+              },
+              {
+                id: 'clientes',
+                label: 'Clientes y Empresas',
+                icon: <Building2 className="w-5 h-5" />,
+                badge: clients.length > 0 ? clients.length : undefined,
+                badgeColor: 'bg-indigo-600',
               },
               {
                 id: 'recepcion_unidades',
