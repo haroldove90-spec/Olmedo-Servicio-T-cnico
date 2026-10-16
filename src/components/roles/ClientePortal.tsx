@@ -30,7 +30,8 @@ import {
   Info,
   Lock,
   ShieldAlert,
-  Smartphone
+  Smartphone,
+  LayoutGrid
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceStatus, EvidencePhoto, VideoEvidence, VehicleType } from '../../types';
@@ -39,6 +40,7 @@ import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
 import { LiveCameraModal } from '../common/LiveCameraModal';
 import { EvidenceLockWarningModal } from '../common/EvidenceLockWarningModal';
 import { ClientReportPdfModal } from '../common/ClientReportPdfModal';
+import { ConsolidatedReportsLogView } from '../common/ConsolidatedReportsLogView';
 
 type ClientViewMode = 'home' | 'nuevo_reporte' | 'listado_reportes' | 'modificar_reporte';
 
@@ -108,6 +110,7 @@ export const ClientePortal: React.FC = () => {
   // ==========================================
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('en_proceso');
+  const [reportListFormat, setReportListFormat] = useState<'tarjetas' | 'bitacora'>('tarjetas');
   const [viewingPdfOrder, setViewingPdfOrder] = useState<ServiceOrder | null>(null);
 
   // ==========================================
@@ -1167,10 +1170,51 @@ export const ClientePortal: React.FC = () => {
               </div>
             </div>
 
+            {/* Alternar formato: Tarjetas vs Bitácora Consolidada del Cliente */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+              <span className="text-xs font-bold text-slate-500">
+                Formato de visualización del listado:
+              </span>
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setReportListFormat('tarjetas')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    reportListFormat === 'tarjetas'
+                      ? 'bg-[#040057] text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>Vista Tarjetas</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setReportListFormat('bitacora')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    reportListFormat === 'bitacora'
+                      ? 'bg-[#040057] text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Bitácora Consolidada (Formato Cliente)</span>
+                </button>
+              </div>
+            </div>
+
           </div>
 
-          {/* LISTADO DE TARJETAS DE REPORTES (SECCIONES SEPARADAS) */}
-          <div className="space-y-4">
+          {/* VISTA SEGÚN FORMATO SELECCIONADO */}
+          {reportListFormat === 'bitacora' ? (
+            <ConsolidatedReportsLogView 
+              orders={filteredOrders}
+              title="BITÁCORA DE REPORTES DE FALLA Y SERVICIOS"
+              showFilters={false}
+            />
+          ) : (
+            <div className="space-y-4">
             {filteredOrders.length === 0 ? (
               <div className="bg-white rounded-3xl p-10 text-center border border-slate-200 shadow-xs space-y-3">
                 <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
@@ -1381,6 +1425,7 @@ export const ClientePortal: React.FC = () => {
               })
             )}
           </div>
+          )}
 
         </div>
       )}

@@ -23,11 +23,14 @@ import {
   ExternalLink,
   ShieldCheck,
   X,
-  Gauge
+  Gauge,
+  Sparkles,
+  LayoutGrid
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ClientCompany, UnitCatalogItem, VehicleType, ServiceOrder } from '../../types';
 import { ClientReportPdfModal } from './ClientReportPdfModal';
+import { ConsolidatedReportsLogView } from './ConsolidatedReportsLogView';
 
 export const ClientesEmpresasManager: React.FC = () => {
   const { 
@@ -52,6 +55,9 @@ export const ClientesEmpresasManager: React.FC = () => {
 
   // Modal para ver reporte en PDF
   const [viewingPdfOrder, setViewingPdfOrder] = useState<ServiceOrder | null>(null);
+
+  // Formato de visualización del historial (Tarjetas vs Bitácora del cliente)
+  const [historialFormat, setHistorialFormat] = useState<'tarjetas' | 'bitacora_cliente'>('bitacora_cliente');
 
   // ==========================================
   // ESTADOS DEL FORMULARIO DE ALTA DE EMPRESA
@@ -715,11 +721,40 @@ export const ClientesEmpresasManager: React.FC = () => {
           {activeExpedienteTab === 'historial' && (
             <div className="space-y-4">
               
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <h3 className="font-black text-slate-800 text-sm sm:text-base flex items-center gap-2">
                   <FileText className="w-5 h-5 text-indigo-600" />
                   <span>Historial de Reportes y Mantenimiento de {selectedCompany.companyName}</span>
                 </h3>
+
+                {/* Selector de formato: Bitácora del cliente vs Tarjetas */}
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setHistorialFormat('bitacora_cliente')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      historialFormat === 'bitacora_cliente'
+                        ? 'bg-[#040057] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Bitácora Consolidada (Formato Cliente)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setHistorialFormat('tarjetas')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      historialFormat === 'tarjetas'
+                        ? 'bg-[#040057] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>Vista Tarjetas</span>
+                  </button>
+                </div>
               </div>
 
               {companyOrders.length === 0 ? (
@@ -728,7 +763,16 @@ export const ClientesEmpresasManager: React.FC = () => {
                   <p className="font-bold text-slate-700">No hay reportes de falla registrados aún para esta empresa</p>
                   <p className="text-xs text-slate-400">Cuando el cliente reporte averías, se listarán en este expediente.</p>
                 </div>
+              ) : historialFormat === 'bitacora_cliente' ? (
+                /* VISTA FORMATO CLIENTE CONSOLIDADO (DÍA, OPERADOR, FALLA, CORRECTIVO, REFACCIONES) */
+                <ConsolidatedReportsLogView 
+                  orders={companyOrders}
+                  companyName={selectedCompany.companyName}
+                  title={`BITÁCORA TÉCNICA Y DE SERVICIOS - ${selectedCompany.companyName.toUpperCase()}`}
+                  showFilters={true}
+                />
               ) : (
+                /* VISTA TARJETAS INDIVIDUALES */
                 <div className="space-y-3">
                   {companyOrders.map((order) => {
                     const isRescue = order.requiresRescue || order.serviceType === 'rescate';

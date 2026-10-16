@@ -30,7 +30,9 @@ import {
   Sparkles,
   Eye,
   X,
-  Building2
+  Building2,
+  LayoutGrid,
+  FileText
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceType, Technician, ServiceStatus } from '../../types';
@@ -40,6 +42,7 @@ import { MetricsDashboard } from '../common/MetricsDashboard';
 import { NotificationsModule } from '../common/NotificationsModule';
 import { HistorialOrdenesModule } from '../common/HistorialOrdenesModule';
 import { ClientesEmpresasManager } from '../common/ClientesEmpresasManager';
+import { ConsolidatedReportsLogView } from '../common/ConsolidatedReportsLogView';
 import { playEmergencyAlertSound } from '../../utils/audioAlert';
 
 export const JefeTallerPortal: React.FC = () => {
@@ -59,6 +62,7 @@ export const JefeTallerPortal: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filterTab, setFilterTab] = useState<'todos' | 'por_asignar' | 'asignados' | 'rescates'>('por_asignar');
   const [selectedServiceType, setSelectedServiceType] = useState<string>('todos');
+  const [viewFormat, setViewFormat] = useState<'operativo' | 'bitacora_cliente'>('operativo');
 
   // Estados para Modal de Asignación a Técnico
   const [assigningOrder, setAssigningOrder] = useState<ServiceOrder | null>(null);
@@ -335,10 +339,50 @@ export const JefeTallerPortal: React.FC = () => {
               </select>
             </div>
 
+            {/* Alternar formato: Operativo de Asignación vs Bitácora Consolidada (Formato Cliente) */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+              <span className="text-xs font-bold text-slate-500">
+                Visualización de reportes:
+              </span>
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setViewFormat('operativo')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    viewFormat === 'operativo'
+                      ? 'bg-[#040057] text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>Vista Operativa (Asignar)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewFormat('bitacora_cliente')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    viewFormat === 'bitacora_cliente'
+                      ? 'bg-[#040057] text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Bitácora Consolidada (Formato Cliente)</span>
+                </button>
+              </div>
+            </div>
+
           </div>
 
-          {/* Listado de Reportes de Clientes */}
-          {displayedOrders.length === 0 ? (
+          {/* VISTA SEGÚN FORMATO SELECCIONADO */}
+          {viewFormat === 'bitacora_cliente' ? (
+            <ConsolidatedReportsLogView 
+              orders={displayedOrders}
+              title="COTIZACIÓN 20261012 ENVIAR"
+              showFilters={false}
+            />
+          ) : displayedOrders.length === 0 ? (
             <div className="bg-white rounded-3xl p-12 text-center border border-slate-200">
               <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
               <h3 className="text-base sm:text-lg font-bold text-slate-800">
