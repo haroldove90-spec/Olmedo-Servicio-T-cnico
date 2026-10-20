@@ -56,6 +56,7 @@ import { EmployeesManager } from '../common/EmployeesManager';
 import { MetricsDashboard } from '../common/MetricsDashboard';
 import { NotificationsModule } from '../common/NotificationsModule';
 import { HistorialOrdenesModule } from '../common/HistorialOrdenesModule';
+import { exportOrdersToExcel } from '../../utils/excelExport';
 
 export const GerenciaPortal: React.FC = () => {
   const { 
@@ -107,6 +108,7 @@ export const GerenciaPortal: React.FC = () => {
   const [reportSupervisionSearch, setReportSupervisionSearch] = useState('');
   const [selectedReportDetailOrder, setSelectedReportDetailOrder] = useState<ServiceOrder | null>(null);
   const [reportViewMode, setReportViewMode] = useState<'lista' | 'tarjetas'>('lista');
+  const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
 
   // Quotation Generator States
   const [quoteOrder, setQuoteOrder] = useState<ServiceOrder | null>(null);
@@ -722,12 +724,50 @@ export const GerenciaPortal: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {selectedReportIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sel = orders.filter(o => selectedReportIds.includes(o.id));
+                        if (sel.length === 0) return;
+                        exportOrdersToExcel(sel, {
+                          filenamePrefix: `Seleccionados_${sel.length}_Reportes`,
+                          sheetName: 'Reportes Seleccionados',
+                          businessName: 'Servicio Técnico Olmedo'
+                        });
+                        addToast('success', 'Excel Generado', `Se descargaron ${sel.length} reporte(s) seleccionados en Excel (.xlsx).`);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs animate-pulse ring-2 ring-emerald-300"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>Descargar Seleccionados ({selectedReportIds.length})</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (filteredReportOrders.length === 0) {
+                        addToast('warning', 'Sin reportes', 'No hay reportes en la vista para exportar.');
+                        return;
+                      }
+                      exportOrdersToExcel(filteredReportOrders, {
+                        filenamePrefix: `Reportes_Falla_${filteredReportOrders.length}`,
+                        sheetName: 'Reportes de Clientes',
+                        businessName: 'Servicio Técnico Olmedo'
+                      });
+                      addToast('success', 'Excel Descargado', `Se descargaron ${filteredReportOrders.length} reporte(s) en Excel (.xlsx).`);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    title="Descargar todos los reportes visibles en Excel (.xlsx)"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-200" />
+                    <span>Descargar Todo en Excel ({filteredReportOrders.length})</span>
+                  </button>
+
                   <span className="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-900 border border-indigo-200 text-xs font-bold">
-                    {orders.length} Reportes Totales
-                  </span>
-                  <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-bold">
-                    {orders.filter(o => o.assignedTechnicianId).length} Asignados
+                    {orders.length} Totales
                   </span>
                 </div>
               </div>
@@ -782,6 +822,45 @@ export const GerenciaPortal: React.FC = () => {
               </div>
             </div>
 
+            {/* Banner de Selección si hay reportes seleccionados */}
+            {selectedReportIds.length > 0 && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white font-black text-xs flex items-center justify-center">
+                    {selectedReportIds.length}
+                  </span>
+                  <span className="text-xs font-bold text-emerald-950">
+                    {selectedReportIds.length} reporte(s) seleccionado(s) listos para descargar en Excel (.xlsx)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sel = orders.filter(o => selectedReportIds.includes(o.id));
+                      exportOrdersToExcel(sel, {
+                        filenamePrefix: `Seleccionados_${sel.length}_Reportes`,
+                        sheetName: 'Reportes Seleccionados',
+                        businessName: 'Servicio Técnico Olmedo'
+                      });
+                      addToast('success', 'Excel Generado', `Se descargaron ${sel.length} reporte(s) seleccionados en Excel (.xlsx).`);
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer ring-2 ring-emerald-300"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Descargar Seleccionados en Excel</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedReportIds([])}
+                    className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-emerald-200 transition cursor-pointer"
+                  >
+                    Deseleccionar
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Listado de Reportes de Falla */}
             {filteredReportOrders.length === 0 ? (
               <div className="bg-white rounded-2xl p-10 text-center border border-slate-200">
@@ -793,11 +872,26 @@ export const GerenciaPortal: React.FC = () => {
               /* VISTA DE REGISTROS EN FORMA DE LISTA (SOLO DATOS PRINCIPALES) */
               <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
                 <div className="hidden md:grid md:grid-cols-12 gap-3 px-4 py-3 bg-slate-50/80 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                  <div className="col-span-2">Folio / Fecha</div>
+                  <div className="col-span-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={filteredReportOrders.length > 0 && selectedReportIds.length === filteredReportOrders.length}
+                      onChange={() => {
+                        if (selectedReportIds.length === filteredReportOrders.length) {
+                          setSelectedReportIds([]);
+                        } else {
+                          setSelectedReportIds(filteredReportOrders.map(o => o.id));
+                        }
+                      }}
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                      title="Seleccionar / Deseleccionar todos"
+                    />
+                    <span>Folio / Fecha</span>
+                  </div>
                   <div className="col-span-3">Cliente / Unidad</div>
-                  <div className="col-span-4">Falla Reportada</div>
+                  <div className="col-span-3">Falla Reportada</div>
                   <div className="col-span-2">Estatus / Prioridad</div>
-                  <div className="col-span-1 text-right">Detalle</div>
+                  <div className="col-span-2 text-right">Descargar Excel / Detalle</div>
                 </div>
 
                 <div className="divide-y divide-slate-100">
@@ -807,24 +901,40 @@ export const GerenciaPortal: React.FC = () => {
                       <div
                         key={order.id}
                         onClick={() => setSelectedReportDetailOrder(order)}
-                        className="p-3.5 sm:p-4 hover:bg-indigo-50/40 transition-all cursor-pointer flex flex-col md:grid md:grid-cols-12 md:gap-3 md:items-center group"
+                        className={`p-3.5 sm:p-4 hover:bg-indigo-50/40 transition-all cursor-pointer flex flex-col md:grid md:grid-cols-12 md:gap-3 md:items-center group ${
+                          selectedReportIds.includes(order.id) ? 'bg-emerald-50/30 border-l-4 border-l-emerald-500' : ''
+                        }`}
                         title="Haz click para ver la información completa"
                       >
-                        <div className="col-span-2 min-w-0 mb-1.5 md:mb-0">
-                          <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full shrink-0 bg-indigo-600 group-hover:scale-125 transition-transform"></span>
-                            <span className="font-black text-[#040057] text-sm group-hover:text-indigo-700 transition">
-                              {order.folio}
-                            </span>
-                            {isRescue && (
-                              <span className="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black uppercase">
-                                Rescate
+                        <div className="col-span-2 min-w-0 mb-1.5 md:mb-0 flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedReportIds.includes(order.id)}
+                            onChange={() => {
+                              setSelectedReportIds(prev => 
+                                prev.includes(order.id) ? prev.filter(id => id !== order.id) : [...prev, order.id]
+                              );
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0 accent-emerald-600"
+                            title="Seleccionar para exportar en Excel"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="w-2 h-2 rounded-full shrink-0 bg-indigo-600 group-hover:scale-125 transition-transform"></span>
+                              <span className="font-black text-[#040057] text-sm group-hover:text-indigo-700 transition">
+                                {order.folio}
                               </span>
-                            )}
-                          </div>
-                          <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 ml-4">
-                            <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>{new Date(order.createdAt).toLocaleDateString('es-MX')}</span>
+                              {isRescue && (
+                                <span className="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black uppercase">
+                                  Rescate
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 ml-3.5">
+                              <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{new Date(order.createdAt).toLocaleDateString('es-MX')}</span>
+                            </div>
                           </div>
                         </div>
 
@@ -841,7 +951,7 @@ export const GerenciaPortal: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="col-span-4 min-w-0 pr-2 mb-1.5 md:mb-0">
+                        <div className="col-span-3 min-w-0 pr-2 mb-1.5 md:mb-0">
                           <div className="md:hidden text-[10px] uppercase font-bold text-slate-400 mb-0.5">Falla:</div>
                           <p className="text-slate-700 text-xs truncate font-medium" title={order.vehicle.failureDescription}>
                             {order.vehicle.failureDescription || 'Falla registrada por el cliente'}
@@ -863,7 +973,24 @@ export const GerenciaPortal: React.FC = () => {
                           </span>
                         </div>
 
-                        <div className="col-span-1 flex items-center justify-end">
+                        <div className="col-span-2 flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              exportOrdersToExcel([order], {
+                                filenamePrefix: `Reporte_${order.folio}`,
+                                sheetName: `Reporte ${order.folio}`,
+                                businessName: 'Servicio Técnico Olmedo'
+                              });
+                              addToast('success', 'Excel Generado', `Reporte ${order.folio} descargado en Excel (.xlsx).`);
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white transition cursor-pointer shadow-2xs border border-emerald-300 hover:border-emerald-600 flex items-center gap-1 text-xs font-bold"
+                            title={`Descargar reporte ${order.folio} individual en archivo Excel (.xlsx)`}
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+                            <span>Excel</span>
+                          </button>
                           <button
                             type="button"
                             onClick={(e) => {
@@ -966,12 +1093,30 @@ export const GerenciaPortal: React.FC = () => {
                         Detalle del Reporte de Falla • {selectedReportDetailOrder.folio}
                       </h3>
                     </div>
-                    <button
-                      onClick={() => setSelectedReportDetailOrder(null)}
-                      className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          exportOrdersToExcel([selectedReportDetailOrder], {
+                            filenamePrefix: `Reporte_${selectedReportDetailOrder.folio}`,
+                            sheetName: `Reporte ${selectedReportDetailOrder.folio}`,
+                            businessName: 'Servicio Técnico Olmedo'
+                          });
+                          addToast('success', 'Excel Generado', `Reporte ${selectedReportDetailOrder.folio} descargado en Excel (.xlsx).`);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white border border-emerald-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs transition"
+                        title="Descargar este reporte en archivo Excel (.xlsx)"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                        <span>Descargar en Excel (.xlsx)</span>
+                      </button>
+                      <button
+                        onClick={() => setSelectedReportDetailOrder(null)}
+                        className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-3 text-xs">
@@ -1043,27 +1188,45 @@ export const GerenciaPortal: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
                     <button
                       type="button"
                       onClick={() => {
-                        const ord = selectedReportDetailOrder;
-                        setSelectedReportDetailOrder(null);
-                        setReportOrder(ord);
+                        exportOrdersToExcel([selectedReportDetailOrder], {
+                          filenamePrefix: `Reporte_${selectedReportDetailOrder.folio}`,
+                          sheetName: `Reporte ${selectedReportDetailOrder.folio}`,
+                          businessName: 'Servicio Técnico Olmedo'
+                        });
+                        addToast('success', 'Excel Generado', `Reporte ${selectedReportDetailOrder.folio} descargado en Excel (.xlsx).`);
                       }}
-                      className="px-4 py-2 rounded-xl bg-blue-50 text-[#040057] hover:bg-blue-100 font-bold text-xs flex items-center gap-1.5 cursor-pointer border border-blue-200"
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-xs transition ring-2 ring-emerald-300/50"
                     >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Ver Reporte Oficial (PDF)</span>
+                      <FileSpreadsheet className="w-4 h-4" />
+                      <span>Descargar Expediente en Excel (.xlsx)</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setSelectedReportDetailOrder(null)}
-                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
-                    >
-                      Cerrar
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const ord = selectedReportDetailOrder;
+                          setSelectedReportDetailOrder(null);
+                          setReportOrder(ord);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-blue-50 text-[#040057] hover:bg-blue-100 font-bold text-xs flex items-center gap-1.5 cursor-pointer border border-blue-200"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Ver Reporte Oficial (PDF)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedReportDetailOrder(null)}
+                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

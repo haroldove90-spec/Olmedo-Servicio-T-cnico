@@ -36,6 +36,7 @@ import { ServiceOrder, UserRole } from '../../types';
 import { TechnicalReportDocument } from './TechnicalReportDocument';
 import { StatusSemaphoreBadge } from './StatusSemaphoreBadge';
 import { EvidenceLockWarningModal } from './EvidenceLockWarningModal';
+import { exportOrdersToExcel } from '../../utils/excelExport';
 
 interface HistorialOrdenesModuleProps {
   forcedRole?: UserRole;
@@ -55,6 +56,9 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
 
   // Modo de visualización: Lista compacta predeterminada (datos principales) vs Tarjetas detalladas
   const [viewMode, setViewMode] = useState<'lista' | 'tarjetas'>('lista');
+
+  // Selección múltiple para exportar en Excel (uno por uno, seleccionados o todos)
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
 
   // Filtros del Buscador Inteligente
   const [searchTerm, setSearchTerm] = useState('');
@@ -285,72 +289,93 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
     setOrderToDelete(null);
   };
 
-  // Exportar Historial a Excel / CSV
-  const handleExportCSV = () => {
-    if (filteredOrders.length === 0) return;
-
-    const headers = [
-      'Folio',
-      'No. Reporte',
-      'Fecha Creación',
-      'Estatus',
-      'Cliente',
-      'Empresa',
-      'Tipo Servicio',
-      'Prioridad',
-      'Placas',
-      'No. Económico',
-      'Marca',
-      'Modelo',
-      'Odómetro',
-      'Técnico Asignado',
-      'Fecha Cierre',
-      'Cerrado Por',
-      'Recibido Por (Chofer)',
-      'Falla Reportada',
-      'Trabajo Realizado',
-      'Refacciones Cantidad',
-      'Total Cotizado',
-      'Total Facturado'
-    ];
-
-    const rows = filteredOrders.map(o => [
-      `"${o.folio}"`,
-      `"${o.reportNumber || ''}"`,
-      `"${new Date(o.createdAt).toLocaleDateString('es-MX')}"`,
-      `"${o.status}"`,
-      `"${(o.clientName || '').replace(/"/g, '""')}"`,
-      `"${(o.clientCompany || '').replace(/"/g, '""')}"`,
-      `"${o.serviceType}"`,
-      `"${o.priority}"`,
-      `"${o.vehicle.plates}"`,
-      `"${o.vehicle.economicNumber}"`,
-      `"${(o.vehicle.brand || '').replace(/"/g, '""')}"`,
-      `"${(o.vehicle.model || '').replace(/"/g, '""')}"`,
-      `"${o.vehicle.odometerReading || o.vehicle.mileage || ''}"`,
-      `"${(o.assignedTechnicianName || '').replace(/"/g, '""')}"`,
-      `"${o.closedAt ? new Date(o.closedAt).toLocaleDateString('es-MX') : ''}"`,
-      `"${(o.closedBy || '').replace(/"/g, '""')}"`,
-      `"${(o.receivedByDriver || '').replace(/"/g, '""')}"`,
-      `"${(o.vehicle.failureDescription || '').replace(/"/g, '""')}"`,
-      `"${(o.workPerformedDetail || '').replace(/"/g, '""')}"`,
-      `"${o.partsUsed.length}"`,
-      `"${o.quotation ? o.quotation.total : ''}"`,
-      `"${o.invoice ? o.invoice.total : ''}"`
-    ]);
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Olmedo_Historial_Ordenes_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    addToast('success', 'Descarga Completada', 'El archivo CSV de historial ha sido exportado.');
+  // Manejo de Selección para exportación en Excel
+  const handleToggleSelectAll = () => {
+    if (selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0) {
+      setSelectedOrderIds([]);
+    } else {
+      setSelectedOrderIds(filteredOrders.map(o => o.id));
+    }
   };
+
+  const handleToggleSelectOrder = (orderId: string) => {
+    setSelectedOrderIds(prev => 
+      prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
+    );
+  };
+
+  // 1. Descarga individual en Excel (uno por uno)
+  const handleExportSingleExcel = (order: ServiceOrder) => {
+    const success = exportOrdersToExcel([order], {
+      filenamePrefix: `Reporte_${order.folio}`,
+      sheetName: `Reporte ${order.folio}`,
+      businessName: 'Servicio Técnico Olmedo'
+    });
+    if (success) {
+      addToast('success', 'Excel Generado', `Reporte ${order.folio} descargado en Excel (.xlsx).`);
+    } else {
+      addToast('error', 'Error', 'No se pudo generar el archivo Excel.');
+    }
+  };
+
+  // 2. Descarga de seleccionados en Excel (algunos seleccionados mediante casillas)
+  const handleExportSelectedExcel = () => {
+    const selectedOrders = orders.filter(o => selectedOrderIds.includes(o.id));
+    if (selectedOrders.length === 0) {
+      addToast('warning', 'Sin selección', 'Marca la casilla de los reportes u órdenes que deseas exportar.');
+      return;
+    }
+    const success = exportOrdersToExcel(selectedOrders, {
+      filenamePrefix: `Seleccionados_${selectedOrders.length}_Reportes`,
+      sheetName: 'Reportes Seleccionados',
+      businessName: 'Servicio Técnico Olmedo'
+    });
+    if (success) {
+      addToast('success', 'Excel Generado', `Se descargaron ${selectedOrders.length} reporte(s) seleccionados en Excel (.xlsx).`);
+    } else {
+      addToast('error', 'Error', 'No se pudo generar el archivo Excel.');
+    }
+  };
+
+  // 3. Descarga de todos los visibles o filtrados al mismo tiempo en Excel
+  const handleExportAllFilteredExcel = () => {
+    if (filteredOrders.length === 0) {
+      addToast('warning', 'Sin registros', 'No hay órdenes en la lista actual para exportar.');
+      return;
+    }
+    const isFiltered = Boolean(searchTerm || systemCategoryFilter !== 'todos' || statusFilter !== 'todas' || serviceTypeFilter !== 'todos' || dateFilter !== 'todos');
+    const success = exportOrdersToExcel(filteredOrders, {
+      filenamePrefix: isFiltered ? `Historial_Filtrado_${filteredOrders.length}_Reportes` : `Historial_Completo_${filteredOrders.length}_Reportes`,
+      sheetName: 'Historial de Reportes',
+      businessName: 'Servicio Técnico Olmedo'
+    });
+    if (success) {
+      addToast('success', 'Historial Descargado', `Se descargaron ${filteredOrders.length} reporte(s) del historial en Excel (.xlsx).`);
+    } else {
+      addToast('error', 'Error', 'No se pudo generar el archivo Excel.');
+    }
+  };
+
+  // 4. Descarga de toda la base histórica completa (sin importar filtros)
+  const handleExportAllDatabaseExcel = () => {
+    if (orders.length === 0) {
+      addToast('warning', 'Sin registros', 'No hay órdenes en la base de datos.');
+      return;
+    }
+    const success = exportOrdersToExcel(orders, {
+      filenamePrefix: `Historial_Total_BD_${orders.length}_Reportes`,
+      sheetName: 'Base Histórica Total',
+      businessName: 'Servicio Técnico Olmedo'
+    });
+    if (success) {
+      addToast('success', 'Base Total Descargada', `Se exportaron las ${orders.length} órdenes totales en Excel (.xlsx).`);
+    } else {
+      addToast('error', 'Error', 'No se pudo generar el archivo Excel.');
+    }
+  };
+
+  // Retrocompatibilidad con llamadas legacy
+  const handleExportCSV = handleExportAllFilteredExcel;
 
   return (
     <div className="space-y-6 pb-12 w-full max-w-full min-w-0">
@@ -371,17 +396,39 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
             </p>
           </div>
 
-          {/* Acciones Superiores */}
+          {/* Acciones Superiores de Exportación en Excel y Gestión */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {selectedOrderIds.length > 0 && (
+              <button
+                onClick={handleExportSelectedExcel}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer ring-2 ring-emerald-300 animate-pulse"
+                title="Descargar en Excel (.xlsx) las órdenes marcadas con casilla"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Exportar Seleccionados ({selectedOrderIds.length}) en Excel</span>
+              </button>
+            )}
+
             <button
-              onClick={handleExportCSV}
+              onClick={handleExportAllFilteredExcel}
               disabled={filteredOrders.length === 0}
-              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-              title="Descargar lista filtrada en archivo Excel / CSV"
+              className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              title="Descargar todas las órdenes visibles en archivo Excel (.xlsx)"
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Exportar a Excel ({filteredOrders.length})</span>
+              <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+              <span>Descargar Todo en Excel ({filteredOrders.length})</span>
             </button>
+
+            {orders.length > filteredOrders.length && (
+              <button
+                onClick={handleExportAllDatabaseExcel}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                title="Descargar todo el historial general sin filtros en Excel (.xlsx)"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-300" />
+                <span>BD Completa ({orders.length})</span>
+              </button>
+            )}
 
             {openCount > 0 && (
               <button
@@ -610,6 +657,41 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
         </div>
       </div>
 
+      {/* Barra de Acciones para Órdenes Seleccionadas */}
+      {selectedOrderIds.length > 0 && (
+        <div className="bg-emerald-50 border border-emerald-200/90 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+              {selectedOrderIds.length}
+            </span>
+            <div>
+              <div className="font-bold text-emerald-950 text-xs">
+                {selectedOrderIds.length} reporte(s) seleccionado(s)
+              </div>
+              <div className="text-[11px] text-emerald-700">
+                Listos para descargar en archivo Excel (.xlsx) con desglose de refacciones y datos completos.
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleExportSelectedExcel}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer ring-2 ring-emerald-300"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Descargar {selectedOrderIds.length} Seleccionados en Excel (.xlsx)</span>
+            </button>
+            <button
+              onClick={() => setSelectedOrderIds([])}
+              className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-emerald-200 transition cursor-pointer"
+            >
+              Deseleccionar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Lista de Órdenes del Historial */}
       {filteredOrders.length === 0 ? (
         <div className="bg-white rounded-2xl p-10 text-center border border-slate-200">
@@ -635,12 +717,21 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
         /* VISTA LISTA COMPACTA: SOLO DATOS PRINCIPALES (CLICK PARA VER TODO) */
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
           {/* Encabezado de Columnas (Desktop) */}
-          <div className="hidden md:grid md:grid-cols-12 gap-3 px-4 py-3 bg-slate-50/80 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-            <div className="col-span-2">Folio / Fecha</div>
+          <div className="hidden md:grid md:grid-cols-12 gap-3 px-4 py-3 bg-slate-50/80 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 tracking-wider items-center">
+            <div className="col-span-2 flex items-center gap-2.5">
+              <input
+                type="checkbox"
+                checked={filteredOrders.length > 0 && selectedOrderIds.length === filteredOrders.length}
+                onChange={handleToggleSelectAll}
+                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                title="Seleccionar / Deseleccionar todos los registros visibles"
+              />
+              <span>Folio / Fecha</span>
+            </div>
             <div className="col-span-3">Cliente / Unidad</div>
-            <div className="col-span-4">Falla Reportada Principal</div>
+            <div className="col-span-3">Falla Reportada Principal</div>
             <div className="col-span-2">Estatus / Servicio</div>
-            <div className="col-span-1 text-right">Detalle</div>
+            <div className="col-span-2 text-right">Descargar Excel / Detalle</div>
           </div>
 
           {/* Filas de Registros en Forma de Lista */}
@@ -654,26 +745,38 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
                   key={order.id}
                   onClick={() => setViewDetailOrder(order)}
                   className={`p-3.5 sm:p-4 hover:bg-indigo-50/50 transition-all cursor-pointer flex flex-col md:grid md:grid-cols-12 md:gap-3 md:items-center group ${
-                    isClosed ? 'bg-slate-50/20' : 'bg-white'
+                    selectedOrderIds.includes(order.id)
+                      ? 'bg-emerald-50/40 border-l-4 border-l-emerald-500'
+                      : isClosed ? 'bg-slate-50/20' : 'bg-white'
                   }`}
                   title="Haz click para ver toda la información pertinente de este reporte de falla"
                 >
-                  {/* Columna 1: Folio, Fecha y Rescate */}
-                  <div className="col-span-2 min-w-0 mb-1.5 md:mb-0">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full shrink-0 bg-indigo-600 group-hover:scale-125 transition-transform"></span>
-                      <span className="font-black text-[#040057] text-sm group-hover:text-indigo-700 transition">
-                        {order.folio}
-                      </span>
-                      {isRescue && (
-                        <span className="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black uppercase">
-                          Rescate
+                  {/* Columna 1: Checkbox, Folio, Fecha y Rescate */}
+                  <div className="col-span-2 min-w-0 mb-1.5 md:mb-0 flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={selectedOrderIds.includes(order.id)}
+                      onChange={() => handleToggleSelectOrder(order.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0 accent-emerald-600"
+                      title="Seleccionar para exportar en Excel"
+                    />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="w-2 h-2 rounded-full shrink-0 bg-indigo-600 group-hover:scale-125 transition-transform"></span>
+                        <span className="font-black text-[#040057] text-sm group-hover:text-indigo-700 transition">
+                          {order.folio}
                         </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 ml-4">
-                      <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                      <span>{new Date(order.createdAt).toLocaleDateString('es-MX')}</span>
+                        {isRescue && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black uppercase">
+                            Rescate
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 ml-3.5">
+                        <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{new Date(order.createdAt).toLocaleDateString('es-MX')}</span>
+                      </div>
                     </div>
                   </div>
 
@@ -692,7 +795,7 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
                   </div>
 
                   {/* Columna 3: Falla Reportada (Sintética, 1 renglón) */}
-                  <div className="col-span-4 min-w-0 pr-2 mb-1.5 md:mb-0">
+                  <div className="col-span-3 min-w-0 pr-2 mb-1.5 md:mb-0">
                     <div className="md:hidden text-[10px] uppercase font-bold text-slate-400 mb-0.5">Falla Reportada:</div>
                     <p className="text-slate-700 text-xs truncate font-medium" title={order.vehicle.failureDescription}>
                       {order.vehicle.failureDescription || order.initialDiagnosis || order.workPerformedDetail || 'Reporte de falla registrado'}
@@ -716,8 +819,20 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
                     </span>
                   </div>
 
-                  {/* Columna 5: Acción / Botón Ver Detalle */}
-                  <div className="col-span-1 flex items-center justify-end">
+                  {/* Columna 5: Acciones (Descargar individual en Excel + Ver Detalle) */}
+                  <div className="col-span-2 flex items-center justify-end gap-1.5 mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleExportSingleExcel(order);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white transition cursor-pointer shadow-2xs border border-emerald-300 hover:border-emerald-600 flex items-center gap-1.5 text-xs font-bold"
+                      title={`Descargar reporte ${order.folio} individual en archivo Excel (.xlsx)`}
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+                      <span>Excel</span>
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => {
@@ -727,9 +842,9 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
                       className="px-2.5 py-1.5 rounded-xl bg-slate-100 group-hover:bg-[#040057] text-slate-700 group-hover:text-white font-bold text-xs transition flex items-center gap-1 cursor-pointer shadow-2xs"
                       title="Ver toda la información pertinente del reporte"
                     >
-                      <Eye className="w-3.5 h-3.5 text-indigo-500 group-hover:text-white" />
-                      <span className="hidden lg:inline">Detalle</span>
-                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition" />
+                      <Eye className="w-3.5 h-3.5 text-indigo-500 group-hover:text-white shrink-0" />
+                      <span className="hidden sm:inline">Detalle</span>
+                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition shrink-0" />
                     </button>
                   </div>
                 </div>
@@ -749,12 +864,22 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
               <div
                 key={order.id}
                 className={`bg-white rounded-2xl p-4 sm:p-5 border-2 transition shadow-xs hover:shadow-md ${
-                  isClosed ? 'border-emerald-200/80 bg-gradient-to-r from-white via-slate-50/30 to-emerald-50/20' : 'border-slate-200'
+                  selectedOrderIds.includes(order.id)
+                    ? 'border-emerald-500 bg-emerald-50/20'
+                    : isClosed ? 'border-emerald-200/80 bg-gradient-to-r from-white via-slate-50/30 to-emerald-50/20' : 'border-slate-200'
                 }`}
               >
                 {/* Cabecera de la Tarjeta */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
                   <div className="flex items-center gap-2.5 flex-wrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedOrderIds.includes(order.id)}
+                      onChange={() => handleToggleSelectOrder(order.id)}
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                      title="Seleccionar para exportar en Excel"
+                    />
+
                     <span className="text-base sm:text-lg font-black text-[#040057]">
                       {order.folio}
                     </span>
@@ -911,6 +1036,16 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
                     >
                       <Printer className="w-3.5 h-3.5 text-[#040057]" />
                       <span>Reporte Oficial (PDF)</span>
+                    </button>
+
+                    {/* Botón Descargar este reporte en Excel */}
+                    <button
+                      onClick={() => handleExportSingleExcel(order)}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-900 hover:text-white border border-emerald-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title={`Descargar reporte ${order.folio} individual en archivo Excel (.xlsx)`}
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 group-hover:text-white" />
+                      <span>Descargar Excel (.xlsx)</span>
                     </button>
 
                     {/* Botón Editar / Actualizar */}
@@ -1277,12 +1412,21 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
               </div>
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
+                  onClick={() => handleExportSingleExcel(viewDetailOrder)}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-600 hover:text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer border border-emerald-300 transition shadow-2xs"
+                  title={`Descargar reporte ${viewDetailOrder.folio} en archivo Excel (.xlsx)`}
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Descargar en Excel (.xlsx)</span>
+                </button>
+                <button
                   onClick={() => {
                     const ord = viewDetailOrder;
                     setViewDetailOrder(null);
                     setPrintReportOrder(ord);
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-blue-50 text-[#040057] hover:bg-blue-100 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl bg-blue-50 text-[#040057] hover:bg-blue-100 font-bold text-xs flex items-center gap-1 cursor-pointer border border-blue-200"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Imprimir Reporte</span>
@@ -1427,6 +1571,39 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
                     </table>
                   </div>
                 )}
+              </div>
+
+              {/* Barra de Acciones Inferior del Expediente */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-200 mt-6">
+                <button
+                  type="button"
+                  onClick={() => handleExportSingleExcel(viewDetailOrder)}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-xs transition ring-2 ring-emerald-300/60"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Descargar este Expediente en Excel (.xlsx)</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ord = viewDetailOrder;
+                      setViewDetailOrder(null);
+                      setPrintReportOrder(ord);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Reporte Oficial (PDF)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewDetailOrder(null)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer"
+                  >
+                    Cerrar Consulta
+                  </button>
+                </div>
               </div>
 
             </div>
