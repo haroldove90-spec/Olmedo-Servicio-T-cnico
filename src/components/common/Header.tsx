@@ -53,14 +53,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSupabaseModal, onOpenWorkf
           <div className="flex items-center shrink-0 min-w-0">
             <button 
               onClick={() => setCurrentRole(null)}
-              className="flex items-center cursor-pointer hover:opacity-90 transition-opacity"
+              className="flex items-center gap-2.5 cursor-pointer hover:opacity-90 transition-opacity"
               title="Volver a selección de rol"
             >
               <img
                 src="https://appdesignproyectos.com/olmedologo.png"
-                alt="Olmedo Servicio Técnico"
-                className="h-12 xs:h-14 sm:h-16 md:h-18 lg:h-20 w-auto object-contain block max-w-[190px] xs:max-w-[240px] sm:max-w-[320px] md:max-w-none"
+                alt="Servicio Técnico Olmedo"
+                className="h-10 xs:h-12 sm:h-14 md:h-16 w-auto object-contain block shrink-0"
               />
+              <span className="font-black text-sm sm:text-base md:text-lg text-[#040057] tracking-tight uppercase hidden xs:inline-block">
+                Servicio Técnico Olmedo
+              </span>
             </button>
           </div>
 

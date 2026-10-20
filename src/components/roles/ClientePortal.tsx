@@ -31,7 +31,8 @@ import {
   Lock,
   ShieldAlert,
   Smartphone,
-  LayoutGrid
+  LayoutGrid,
+  Activity
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceStatus, EvidencePhoto, VideoEvidence, VehicleType } from '../../types';
@@ -43,6 +44,118 @@ import { ClientReportPdfModal } from '../common/ClientReportPdfModal';
 import { ConsolidatedReportsLogView } from '../common/ConsolidatedReportsLogView';
 
 type ClientViewMode = 'home' | 'nuevo_reporte' | 'listado_reportes' | 'modificar_reporte';
+
+// Helper para calcular el proceso en tiempo real del reporte de falla para el cliente
+export interface ProcessStepInfo {
+  step: number;
+  totalSteps: number;
+  label: string;
+  badge: string;
+  description: string;
+  isFinished: boolean;
+  color: string;
+}
+
+export const getOrderProcessInfo = (status: ServiceStatus, assignedTech?: string): ProcessStepInfo => {
+  switch (status) {
+    case 'solicitado':
+    case 'por_atender':
+      return {
+        step: 1,
+        totalSteps: 5,
+        label: '1. Reporte Recibido',
+        badge: 'Fase 1 de 5: Reporte Recibido',
+        description: 'Tu solicitud de falla ha sido recibida en taller. En espera de asignación de técnico especialista.',
+        isFinished: false,
+        color: 'amber'
+      };
+    case 'asignado':
+      return {
+        step: 2,
+        totalSteps: 5,
+        label: '2. Técnico Asignado',
+        badge: `Fase 2 de 5: Asignado a ${assignedTech || 'Técnico Especialista'}`,
+        description: `Se asignó al técnico ${assignedTech || 'especialista'} para la atención y despacho de tu unidad.`,
+        isFinished: false,
+        color: 'blue'
+      };
+    case 'en_proceso':
+    case 'en_diagnostico_trabajo':
+    case 'evidencias_rechazadas':
+      return {
+        step: 3,
+        totalSteps: 5,
+        label: '3. En Diagnóstico y Reparación',
+        badge: 'Fase 3 de 5: En Diagnóstico y Reparación',
+        description: 'El técnico especialista se encuentra revisando los sistemas mecánicos y realizando las reparaciones necesarias en la unidad.',
+        isFinished: false,
+        color: 'indigo'
+      };
+    case 'evidencias_en_revision':
+      return {
+        step: 3,
+        totalSteps: 5,
+        label: '3. Evidencias en Revisión',
+        badge: 'Fase 3 de 5: Evidencias en Revisión de Calidad',
+        description: 'El técnico documentó fotográficamente la reparación y el dictamen está en revisión operativa para control de calidad.',
+        isFinished: false,
+        color: 'indigo'
+      };
+    case 'pendiente_refacciones':
+      return {
+        step: 4,
+        totalSteps: 5,
+        label: '4. Esperando Refacciones',
+        badge: 'Fase 4 de 5: Esperando Suministro de Refacciones',
+        description: 'Se diagnosticaron piezas requeridas. En proceso de suministro y montaje para habilitar la unidad.',
+        isFinished: false,
+        color: 'purple'
+      };
+    case 'validando_pruebas':
+      return {
+        step: 4,
+        totalSteps: 5,
+        label: '4. Pruebas y Validación',
+        badge: 'Fase 4 de 5: Pruebas Operativas y de Rodaje',
+        description: 'Se están realizando pruebas de encendido, calibración y control de calidad final.',
+        isFinished: false,
+        color: 'sky'
+      };
+    case 'habilitada':
+    case 'liberacion_autorizada':
+    case 'unidad_liberada':
+      return {
+        step: 5,
+        totalSteps: 5,
+        label: '5. Servicio Terminado',
+        badge: 'Fase 5 de 5: Servicio Terminado • Unidad Habilitada',
+        description: '¡El trabajo ha concluido con éxito! Unidad probada y habilitada. El reporte oficial en PDF ya está disponible para su descarga.',
+        isFinished: true,
+        color: 'emerald'
+      };
+    case 'cerrado':
+    case 'facturado':
+      return {
+        step: 5,
+        totalSteps: 5,
+        label: '5. Concluido y Cerrado',
+        badge: 'Fase 5 de 5: Servicio Terminado y Cerrado',
+        description: 'Servicio concluido, documentado y archivado. Reporte en PDF disponible.',
+        isFinished: true,
+        color: 'slate'
+      };
+    default:
+      return {
+        step: 3,
+        totalSteps: 5,
+        label: 'En Proceso',
+        badge: 'En Atención Operativa',
+        description: 'Servicio técnico en desarrollo.',
+        isFinished: false,
+        color: 'blue'
+      };
+  }
+};
 
 export const ClientePortal: React.FC = () => {
   const { 
@@ -351,7 +464,6 @@ export const ClientePortal: React.FC = () => {
     const term = searchTerm.toLowerCase().trim();
     const matchesSearch = 
       !term ||
-      order.folio.toLowerCase().includes(term) ||
       (order.unitNumber || '').toLowerCase().includes(term) ||
       (order.vehicle.plates || '').toLowerCase().includes(term) ||
       (order.vehicle.economicNumber || '').toLowerCase().includes(term) ||
@@ -373,9 +485,19 @@ export const ClientePortal: React.FC = () => {
         'por_atender',
         'evidencias_en_revision',
         'pendiente_refacciones',
-        'validando_pruebas'
+        'validando_pruebas',
+        'evidencias_rechazadas'
       ];
       if (!inProcessStatuses.includes(order.status)) return false;
+    } else if (statusFilter === 'concluidos') {
+      const finishedStatuses = [
+        'habilitada',
+        'liberacion_autorizada',
+        'unidad_liberada',
+        'cerrado',
+        'facturado'
+      ];
+      if (!finishedStatuses.includes(order.status)) return false;
     }
 
     return true;
@@ -1126,11 +1248,8 @@ export const ClientePortal: React.FC = () => {
                 <div>
                   <h2 className="text-base sm:text-lg font-black text-[#040057] flex items-center gap-2">
                     <ListFilter className="w-5 h-5 text-indigo-600" />
-                    Listado de Reportes Enviados por el Cliente
+                    Reporte de falla
                   </h2>
-                  <p className="text-xs text-slate-400">
-                    Consulta el estatus de tus unidades en tiempo real y agrega nuevas fallas u observaciones.
-                  </p>
                 </div>
               </div>
 
@@ -1152,7 +1271,7 @@ export const ClientePortal: React.FC = () => {
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscador inteligente: busca por folio, número de unidad, placas, falla, operador, estatus o ubicación..."
+                  placeholder="Buscador inteligente: busca por número de unidad, placas, falla, operador, estatus o ubicación..."
                   className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-medium text-slate-800 focus:ring-2 focus:ring-[#040057] transition"
                 />
               </div>
@@ -1165,6 +1284,7 @@ export const ClientePortal: React.FC = () => {
                   className="w-full px-3.5 py-2.5 rounded-xl border border-blue-200 bg-blue-50/70 text-xs sm:text-sm font-bold text-[#040057] focus:ring-2 focus:ring-[#040057] transition cursor-pointer shadow-xs"
                 >
                   <option value="en_proceso">En Proceso / Diagnóstico</option>
+                  <option value="concluidos">Servicios Terminados (PDF Listo)</option>
                   <option value="todos">Todos los Reportes</option>
                 </select>
               </div>
@@ -1267,30 +1387,32 @@ export const ClientePortal: React.FC = () => {
 
                 const statusInfo = getStatusPill(order.status);
 
+                const processInfo = getOrderProcessInfo(order.status, order.assignedTechnicianName);
+
                 return (
                   <div
                     key={order.id}
                     className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs hover:border-slate-300 transition space-y-4"
                   >
                     
-                    {/* Cabecera del reporte */}
+                    {/* Cabecera del reporte (SIN FOLIO, IDENTIFICACIÓN DE UNIDAD Y PROCESO ACTUAL) */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
                       <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="text-base font-black text-[#040057]">
-                          {order.folio}
-                        </span>
-
-                        {/* Identificación de Unidad sin tarjeta separada */}
-                        <span className="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-800 text-xs font-bold border border-slate-200 flex items-center gap-1.5">
-                          <Truck className="w-3.5 h-3.5 text-indigo-600" />
+                        {/* Identificación de Unidad principal sin folio */}
+                        <span className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-900 text-xs sm:text-sm font-black border border-slate-200 flex items-center gap-2">
+                          <Truck className="w-4 h-4 text-indigo-600" />
                           <span>{order.unitNumber || `Unidad ${order.vehicle.economicNumber}`}</span>
                           <span className="text-slate-400">•</span>
-                          <span className="text-slate-600 font-semibold">{order.vehicle.plates}</span>
+                          <span className="text-slate-700 font-bold">{order.vehicle.plates}</span>
                         </span>
                         
-                        {/* Estatus oficial único: En Proceso / Diagnóstico */}
-                        <span className="px-3 py-1 rounded-full text-xs font-extrabold border bg-blue-100 text-blue-900 border-blue-300">
-                          En Proceso / Diagnóstico
+                        {/* Badge de fase actual del proceso */}
+                        <span className={`px-3 py-1 rounded-full text-xs font-black border ${
+                          processInfo.isFinished
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                            : 'bg-blue-100 text-blue-900 border-blue-300'
+                        }`}>
+                          {processInfo.badge}
                         </span>
 
                         {isRescue ? (
@@ -1298,7 +1420,7 @@ export const ClientePortal: React.FC = () => {
                             <AlertTriangle className="w-3 h-3" /> Requiere Rescate
                           </span>
                         ) : (
-                          <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold">
+                          <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">
                             Taller / Asistencia
                           </span>
                         )}
@@ -1307,6 +1429,70 @@ export const ClientePortal: React.FC = () => {
                       <div className="flex items-center gap-2 text-xs text-slate-500">
                         <Clock className="w-3.5 h-3.5" />
                         <span>{new Date(order.createdAt).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                      </div>
+                    </div>
+
+                    {/* SEGUIMIENTO EN TIEMPO REAL: ¿EN QUÉ PROCESO VA SU REPORTE DE FALLA? */}
+                    <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-2">
+                          <Activity className="w-4 h-4 text-indigo-600" />
+                          <span className="text-xs font-black uppercase tracking-wider text-slate-700">
+                            Estatus del Proceso Técnico
+                          </span>
+                        </div>
+                        <span className="text-xs font-extrabold text-indigo-900 bg-indigo-50 px-2.5 py-0.5 rounded-lg border border-indigo-200 self-start sm:self-auto">
+                          Paso {processInfo.step} de {processInfo.totalSteps}
+                        </span>
+                      </div>
+
+                      {/* Línea de 5 pasos */}
+                      <div className="grid grid-cols-5 gap-1.5 sm:gap-2 pt-1">
+                        {[
+                          { num: 1, title: 'Reportado' },
+                          { num: 2, title: 'Asignado' },
+                          { num: 3, title: 'En Trabajo' },
+                          { num: 4, title: 'Pruebas' },
+                          { num: 5, title: 'Terminado' }
+                        ].map((stepItem) => {
+                          const isDone = stepItem.num < processInfo.step;
+                          const isCurrent = stepItem.num === processInfo.step;
+
+                          return (
+                            <div key={stepItem.num} className="flex flex-col items-center gap-1.5 text-center">
+                              <div className="w-full flex items-center">
+                                <div
+                                  className={`h-2.5 w-full rounded-full transition-all duration-300 ${
+                                    isDone
+                                      ? 'bg-emerald-500'
+                                      : isCurrent
+                                      ? (processInfo.isFinished ? 'bg-emerald-500 ring-2 ring-emerald-300' : 'bg-blue-600 ring-2 ring-blue-300 animate-pulse')
+                                      : 'bg-slate-200'
+                                  }`}
+                                />
+                              </div>
+                              <span
+                                className={`text-[9.5px] sm:text-xs font-bold uppercase truncate max-w-full ${
+                                  isCurrent
+                                    ? 'text-[#040057] font-black'
+                                    : isDone
+                                    ? 'text-emerald-700 font-extrabold'
+                                    : 'text-slate-400'
+                                }`}
+                              >
+                                {stepItem.title}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Detalle descriptivo de la etapa actual */}
+                      <div className="flex items-start gap-2 pt-1 border-t border-slate-200/80 text-xs text-slate-700">
+                        <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                        <p className="font-semibold leading-relaxed">
+                          {processInfo.description}
+                        </p>
                       </div>
                     </div>
 
@@ -1399,16 +1585,33 @@ export const ClientePortal: React.FC = () => {
                       </div>
                     )}
 
-                    {/* ACCIONES: Descargar PDF y Modificar Reporte */}
+                    {/* ACCIONES: Descargar PDF (solo si el servicio ha concluido) y Modificar Reporte */}
                     <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
-                      <button
-                        type="button"
-                        onClick={() => setViewingPdfOrder(order)}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs sm:text-sm shadow-xs transition cursor-pointer"
-                      >
-                        <FileText className="w-4 h-4 text-rose-300" />
-                        <span>Descargar Reporte en PDF</span>
-                      </button>
+                      {processInfo.isFinished ? (
+                        <button
+                          type="button"
+                          onClick={() => setViewingPdfOrder(order)}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
+                        >
+                          <FileText className="w-4 h-4 text-emerald-300" />
+                          <span>Descargar Reporte en PDF</span>
+                        </button>
+                      ) : (
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                          <button
+                            type="button"
+                            disabled
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs sm:text-sm border border-slate-200 cursor-not-allowed opacity-80"
+                            title="No se podrá descargar el PDF hasta que el proceso no se haya terminado (Fase 5)."
+                          >
+                            <Lock className="w-4 h-4 text-slate-400" />
+                            <span>Descargar Reporte en PDF (Bloqueado)</span>
+                          </button>
+                          <span className="text-[11px] text-amber-700 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                            🔒 Disponible al concluir servicio
+                          </span>
+                        </div>
+                      )}
 
                       <button
                         type="button"

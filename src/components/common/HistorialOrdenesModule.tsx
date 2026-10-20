@@ -26,7 +26,10 @@ import {
   PlusCircle,
   HelpCircle,
   Lock,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles,
+  LayoutList,
+  LayoutGrid
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, UserRole } from '../../types';
@@ -50,8 +53,12 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
 
   const activeRole = forcedRole || contextRole || 'gerencia';
 
-  // Filtros
+  // Modo de visualización: Lista compacta predeterminada (datos principales) vs Tarjetas detalladas
+  const [viewMode, setViewMode] = useState<'lista' | 'tarjetas'>('lista');
+
+  // Filtros del Buscador Inteligente
   const [searchTerm, setSearchTerm] = useState('');
+  const [systemCategoryFilter, setSystemCategoryFilter] = useState<string>('todos');
   const [statusFilter, setStatusFilter] = useState<'todas' | 'cerradas' | 'abiertas'>('todas');
   const [serviceTypeFilter, setServiceTypeFilter] = useState<'todos' | 'taller' | 'asistencia' | 'rescate'>('todos');
   const [dateFilter, setDateFilter] = useState<'todos' | 'este_mes' | 'mes_anterior' | 'antiguas'>('todos');
@@ -88,33 +95,69 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
   const [editWorkPerformed, setEditWorkPerformed] = useState('');
   const [editClosingNotes, setEditClosingNotes] = useState('');
 
-  // Filtrado de Órdenes
+  // Normalizador para búsqueda inteligente sin acentos ni distinción mayúsculas
+  const normalize = (val: string | undefined | null) => 
+    (val || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+
+  const normalizedSearch = normalize(searchTerm);
+
+  // Filtrado Inteligente de Órdenes y Reportes de Falla
   const filteredOrders = orders.filter(order => {
-    // Si es técnico, puede ver todas las órdenes históricas o sus asignadas, priorizando el historial completo
-    const matchesSearch = 
-      order.folio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.reportNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.clientCompany || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.vehicle.plates || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.vehicle.economicNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.vehicle.brand || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.vehicle.model || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.assignedTechnicianName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.closedBy || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.receivedByDriver || '').toLowerCase().includes(searchTerm.toLowerCase());
+    // 1. Buscador Inteligente Multicriterio (Folio, Reporte, Cliente, Placas, Eco, Falla, Chofer, Diagnóstico, Refacciones, Técnico)
+    if (normalizedSearch) {
+      const partsText = (order.partsUsed || []).map(p => `${p.description || ''} ${p.partNumber || ''}`).join(' ');
+      const searchTarget = normalize(
+        `${order.folio} ${order.reportNumber || ''} ${order.clientName || ''} ${order.clientCompany || ''} ${order.clientContact || ''} ` +
+        `${order.vehicle.plates || ''} ${order.vehicle.economicNumber || ''} ${order.vehicle.brand || ''} ${order.vehicle.model || ''} ` +
+        `${order.vehicle.failureDescription || ''} ${order.initialDiagnosis || ''} ${order.workPerformedDetail || ''} ` +
+        `${order.assignedTechnicianName || ''} ${order.closedBy || ''} ${order.receivedByDriver || ''} ${order.userOperatorName || ''} ` +
+        `${order.vehicle.driverContact || ''} ${order.vehicle.location || ''} ${partsText} ${order.closingNotes || ''}`
+      );
 
-    if (!matchesSearch) return false;
+      // Si el usuario escribe múltiples palabras (ej. "fuga volvo", "frenos eco-55"), todas deben coincidir
+      const searchTokens = normalizedSearch.split(/\s+/).filter(Boolean);
+      const matchesAllTokens = searchTokens.every(token => searchTarget.includes(token));
+      if (!matchesAllTokens) return false;
+    }
 
-    // Filtro por estatus
+    // 2. Filtro Inteligente por Categoría de Sistema / Falla
+    if (systemCategoryFilter !== 'todos') {
+      const fullFailureText = normalize(
+        `${order.vehicle.failureDescription || ''} ${order.initialDiagnosis || ''} ${order.workPerformedDetail || ''}`
+      );
+      if (systemCategoryFilter === 'motor') {
+        const keywords = ['motor', 'calentamiento', 'temperatura', 'enfriamiento', 'anticongelante', 'cilindro', 'cigueñal', 'piston', 'humo', 'termostato', 'aceite'];
+        if (!keywords.some(k => fullFailureText.includes(k))) return false;
+      } else if (systemCategoryFilter === 'frenos') {
+        const keywords = ['freno', 'balata', 'disco', 'aire', 'valvula', 'caliper', 'tambor', 'pedal', 'abs', 'lineas'];
+        if (!keywords.some(k => fullFailureText.includes(k))) return false;
+      } else if (systemCategoryFilter === 'embrague') {
+        const keywords = ['embrague', 'clutch', 'transmision', 'caja', 'velocidad', 'reten', 'collarin', 'biela', 'cardan'];
+        if (!keywords.some(k => fullFailureText.includes(k))) return false;
+      } else if (systemCategoryFilter === 'electrico') {
+        const keywords = ['electrico', 'bateria', 'alternador', 'sensor', 'arranque', 'marcha', 'luz', 'luces', 'fusible', 'corto'];
+        if (!keywords.some(k => fullFailureText.includes(k))) return false;
+      } else if (systemCategoryFilter === 'fugas') {
+        const keywords = ['fuga', 'aceite', 'goteo', 'manguera', 'reten', 'sellado', 'empaque', 'diesel'];
+        if (!keywords.some(k => fullFailureText.includes(k))) return false;
+      } else if (systemCategoryFilter === 'rescate') {
+        if (!order.requiresRescue && order.serviceType !== 'rescate') return false;
+      }
+    }
+
+    // 3. Filtro por estatus
     const isClosed = order.status === 'cerrado' || order.status === 'unidad_liberada' || order.status === 'facturado';
     if (statusFilter === 'cerradas' && !isClosed) return false;
     if (statusFilter === 'abiertas' && isClosed) return false;
 
-    // Filtro por tipo de servicio
+    // 4. Filtro por tipo de servicio
     if (serviceTypeFilter !== 'todos' && order.serviceType !== serviceTypeFilter) return false;
 
-    // Filtro por fecha
+    // 5. Filtro por fecha
     if (dateFilter !== 'todos') {
       const orderDate = new Date(order.createdAt).getTime();
       const now = Date.now();
@@ -383,24 +426,72 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
         </div>
       </div>
 
-      {/* Barra de Filtros y Búsqueda Multicriterio */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs space-y-3">
+      {/* Barra de Filtros y Buscador Inteligente Multicriterio */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs space-y-3.5">
+        
+        {/* Cabecera del Buscador y Alternador de Vistas */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              Buscador Inteligente de Reportes de Falla
+            </span>
+            {searchTerm && (
+              <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-extrabold text-[11px] border border-indigo-200">
+                {filteredOrders.length} resultado{filteredOrders.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {/* Selector de Modo de Visualización (Lista compacta vs Tarjetas) */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode('lista')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'lista'
+                  ? 'bg-white text-[#040057] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Vista de lista compacta: muestra solo datos principales y abre detalle al hacer click"
+            >
+              <LayoutList className="w-3.5 h-3.5" />
+              <span>Modo Lista (Recomendado)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('tarjetas')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'tarjetas'
+                  ? 'bg-white text-[#040057] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Vista en tarjetas expandidas"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Modo Tarjetas</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Input del Buscador Inteligente y Filtros Rápidos de Estatus */}
         <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
           
           {/* Buscador de Texto */}
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-indigo-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por Folio, Reporte, Cliente, Placas, Económico, Marca, Chofer o Técnico..."
-              className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:ring-2 focus:ring-[#040057] focus:border-transparent outline-hidden bg-slate-50/50"
+              placeholder="Buscar por folio, cliente, falla, placas, económico, chofer, técnico, refacción o palabra clave..."
+              className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:ring-2 focus:ring-[#040057] focus:border-transparent outline-hidden bg-slate-50/50"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                title="Limpiar búsqueda"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -408,7 +499,7 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
           </div>
 
           {/* Filtros Rápidos de Estatus */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs shrink-0">
             <span className="text-slate-400 font-bold uppercase text-[10px] mr-1">Estatus:</span>
             {[
               { id: 'todas', label: 'Todas' },
@@ -435,6 +526,40 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Categorías Rápidas de Fallas y Sistemas */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-xs">
+          <span className="text-slate-400 font-bold uppercase text-[10px] mr-1">Filtro Rápido:</span>
+          {[
+            { id: 'todos', label: 'Todos' },
+            { id: 'motor', label: 'Motor / Calentamiento' },
+            { id: 'frenos', label: 'Frenos / Balatas' },
+            { id: 'embrague', label: 'Embrague / Clutch' },
+            { id: 'electrico', label: 'Eléctrico / Sensores' },
+            { id: 'fugas', label: 'Fugas de Fluidos' },
+            { id: 'rescate', label: 'Rescates en Carretera' },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSystemCategoryFilter(cat.id)}
+              className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer ${
+                systemCategoryFilter === cat.id
+                  ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+          {systemCategoryFilter !== 'todos' && (
+            <button
+              onClick={() => setSystemCategoryFilter('todos')}
+              className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold underline ml-1 cursor-pointer"
+            >
+              Limpiar filtro
+            </button>
+          )}
         </div>
 
         {/* Filtros Secundarios: Tipo de Servicio y Antigüedad */}
@@ -496,6 +621,7 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
           <button
             onClick={() => {
               setSearchTerm('');
+              setSystemCategoryFilter('todos');
               setStatusFilter('todas');
               setServiceTypeFilter('todos');
               setDateFilter('todos');
@@ -505,7 +631,114 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
             Restablecer todos los filtros
           </button>
         </div>
+      ) : viewMode === 'lista' ? (
+        /* VISTA LISTA COMPACTA: SOLO DATOS PRINCIPALES (CLICK PARA VER TODO) */
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+          {/* Encabezado de Columnas (Desktop) */}
+          <div className="hidden md:grid md:grid-cols-12 gap-3 px-4 py-3 bg-slate-50/80 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+            <div className="col-span-2">Folio / Fecha</div>
+            <div className="col-span-3">Cliente / Unidad</div>
+            <div className="col-span-4">Falla Reportada Principal</div>
+            <div className="col-span-2">Estatus / Servicio</div>
+            <div className="col-span-1 text-right">Detalle</div>
+          </div>
+
+          {/* Filas de Registros en Forma de Lista */}
+          <div className="divide-y divide-slate-100">
+            {filteredOrders.map((order) => {
+              const isClosed = order.status === 'cerrado' || order.status === 'unidad_liberada' || order.status === 'facturado';
+              const isRescue = order.requiresRescue || order.serviceType === 'rescate';
+
+              return (
+                <div
+                  key={order.id}
+                  onClick={() => setViewDetailOrder(order)}
+                  className={`p-3.5 sm:p-4 hover:bg-indigo-50/50 transition-all cursor-pointer flex flex-col md:grid md:grid-cols-12 md:gap-3 md:items-center group ${
+                    isClosed ? 'bg-slate-50/20' : 'bg-white'
+                  }`}
+                  title="Haz click para ver toda la información pertinente de este reporte de falla"
+                >
+                  {/* Columna 1: Folio, Fecha y Rescate */}
+                  <div className="col-span-2 min-w-0 mb-1.5 md:mb-0">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full shrink-0 bg-indigo-600 group-hover:scale-125 transition-transform"></span>
+                      <span className="font-black text-[#040057] text-sm group-hover:text-indigo-700 transition">
+                        {order.folio}
+                      </span>
+                      {isRescue && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black uppercase">
+                          Rescate
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 ml-4">
+                      <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span>{new Date(order.createdAt).toLocaleDateString('es-MX')}</span>
+                    </div>
+                  </div>
+
+                  {/* Columna 2: Cliente y Unidad */}
+                  <div className="col-span-3 min-w-0 mb-1.5 md:mb-0">
+                    <div className="font-bold text-slate-900 text-xs truncate">
+                      {order.clientCompany || order.clientName}
+                    </div>
+                    <div className="text-[11px] text-slate-600 truncate mt-0.5">
+                      <span className="font-semibold text-slate-800">{order.vehicle.brand} {order.vehicle.model || order.vehicle.type}</span>
+                      <span className="mx-1">•</span>
+                      <span>Eco: <strong>{order.vehicle.economicNumber}</strong></span>
+                      <span className="mx-1">•</span>
+                      <span>Placas: <strong>{order.vehicle.plates}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Columna 3: Falla Reportada (Sintética, 1 renglón) */}
+                  <div className="col-span-4 min-w-0 pr-2 mb-1.5 md:mb-0">
+                    <div className="md:hidden text-[10px] uppercase font-bold text-slate-400 mb-0.5">Falla Reportada:</div>
+                    <p className="text-slate-700 text-xs truncate font-medium" title={order.vehicle.failureDescription}>
+                      {order.vehicle.failureDescription || order.initialDiagnosis || order.workPerformedDetail || 'Reporte de falla registrado'}
+                    </p>
+                    {order.assignedTechnicianName && (
+                      <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                        Técnico: <span className="text-slate-600 font-semibold">{order.assignedTechnicianName}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Columna 4: Estatus y Servicio */}
+                  <div className="col-span-2 flex flex-wrap items-center gap-1.5 mb-2 md:mb-0">
+                    <StatusSemaphoreBadge status={order.status} size="sm" />
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                      order.serviceType === 'rescate' ? 'bg-rose-100 text-rose-800' :
+                      order.serviceType === 'asistencia' ? 'bg-blue-100 text-blue-800' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>
+                      {order.serviceType}
+                    </span>
+                  </div>
+
+                  {/* Columna 5: Acción / Botón Ver Detalle */}
+                  <div className="col-span-1 flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewDetailOrder(order);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-100 group-hover:bg-[#040057] text-slate-700 group-hover:text-white font-bold text-xs transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                      title="Ver toda la información pertinente del reporte"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-indigo-500 group-hover:text-white" />
+                      <span className="hidden lg:inline">Detalle</span>
+                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       ) : (
+        /* VISTA TARJETAS EXPANDIDAS */
         <div className="grid grid-cols-1 gap-4">
           {filteredOrders.map((order) => {
             const isClosed = order.status === 'cerrado' || order.status === 'unidad_liberada' || order.status === 'facturado';

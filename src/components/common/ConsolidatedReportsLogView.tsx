@@ -269,8 +269,8 @@ export const ConsolidatedReportsLogView: React.FC<ConsolidatedReportsLogViewProp
                   {/* FECHA / DÍA */}
                   <div className="font-black text-slate-900 uppercase tracking-wide text-xs sm:text-sm flex items-center gap-2">
                     <span>{dayHeader}</span>
-                    <span className="text-[10px] text-slate-400 font-semibold lowercase">
-                      ({order.folio} • {order.unitNumber || order.vehicle.economicNumber})
+                    <span className="text-[10px] text-slate-500 font-bold lowercase">
+                      ({order.unitNumber || `Unidad ${order.vehicle.economicNumber}`})
                     </span>
                   </div>
 

@@ -165,20 +165,14 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
           
           {/* Cabecera Institucional Olmedo */}
           <div className="flex items-start justify-between pb-3.5 border-b-2 border-slate-900 mb-3.5 gap-4">
-            <div className="space-y-1">
+            <div className="flex items-center gap-3">
               <img
                 src="https://appdesignproyectos.com/olmedologo.png"
-                alt="Olmedo Servicio Técnico"
+                alt="Servicio Técnico Olmedo"
                 className="h-12 sm:h-14 w-auto object-contain block"
               />
-              <div className="text-[11px] font-black text-[#040057] tracking-tight">
-                OLMEDO SERVICIO TÉCNICO DIÉSEL Y TALLER PESADO S.A. DE C.V.
-              </div>
-              <div className="text-[10px] text-slate-600">
-                Mantenimiento Preventivo y Correctivo • Rescate Carretero • Asistencia Vial 24/7
-              </div>
-              <div className="text-[9.5px] text-slate-500">
-                Tel / WhatsApp: (55) 7890-4422 • Correo: contacto@olmedoserviciotecnico.com
+              <div className="text-sm sm:text-base font-black text-[#040057] uppercase tracking-tight">
+                SERVICIO TÉCNICO OLMEDO
               </div>
             </div>
 
@@ -361,7 +355,7 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
                 {order.adminApprovedBy ? `Firma digital: ${order.adminApprovedBy}` : 'Ing. Arturo Olmedo - Dirección General'}
               </div>
               <div className="font-bold text-[#040057] text-[11px]">DIRECCIÓN GENERAL Y GERENCIA ADMINISTRATIVA</div>
-              <div className="text-[9.5px] text-slate-500">Olmedo Servicio Técnico Automotriz y Diésel S.A. de C.V.</div>
+              <div className="text-[9.5px] text-slate-500">Servicio Técnico Olmedo</div>
             </div>
 
             <div className="space-y-1">

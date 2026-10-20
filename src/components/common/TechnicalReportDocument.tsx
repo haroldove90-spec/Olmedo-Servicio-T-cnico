@@ -65,7 +65,7 @@ export const TechnicalReportDocument: React.FC<TechnicalReportDocumentProps> = (
           <div className="flex items-center gap-2 shrink-0">
             <img
               src="https://appdesignproyectos.com/olmedologo.png"
-              alt="Olmedo Servicio Técnico"
+              alt="Servicio Técnico Olmedo"
               className="h-10 sm:h-14 w-auto object-contain"
             />
           </div>
@@ -254,7 +254,7 @@ export const TechnicalReportDocument: React.FC<TechnicalReportDocumentProps> = (
           <div className="border border-slate-900 mb-6">
             <div className="bg-slate-100 px-2 py-1 font-extrabold uppercase text-[10px] border-b border-slate-900 flex justify-between items-center">
               <span>EVIDENCIAS FOTOGRÁFICAS Y DICTAMEN DE REPARACIÓN ({order.evidences.length} FOTOGRAFÍAS)</span>
-              <span className="text-[9px] text-slate-600 font-semibold">OLMEDO SERVICIO TÉCNICO</span>
+              <span className="text-[9px] text-slate-600 font-semibold">SERVICIO TÉCNICO OLMEDO</span>
             </div>
             
             <div className="p-2.5 grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -329,7 +329,7 @@ export const TechnicalReportDocument: React.FC<TechnicalReportDocumentProps> = (
 
         {/* Pie de página oficial */}
         <div className="pt-4 border-t border-slate-300 text-center text-[9px] text-slate-400 uppercase tracking-widest mt-2">
-          Olmedo Servicio Técnico • Documento Oficial de Entrega y Recepción de Unidad • Folio de Servicio {order.folio}
+          Servicio Técnico Olmedo • Documento Oficial de Entrega y Recepción de Unidad
         </div>
 
       </div>

@@ -36,7 +36,12 @@ import {
   BarChart3,
   Bell,
   Archive,
-  ClipboardList
+  ClipboardList,
+  LayoutList,
+  LayoutGrid,
+  ChevronRight,
+  Calendar,
+  X
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, PartUsed, Quotation, EvidencePhoto, ServiceCatalogItem } from '../../types';
@@ -97,6 +102,11 @@ export const GerenciaPortal: React.FC = () => {
 
   // Formal Report & Excel Modal
   const [reportOrder, setReportOrder] = useState<ServiceOrder | null>(null);
+
+  // Estados de Búsqueda y Visualización en Supervisión de Reportes
+  const [reportSupervisionSearch, setReportSupervisionSearch] = useState('');
+  const [selectedReportDetailOrder, setSelectedReportDetailOrder] = useState<ServiceOrder | null>(null);
+  const [reportViewMode, setReportViewMode] = useState<'lista' | 'tarjetas'>('lista');
 
   // Quotation Generator States
   const [quoteOrder, setQuoteOrder] = useState<ServiceOrder | null>(null);
@@ -662,94 +672,21 @@ export const GerenciaPortal: React.FC = () => {
   return (
     <div className="space-y-6 pb-24 lg:pb-8 w-full max-w-full min-w-0 overflow-x-hidden">
       
-      {/* Encabezado del Portal de Gerencia */}
-      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/90 shadow-xs min-w-0">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0"></span>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#040057] truncate">
-                Gerencia
-              </h1>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Recepción de Unidades • Inspección de Evidencias • Autorización de Liberación • Cotizador • Facturación Fiscal
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setActiveModule('metricas')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                activeModule === 'metricas' || activeModule === 'inicio' ? 'bg-[#040057] text-white ring-2 ring-amber-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4 text-amber-400" />
-              <span>Métricas y KPIs</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveModule('recepcion_unidades')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                activeModule === 'recepcion_unidades' ? 'bg-[#040057] text-white ring-2 ring-emerald-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-              }`}
-            >
-              <ClipboardCheck className="w-4 h-4 text-emerald-500" />
-              <span>Recepción de Unidades</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveModule('gestion_personal')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                activeModule === 'gestion_personal' ? 'bg-[#040057] text-white ring-2 ring-indigo-400' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200'
-              }`}
-            >
-              <Users className="w-4 h-4 text-indigo-600" />
-              <span>Registro de Empleados ({technicians.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveModule('reportes')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                activeModule === 'reportes' ? 'bg-[#040057] text-white ring-2 ring-indigo-400' : 'bg-indigo-50 hover:bg-indigo-100 text-[#040057] border border-indigo-200'
-              }`}
-            >
-              <ClipboardList className="w-4 h-4 text-amber-500" />
-              <span>Reportes Clientes</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveModule('historial')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                activeModule === 'historial' ? 'bg-[#040057] text-white ring-2 ring-indigo-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-              }`}
-            >
-              <Archive className="w-4 h-4 text-indigo-500" />
-              <span>Historial y Auditoría</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveModule('notificaciones')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
-                activeModule === 'notificaciones' ? 'bg-[#040057] text-white ring-2 ring-rose-400' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'
-              }`}
-            >
-              <Bell className="w-4 h-4 text-blue-600" />
-              <span>Avisos</span>
-            </button>
-
-            <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-bold flex items-center gap-1.5">
-              <Receipt className="w-4 h-4 text-emerald-600" />
-              {readyForInvoiceOrders.length} en Facturación
-            </span>
-          </div>
+      {/* Encabezado del Portal de Gerencia (Limpio, sin menú horizontal redundante ni subtítulos) */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs min-w-0 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0"></span>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#040057] truncate">
+            Gerencia
+          </h1>
         </div>
+
+        {readyForInvoiceOrders.length > 0 && (
+          <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 shrink-0">
+            <Receipt className="w-4 h-4 text-emerald-600" />
+            <span>{readyForInvoiceOrders.length} en Facturación</span>
+          </span>
+        )}
       </div>
 
       {/* MÓDULO: HISTORIAL INTEGRAL Y AUDITORÍA DE ÓRDENES */}
@@ -758,98 +695,382 @@ export const GerenciaPortal: React.FC = () => {
       )}
 
       {/* MÓDULO: SUPERVISIÓN DE REPORTES DE CLIENTES Y ASIGNACIÓN */}
-      {activeModule === 'reportes' && (
-        <div className="space-y-6 animate-fadeIn">
-          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg sm:text-xl font-black text-[#040057] flex items-center gap-2">
-                <ClipboardList className="w-6 h-6 text-indigo-600" />
-                Supervisión Ejecutiva de Reportes de Clientes
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Supervisa los reportes de averías enviados por clientes y su estado de despacho con el Jefe de Taller.
-              </p>
+      {activeModule === 'reportes' && (() => {
+        const normSupervision = reportSupervisionSearch.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const filteredReportOrders = orders.filter(order => {
+          if (!normSupervision) return true;
+          const target = (
+            `${order.folio} ${order.clientName || ''} ${order.clientCompany || ''} ${order.vehicle.plates || ''} ` +
+            `${order.vehicle.economicNumber || ''} ${order.vehicle.brand || ''} ${order.vehicle.model || ''} ` +
+            `${order.vehicle.failureDescription || ''} ${order.assignedTechnicianName || ''} ${order.operatorName || ''}`
+          ).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          return target.includes(normSupervision);
+        });
+
+        return (
+          <div className="space-y-5 animate-fadeIn">
+            {/* Cabecera y Buscador Inteligente de Supervisión */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-black text-[#040057] flex items-center gap-2">
+                    <ClipboardList className="w-5 h-5 text-indigo-600" />
+                    <span>Supervisión Ejecutiva de Reportes de Clientes</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Listado oficial de fallas recibidas de clientes. Modo lista compacta activo; haz click en cualquier reporte para consultar su expediente completo.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-900 border border-indigo-200 text-xs font-bold">
+                    {orders.length} Reportes Totales
+                  </span>
+                  <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-bold">
+                    {orders.filter(o => o.assignedTechnicianId).length} Asignados
+                  </span>
+                </div>
+              </div>
+
+              {/* Barra de Búsqueda y Alternador de Vistas */}
+              <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pt-2 border-t border-slate-100">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-indigo-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={reportSupervisionSearch}
+                    onChange={(e) => setReportSupervisionSearch(e.target.value)}
+                    placeholder="Buscar por folio, cliente, falla, placas, económico o técnico..."
+                    className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:ring-2 focus:ring-[#040057] outline-hidden bg-slate-50/50"
+                  />
+                  {reportSupervisionSearch && (
+                    <button
+                      onClick={() => setReportSupervisionSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl self-start sm:self-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setReportViewMode('lista')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      reportViewMode === 'lista'
+                        ? 'bg-white text-[#040057] shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <LayoutList className="w-3.5 h-3.5" />
+                    <span>Modo Lista</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReportViewMode('tarjetas')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      reportViewMode === 'tarjetas'
+                        ? 'bg-white text-[#040057] shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>Modo Tarjetas</span>
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-900 border border-indigo-200 text-xs font-bold">
-                {orders.length} Reportes Totales
-              </span>
-              <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-bold">
-                {orders.filter(o => o.assignedTechnicianId).length} Asignados
-              </span>
-            </div>
-          </div>
 
-          <div className="space-y-4">
-            {orders.map((order) => {
-              const isRescue = order.requiresRescue || order.serviceType === 'rescate';
-              return (
-                <div 
-                  key={order.id} 
-                  className={`bg-white rounded-3xl p-5 border-2 transition shadow-xs space-y-3 ${
-                    isRescue ? 'border-rose-300 bg-rose-50/15' : 'border-slate-200'
-                  }`}
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <span className="font-black text-[#040057] text-base">{order.folio}</span>
-                      {isRescue && (
-                        <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black uppercase animate-pulse">
-                          ¡Rescate en Carretera!
-                        </span>
-                      )}
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
-                        order.priority === 'urgente' ? 'bg-rose-100 text-rose-800' :
-                        order.priority === 'alta' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
-                      }`}>
-                        {order.priority}
-                      </span>
-                      <StatusSemaphoreBadge status={order.status} size="sm" />
-                    </div>
+            {/* Listado de Reportes de Falla */}
+            {filteredReportOrders.length === 0 ? (
+              <div className="bg-white rounded-2xl p-10 text-center border border-slate-200">
+                <ClipboardList className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <h3 className="text-sm font-bold text-slate-700">No se encontraron reportes</h3>
+                <p className="text-xs text-slate-500 mt-1">No hay reportes de falla que coincidan con la búsqueda.</p>
+              </div>
+            ) : reportViewMode === 'lista' ? (
+              /* VISTA DE REGISTROS EN FORMA DE LISTA (SOLO DATOS PRINCIPALES) */
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="hidden md:grid md:grid-cols-12 gap-3 px-4 py-3 bg-slate-50/80 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                  <div className="col-span-2">Folio / Fecha</div>
+                  <div className="col-span-3">Cliente / Unidad</div>
+                  <div className="col-span-4">Falla Reportada</div>
+                  <div className="col-span-2">Estatus / Prioridad</div>
+                  <div className="col-span-1 text-right">Detalle</div>
+                </div>
 
-                    <div className="text-xs text-slate-500 font-medium">
-                      Cliente: <strong className="text-slate-800">{order.clientCompany || order.clientName}</strong>
-                    </div>
-                  </div>
+                <div className="divide-y divide-slate-100">
+                  {filteredReportOrders.map((order) => {
+                    const isRescue = order.requiresRescue || order.serviceType === 'rescate';
+                    return (
+                      <div
+                        key={order.id}
+                        onClick={() => setSelectedReportDetailOrder(order)}
+                        className="p-3.5 sm:p-4 hover:bg-indigo-50/40 transition-all cursor-pointer flex flex-col md:grid md:grid-cols-12 md:gap-3 md:items-center group"
+                        title="Haz click para ver la información completa"
+                      >
+                        <div className="col-span-2 min-w-0 mb-1.5 md:mb-0">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full shrink-0 bg-indigo-600 group-hover:scale-125 transition-transform"></span>
+                            <span className="font-black text-[#040057] text-sm group-hover:text-indigo-700 transition">
+                              {order.folio}
+                            </span>
+                            {isRescue && (
+                              <span className="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black uppercase">
+                                Rescate
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 ml-4">
+                            <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{new Date(order.createdAt).toLocaleDateString('es-MX')}</span>
+                          </div>
+                        </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Unidad y Odómetro</span>
-                      <div className="font-bold text-[#040057] mt-0.5">
-                        {order.unitNumber || `Placas ${order.vehicle.plates}`} • Eco: {order.vehicle.economicNumber}
+                        <div className="col-span-3 min-w-0 mb-1.5 md:mb-0">
+                          <div className="font-bold text-slate-900 text-xs truncate">
+                            {order.clientCompany || order.clientName}
+                          </div>
+                          <div className="text-[11px] text-slate-600 truncate mt-0.5">
+                            <span className="font-semibold text-slate-800">{order.vehicle.brand} {order.vehicle.model || order.vehicle.type}</span>
+                            <span className="mx-1">•</span>
+                            <span>Eco: <strong>{order.vehicle.economicNumber}</strong></span>
+                            <span className="mx-1">•</span>
+                            <span>Placas: <strong>{order.vehicle.plates}</strong></span>
+                          </div>
+                        </div>
+
+                        <div className="col-span-4 min-w-0 pr-2 mb-1.5 md:mb-0">
+                          <div className="md:hidden text-[10px] uppercase font-bold text-slate-400 mb-0.5">Falla:</div>
+                          <p className="text-slate-700 text-xs truncate font-medium" title={order.vehicle.failureDescription}>
+                            {order.vehicle.failureDescription || 'Falla registrada por el cliente'}
+                          </p>
+                          {order.assignedTechnicianName && (
+                            <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                              Técnico: <span className="text-emerald-700 font-semibold">{order.assignedTechnicianName}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="col-span-2 flex flex-wrap items-center gap-1.5 mb-2 md:mb-0">
+                          <StatusSemaphoreBadge status={order.status} size="sm" />
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                            order.priority === 'urgente' ? 'bg-rose-100 text-rose-800' :
+                            order.priority === 'alta' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {order.priority}
+                          </span>
+                        </div>
+
+                        <div className="col-span-1 flex items-center justify-end">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedReportDetailOrder(order);
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-100 group-hover:bg-[#040057] text-slate-700 group-hover:text-white font-bold text-xs transition flex items-center gap-1 cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-indigo-500 group-hover:text-white" />
+                            <span className="hidden lg:inline">Detalle</span>
+                            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="text-slate-500">{order.vehicle.mileage || '120,500 KM'}</div>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Operador y Ubicación</span>
-                      <div className="font-semibold text-slate-800 mt-0.5">{order.operatorName || order.vehicle.driverContact}</div>
-                      <div className="text-slate-500 truncate">{order.vehicle.location}</div>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Despacho Técnico</span>
-                      {order.assignedTechnicianName ? (
-                        <div className="text-emerald-700 font-bold mt-0.5 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Asignado a: {order.assignedTechnicianName}</span>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              /* VISTA EN TARJETAS */
+              <div className="space-y-4">
+                {filteredReportOrders.map((order) => {
+                  const isRescue = order.requiresRescue || order.serviceType === 'rescate';
+                  return (
+                    <div 
+                      key={order.id} 
+                      onClick={() => setSelectedReportDetailOrder(order)}
+                      className={`bg-white rounded-3xl p-5 border-2 transition shadow-xs space-y-3 cursor-pointer hover:border-indigo-300 ${
+                        isRescue ? 'border-rose-300 bg-rose-50/15' : 'border-slate-200'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <span className="font-black text-[#040057] text-base">{order.folio}</span>
+                          {isRescue && (
+                            <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black uppercase animate-pulse">
+                              ¡Rescate en Carretera!
+                            </span>
+                          )}
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
+                            order.priority === 'urgente' ? 'bg-rose-100 text-rose-800' :
+                            order.priority === 'alta' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {order.priority}
+                          </span>
+                          <StatusSemaphoreBadge status={order.status} size="sm" />
                         </div>
-                      ) : (
-                        <div className="text-amber-700 font-bold mt-0.5">
-                          Pendiente de asignación por Jefe de Taller
+
+                        <div className="text-xs text-slate-500 font-medium">
+                          Cliente: <strong className="text-slate-800">{order.clientCompany || order.clientName}</strong>
                         </div>
-                      )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Unidad y Odómetro</span>
+                          <div className="font-bold text-[#040057] mt-0.5">
+                            {order.unitNumber || `Placas ${order.vehicle.plates}`} • Eco: {order.vehicle.economicNumber}
+                          </div>
+                          <div className="text-slate-500">{order.vehicle.mileage || '120,500 KM'}</div>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Operador y Ubicación</span>
+                          <div className="font-semibold text-slate-800 mt-0.5">{order.operatorName || order.vehicle.driverContact}</div>
+                          <div className="text-slate-500 truncate">{order.vehicle.location}</div>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Despacho Técnico</span>
+                          {order.assignedTechnicianName ? (
+                            <div className="text-emerald-700 font-bold mt-0.5 flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Asignado a: {order.assignedTechnicianName}</span>
+                            </div>
+                          ) : (
+                            <div className="text-amber-700 font-bold mt-0.5">
+                              Pendiente de asignación por Jefe de Taller
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-700 font-medium border border-slate-200">
+                        <span className="font-bold text-[#040057]">Falla: </span>
+                        {order.vehicle.failureDescription}
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* MODAL DE DETALLE COMPLETO DEL REPORTE AL DAR CLICK */}
+            {selectedReportDetailOrder && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+                <div className="w-full max-w-2xl bg-white rounded-2xl p-6 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <ClipboardList className="w-5 h-5 text-indigo-600" />
+                      <h3 className="font-bold text-base text-[#040057]">
+                        Detalle del Reporte de Falla • {selectedReportDetailOrder.folio}
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => setSelectedReportDetailOrder(null)}
+                      className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
 
-                  <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-700 font-medium border border-slate-200">
-                    <span className="font-bold text-[#040057]">Falla: </span>
-                    {order.vehicle.failureDescription}
+                  <div className="space-y-3 text-xs">
+                    {/* Ficha de Unidad y Cliente */}
+                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Cliente / Empresa</div>
+                        <div className="font-bold text-slate-900 text-sm mt-0.5">
+                          {selectedReportDetailOrder.clientCompany || selectedReportDetailOrder.clientName}
+                        </div>
+                        <div className="text-slate-500 mt-0.5">Chofer: {selectedReportDetailOrder.operatorName || selectedReportDetailOrder.userOperatorName || selectedReportDetailOrder.vehicle.driverContact}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Vehículo / Unidad</div>
+                        <div className="font-bold text-slate-900 text-sm mt-0.5">
+                          {selectedReportDetailOrder.vehicle.brand} {selectedReportDetailOrder.vehicle.model}
+                        </div>
+                        <div className="text-slate-600 mt-0.5">
+                          Placas: <strong>{selectedReportDetailOrder.vehicle.plates}</strong> • Eco: <strong>{selectedReportDetailOrder.vehicle.economicNumber}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Falla Reportada Completa */}
+                    <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200">
+                      <div className="font-bold text-amber-900 mb-1 flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 text-amber-600" />
+                        <span>Falla Reportada por el Cliente:</span>
+                      </div>
+                      <p className="text-slate-800 leading-relaxed">
+                        {selectedReportDetailOrder.vehicle.failureDescription || 'Sin descripción adicional'}
+                      </p>
+                    </div>
+
+                    {/* Ubicación y Despacho Técnico */}
+                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Ubicación de la Unidad</div>
+                        <div className="font-semibold text-slate-800 mt-0.5">{selectedReportDetailOrder.vehicle.location || 'En instalaciones de cliente / taller'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Técnico Asignado</div>
+                        <div className="font-semibold text-slate-800 mt-0.5">
+                          {selectedReportDetailOrder.assignedTechnicianName ? (
+                            <span className="text-emerald-700 font-bold">{selectedReportDetailOrder.assignedTechnicianName}</span>
+                          ) : (
+                            <span className="text-amber-700">Pendiente de asignación</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Evidencias si existen */}
+                    {selectedReportDetailOrder.evidences && selectedReportDetailOrder.evidences.length > 0 && (
+                      <div>
+                        <div className="font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                          <Camera className="w-4 h-4 text-indigo-600" />
+                          <span>Evidencias Fotográficas ({selectedReportDetailOrder.evidences.length})</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {selectedReportDetailOrder.evidences.map((ev) => (
+                            <div key={ev.id} className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                              <img src={ev.url} alt={ev.title} className="w-full h-20 object-cover" />
+                              <div className="p-1 text-[10px] font-bold truncate text-slate-700 text-center">{ev.title}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ord = selectedReportDetailOrder;
+                        setSelectedReportDetailOrder(null);
+                        setReportOrder(ord);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-blue-50 text-[#040057] hover:bg-blue-100 font-bold text-xs flex items-center gap-1.5 cursor-pointer border border-blue-200"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Ver Reporte Oficial (PDF)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedReportDetailOrder(null)}
+                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                    >
+                      Cerrar
+                    </button>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MÓDULO: RECEPCIÓN DE UNIDADES EN GERENCIA (DASHBOARD EN LISTA + FORMULARIO COMPLETO AL CREAR NUEVA) */}
       {activeModule === 'recepcion_unidades' && (

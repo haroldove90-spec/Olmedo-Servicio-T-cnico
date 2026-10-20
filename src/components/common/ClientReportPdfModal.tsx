@@ -54,10 +54,10 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
             </div>
             <div>
               <h3 className="font-black text-sm sm:text-base text-white">
-                Reporte de Falla y Servicio Técnico • {order.folio}
+                Reporte de Falla • {order.unitNumber || `Unidad ${order.vehicle.economicNumber}`}
               </h3>
               <p className="text-xs text-slate-400">
-                Vista oficial para impresión y descarga en PDF
+                Documento de servicio concluido y habilitado
               </p>
             </div>
           </div>
@@ -86,32 +86,28 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
           
           <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6 print:border-none print:shadow-none print:p-0">
             
-            {/* CABECERA MEMBRETADA */}
+            {/* CABECERA MEMBRETADA (SOLO LOGO Y NOMBRE DEL NEGOCIO, SIN SUBTÍTULOS NI FOLIO) */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b-2 border-slate-900">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3.5">
                 <img
                   src="https://appdesignproyectos.com/olmedologo.png"
-                  alt="Olmedo Servicio Técnico"
+                  alt="Servicio Técnico Olmedo"
                   className="h-12 sm:h-16 w-auto object-contain"
                 />
                 <div>
-                  <h1 className="text-base sm:text-xl font-black text-[#040057] uppercase tracking-tight">
-                    OLMEDO SERVICIO TÉCNICO DIESEL
+                  <h1 className="text-lg sm:text-2xl font-black text-[#040057] uppercase tracking-tight">
+                    SERVICIO TÉCNICO OLMEDO
                   </h1>
-                  <p className="text-[11px] text-slate-500 font-semibold">
-                    Mantenimiento Integral, Rescate Carretero y Diagnóstico Electrónico de Flotas
-                  </p>
-                  <p className="text-[10px] text-slate-400">
-                    Tel. 24 Horas: (55) 4912-8840 • Soporte: servicio@olmedotaller.mx
-                  </p>
                 </div>
               </div>
 
               <div className="text-left sm:text-right bg-slate-50 sm:bg-transparent p-3 sm:p-0 rounded-xl border sm:border-none border-slate-200 shrink-0">
-                <span className="text-[10px] font-black uppercase text-slate-400 block">FOLIO DE REPORTE:</span>
-                <span className="text-lg sm:text-xl font-black text-[#040057] block">{order.folio}</span>
-                <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-blue-100 text-blue-900 border border-blue-300">
-                  En Proceso / Diagnóstico
+                <span className="text-[10px] font-black uppercase text-slate-400 block">DOCUMENTO DE SERVICIO:</span>
+                <span className="text-sm sm:text-base font-black text-[#040057] block">
+                  {order.unitNumber || `Unidad ${order.vehicle.economicNumber}`}
+                </span>
+                <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-900 border border-emerald-300">
+                  Servicio Concluido
                 </span>
                 {isRescue && (
                   <span className="block mt-1 text-[10px] font-black uppercase text-rose-600">
@@ -292,52 +288,11 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
               </div>
             )}
 
-            {/* SECCIÓN DE FIRMAS */}
-            <div className="grid grid-cols-2 gap-8 pt-8 border-t border-slate-200 text-center">
-              <div>
-                <div className="border-b-2 border-slate-900 min-h-[44px] flex items-end justify-center pb-1">
-                  {order.clientSignature ? (
-                    <span className="font-serif italic text-base text-[#040057] font-bold">
-                      {order.clientSignature}
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 text-[11px] italic">
-                      Firma de Entrega del Reporte
-                    </span>
-                  )}
-                </div>
-                <div className="font-black text-xs text-slate-900 mt-1 uppercase tracking-wider">
-                  FIRMA DEL CLIENTE / OPERADOR
-                </div>
-                <div className="text-[10px] text-slate-500 uppercase">
-                  {order.operatorName || order.clientContact || 'Cliente'}
-                </div>
-              </div>
-
-              <div>
-                <div className="border-b-2 border-slate-900 min-h-[44px] flex items-end justify-center pb-1">
-                  {order.technicianSignature ? (
-                    <span className="font-serif italic text-base text-[#040057] font-bold">
-                      {order.technicianSignature}
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 text-[11px] italic">
-                      Pendiente de Asignación / Firma de Recepción
-                    </span>
-                  )}
-                </div>
-                <div className="font-black text-xs text-slate-900 mt-1 uppercase tracking-wider">
-                  FIRMA DE SERVICIO TÉCNICO
-                </div>
-                <div className="text-[10px] text-slate-500 uppercase">
-                  {order.assignedTechnicianName || 'Olmedo Servicio Técnico'}
-                </div>
-              </div>
-            </div>
-
-            {/* PIE DE PÁGINA */}
-            <div className="pt-4 border-t border-slate-200 text-center text-[10px] text-slate-400 uppercase tracking-widest">
-              Olmedo Servicio Técnico Diesel • Sistema Digital de Gestión y Mantenimiento de Flotas • Documento Válido como Comprobante de Reporte
+            {/* PIE DE PÁGINA: SOLO NOMBRE DEL NEGOCIO (SIN LOGO) */}
+            <div className="pt-8 border-t border-slate-300 text-center">
+              <span className="text-sm font-black text-[#040057] tracking-wider uppercase">
+                SERVICIO TÉCNICO OLMEDO
+              </span>
             </div>
 
           </div>

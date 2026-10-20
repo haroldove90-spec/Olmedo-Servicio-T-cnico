@@ -57,13 +57,16 @@ export const RoleSelector: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col justify-center items-center p-4 sm:p-6 lg:p-12">
-      {/* Logotipo de tamaño completo sin encapsular */}
-      <div className="mb-8 sm:mb-12 flex justify-center w-full max-w-4xl px-4">
+      {/* Logotipo y Nombre del negocio sin subtítulos */}
+      <div className="mb-8 sm:mb-10 flex flex-col items-center justify-center w-full max-w-4xl px-4 gap-3">
         <img
           src="https://appdesignproyectos.com/olmedologo.png"
-          alt="Olmedo Servicio Técnico"
+          alt="Servicio Técnico Olmedo"
           className="h-24 sm:h-28 md:h-36 w-auto object-contain max-w-full drop-shadow-xs"
         />
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-[#040057] uppercase tracking-tight text-center">
+          Servicio Técnico Olmedo
+        </h1>
       </div>
 
       {/* Cuadrícula de Roles: Orden solicitado: 1. Gerencia, 2. Jefe de taller, 3. Técnico, 4. Portal clientes */}

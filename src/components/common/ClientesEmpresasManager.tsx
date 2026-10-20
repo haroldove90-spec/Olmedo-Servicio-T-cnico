@@ -784,8 +784,7 @@ export const ClientesEmpresasManager: React.FC = () => {
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-black text-sm sm:text-base text-[#040057]">{order.folio}</span>
-                            <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-800 text-xs font-bold border border-slate-200">
+                            <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-[#040057] text-xs font-black border border-slate-200">
                               {order.unitNumber || `Unidad ${order.vehicle.economicNumber}`} ({order.vehicle.plates})
                             </span>
                             <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-blue-100 text-blue-900 border border-blue-300">
