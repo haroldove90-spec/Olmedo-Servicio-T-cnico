@@ -32,7 +32,9 @@ import {
   ShieldAlert,
   Smartphone,
   LayoutGrid,
-  Activity
+  Activity,
+  Printer,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceStatus, EvidencePhoto, VideoEvidence, VehicleType } from '../../types';
@@ -44,6 +46,7 @@ import { EvidenceLockWarningModal } from '../common/EvidenceLockWarningModal';
 import { ClientReportPdfModal } from '../common/ClientReportPdfModal';
 import { ClientEvidenceViewerModal } from '../common/ClientEvidenceViewerModal';
 import { ConsolidatedReportsLogView } from '../common/ConsolidatedReportsLogView';
+import { exportOrdersToExcel } from '../../utils/excelExport';
 
 type ClientViewMode = 'home' | 'nuevo_reporte' | 'listado_reportes' | 'modificar_reporte';
 
@@ -501,6 +504,28 @@ export const ClientePortal: React.FC = () => {
     setNewObservationText('');
     setAdditionalPhotos([]);
     setViewMode('listado_reportes');
+  };
+
+  // Descarga individual de reporte de falla en Excel (.xlsx)
+  const handleExportSingleExcel = (order: ServiceOrder) => {
+    const success = exportOrdersToExcel([order], {
+      filenamePrefix: `Reporte_${order.unitNumber || order.vehicle.economicNumber || order.folio}`,
+      sheetName: 'Reporte de Falla',
+      businessName: 'Servicio Técnico Olmedo'
+    });
+    if (success) {
+      addToast('success', 'Excel Generado', `Se descargó el reporte de la unidad ${order.unitNumber || order.vehicle.economicNumber} en Excel (.xlsx).`);
+    } else {
+      addToast('error', 'Error', 'No se pudo generar el archivo Excel.');
+    }
+  };
+
+  // Impresión directa del documento de reporte de falla
+  const handleDirectPrint = (order: ServiceOrder) => {
+    setViewingPdfOrder(order);
+    setTimeout(() => {
+      window.print();
+    }, 350);
   };
 
   const selectedUnit = units.find(u => u.id === selectedUnitId) || units[0];
@@ -1611,54 +1636,63 @@ export const ClientePortal: React.FC = () => {
                       </div>
                     )}
 
-                    {/* ACCIONES: Ver Evidencias (solicitado por usuario), Descargar PDF y Modificar Reporte */}
-                    <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
+                    {/* ACCIONES DEL REPORTE: Ver Evidencias, Excel, Ver PDF, Imprimir y Modificar */}
+                    <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
                       <div className="flex flex-wrap items-center gap-2">
-                        {/* Botón Ver Evidencias en cada tarjeta de Mis Reportes */}
+                        {/* 1. Botón Ver Evidencias */}
                         <button
                           type="button"
                           onClick={() => setViewingEvidencesOrder(order)}
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#040057] font-extrabold text-xs sm:text-sm border border-indigo-200 transition cursor-pointer shadow-2xs hover:scale-[1.01]"
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#040057] font-extrabold text-xs border border-indigo-200 transition cursor-pointer shadow-2xs hover:scale-[1.01]"
                           title="Ver evidencias fotográficas y videos de este reporte de falla"
                         >
                           <Camera className="w-4 h-4 text-indigo-600" />
                           <span>Ver Evidencias ({((order.evidences?.length || 0) + (order.videoEvidences?.length || 0))})</span>
                         </button>
 
-                        {processInfo.isFinished ? (
-                          <button
-                            type="button"
-                            onClick={() => setViewingPdfOrder(order)}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
-                          >
-                            <FileText className="w-4 h-4 text-emerald-300" />
-                            <span>Descargar Reporte en PDF</span>
-                          </button>
-                        ) : (
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                            <button
-                              type="button"
-                              disabled
-                              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs sm:text-sm border border-slate-200 cursor-not-allowed opacity-80"
-                              title="No se podrá descargar el PDF hasta que el proceso no se haya terminado (Fase 5)."
-                            >
-                              <Lock className="w-4 h-4 text-slate-400" />
-                              <span>Descargar Reporte en PDF (Bloqueado)</span>
-                            </button>
-                            <span className="text-[11px] text-amber-700 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
-                              🔒 Disponible al concluir servicio
-                            </span>
-                          </div>
-                        )}
+                        {/* 2. Botón Descargar en Excel (.xlsx) con tablas estructuradas */}
+                        <button
+                          type="button"
+                          onClick={() => handleExportSingleExcel(order)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white font-bold text-xs border border-emerald-300 transition cursor-pointer shadow-2xs group"
+                          title="Descargar datos y reporte de esta unidad en archivo Excel (.xlsx)"
+                        >
+                          <FileSpreadsheet className="w-4 h-4 text-emerald-600 group-hover:text-white" />
+                          <span>Excel</span>
+                        </button>
+
+                        {/* 3. Botón Ver Reporte en PDF */}
+                        <button
+                          type="button"
+                          onClick={() => setViewingPdfOrder(order)}
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                          title="Ver formato oficial del Reporte de Falla en PDF (ancho completo, sin sombras)"
+                        >
+                          <FileText className="w-4 h-4 text-emerald-300" />
+                          <span>Ver PDF</span>
+                        </button>
+
+                        {/* 4. Botón Imprimir directamente (icono de impresora) */}
+                        <button
+                          type="button"
+                          onClick={() => handleDirectPrint(order)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-800 text-slate-700 hover:text-white font-bold text-xs border border-slate-300 transition cursor-pointer shadow-2xs group"
+                          title="Imprimir directamente el Reporte de Falla de esta unidad"
+                        >
+                          <Printer className="w-4 h-4 text-slate-600 group-hover:text-white" />
+                          <span>Imprimir</span>
+                        </button>
                       </div>
 
+                      {/* 5. Botón Modificar Reporte */}
                       <button
                         type="button"
                         onClick={() => handleOpenModify(order)}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm transition cursor-pointer"
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition cursor-pointer border border-slate-200"
+                        title="Modificar reporte o agregar nueva observación"
                       >
                         <Edit3 className="w-4 h-4 text-indigo-600" />
-                        <span>Modificar Reporte y Agregar Observación</span>
+                        <span>Modificar</span>
                       </button>
                     </div>
 

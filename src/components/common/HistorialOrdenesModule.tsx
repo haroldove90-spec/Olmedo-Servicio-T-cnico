@@ -819,32 +819,63 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
                     </span>
                   </div>
 
-                  {/* Columna 5: Acciones (Descargar individual en Excel + Ver Detalle) */}
-                  <div className="col-span-2 flex items-center justify-end gap-1.5 mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                  {/* Columna 5: Acciones (Excel, PDF, Imprimir y Detalle) */}
+                  <div className="col-span-2 flex items-center justify-end gap-1 mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100 flex-wrap">
+                    {/* Botón Excel */}
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleExportSingleExcel(order);
                       }}
-                      className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white transition cursor-pointer shadow-2xs border border-emerald-300 hover:border-emerald-600 flex items-center gap-1.5 text-xs font-bold"
-                      title={`Descargar reporte ${order.folio} individual en archivo Excel (.xlsx)`}
+                      className="p-1.5 sm:px-2 sm:py-1 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-800 hover:text-white transition cursor-pointer shadow-2xs border border-emerald-300 hover:border-emerald-600 flex items-center gap-1 text-xs font-bold group"
+                      title={`Descargar reporte ${order.folio} en archivo Excel (.xlsx)`}
                     >
-                      <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
-                      <span>Excel</span>
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 group-hover:text-white shrink-0" />
+                      <span className="hidden xl:inline">Excel</span>
                     </button>
+
+                    {/* Botón Ver PDF */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPrintReportOrder(order);
+                      }}
+                      className="p-1.5 sm:px-2 sm:py-1 rounded-lg bg-blue-50 hover:bg-[#040057] text-[#040057] hover:text-white transition cursor-pointer shadow-2xs border border-blue-200 hover:border-[#040057] flex items-center gap-1 text-xs font-bold group"
+                      title="Ver Reporte Oficial en PDF"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-blue-600 group-hover:text-white shrink-0" />
+                      <span className="hidden xl:inline">PDF</span>
+                    </button>
+
+                    {/* Botón Imprimir directamente */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPrintReportOrder(order);
+                        setTimeout(() => window.print(), 350);
+                      }}
+                      className="p-1.5 sm:px-2 sm:py-1 rounded-lg bg-slate-100 hover:bg-slate-800 text-slate-700 hover:text-white transition cursor-pointer shadow-2xs border border-slate-300 flex items-center gap-1 text-xs font-bold group"
+                      title="Imprimir directamente este reporte (icono de impresora)"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-slate-600 group-hover:text-white shrink-0" />
+                      <span className="hidden xl:inline">Imprimir</span>
+                    </button>
+
+                    {/* Botón Detalle */}
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         setViewDetailOrder(order);
                       }}
-                      className="px-2.5 py-1.5 rounded-xl bg-slate-100 group-hover:bg-[#040057] text-slate-700 group-hover:text-white font-bold text-xs transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                      className="p-1.5 sm:px-2 sm:py-1 rounded-lg bg-slate-100 hover:bg-indigo-600 text-slate-700 hover:text-white font-bold text-xs transition flex items-center gap-1 cursor-pointer shadow-2xs border border-slate-200 group"
                       title="Ver toda la información pertinente del reporte"
                     >
                       <Eye className="w-3.5 h-3.5 text-indigo-500 group-hover:text-white shrink-0" />
                       <span className="hidden sm:inline">Detalle</span>
-                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition shrink-0" />
                     </button>
                   </div>
                 </div>
@@ -1028,24 +1059,37 @@ export const HistorialOrdenesModule: React.FC<HistorialOrdenesModuleProps> = ({ 
                       <span>Ver Expediente</span>
                     </button>
 
-                    {/* Botón Imprimir / PDF Oficial */}
+                    {/* Botón Ver PDF Oficial */}
                     <button
                       onClick={() => setPrintReportOrder(order)}
-                      className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#040057] border border-blue-200 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                      title="Imprimir formato oficial o descargar PDF"
+                      className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-[#040057] text-[#040057] hover:text-white border border-blue-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs group"
+                      title="Ver Reporte Oficial en formato PDF"
                     >
-                      <Printer className="w-3.5 h-3.5 text-[#040057]" />
-                      <span>Reporte Oficial (PDF)</span>
+                      <FileText className="w-3.5 h-3.5 text-blue-600 group-hover:text-white" />
+                      <span>Ver PDF</span>
+                    </button>
+
+                    {/* Botón Imprimir directamente (icono de impresora) */}
+                    <button
+                      onClick={() => {
+                        setPrintReportOrder(order);
+                        setTimeout(() => window.print(), 350);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-800 text-slate-700 hover:text-white border border-slate-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs group"
+                      title="Imprimir directamente este reporte"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-slate-600 group-hover:text-white" />
+                      <span>Imprimir</span>
                     </button>
 
                     {/* Botón Descargar este reporte en Excel */}
                     <button
                       onClick={() => handleExportSingleExcel(order)}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-900 hover:text-white border border-emerald-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-900 hover:text-white border border-emerald-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs group"
                       title={`Descargar reporte ${order.folio} individual en archivo Excel (.xlsx)`}
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 group-hover:text-white" />
-                      <span>Descargar Excel (.xlsx)</span>
+                      <span>Excel (.xlsx)</span>
                     </button>
 
                     {/* Botón Editar / Actualizar */}

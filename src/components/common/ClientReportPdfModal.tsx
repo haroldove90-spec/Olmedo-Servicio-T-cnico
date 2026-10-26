@@ -3,18 +3,16 @@ import { ServiceOrder } from '../../types';
 import { 
   Printer, 
   X, 
-  Download, 
   Truck, 
   User, 
   Phone, 
   MapPin, 
-  Gauge, 
-  Camera, 
   AlertTriangle, 
   CheckCircle2, 
   ExternalLink,
-  ShieldCheck
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportOrdersToExcel } from '../../utils/excelExport';
 
 interface ClientReportPdfModalProps {
   order: ServiceOrder | null;
@@ -26,6 +24,14 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleExportExcel = () => {
+    exportOrdersToExcel([order], {
+      filenamePrefix: `Reporte_Falla_${order.folio || order.unitNumber || 'Servicio'}`,
+      sheetName: 'Reporte de Falla',
+      businessName: 'Servicio Técnico Olmedo'
+    });
   };
 
   const reportDate = new Date(order.createdAt);
@@ -40,7 +46,7 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
 
   const isRescue = order.requiresRescue || order.serviceType === 'rescate';
 
-  // Helper para extraer nombre de operador y teléfono para enlace de llamada directa
+  // Helper para extraer nombre de operador y teléfono para llamada directa
   const getOperatorDetails = () => {
     let name = (order.operatorName || order.clientContact || 'Operador al volante').trim();
     let phone = (order.operatorPhone || '').trim();
@@ -61,15 +67,15 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
   const operatorDetails = getOperatorDetails();
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-fadeIn">
+    <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-0 sm:p-2 md:p-4 overflow-y-auto animate-fadeIn print:p-0 print:bg-white print:fixed print:inset-0">
       
-      {/* Contenedor del Modal */}
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden my-auto">
+      {/* Contenedor del Modal: Full width, sin sombras encapsuladas en la hoja */}
+      <div className="bg-white w-full max-w-5xl lg:max-w-6xl min-h-screen sm:min-h-0 sm:max-h-[95vh] flex flex-col overflow-hidden my-auto rounded-none sm:rounded-2xl shadow-2xl print:shadow-none print:rounded-none print:max-h-none print:w-full">
         
         {/* Barra superior de herramientas (se oculta al imprimir) */}
-        <div className="p-4 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 print:hidden shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center font-black text-sm shadow-xs">
+        <div className="px-5 py-3.5 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 print:hidden shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
               PDF
             </div>
             <div>
@@ -77,7 +83,7 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
                 Reporte de Falla • {order.unitNumber || `Unidad ${order.vehicle.economicNumber}`}
               </h3>
               <p className="text-xs text-slate-400">
-                Documento de servicio concluido y habilitado
+                Formato oficial de servicio sin encapsulado ni sombras • Ancho completo
               </p>
             </div>
           </div>
@@ -85,71 +91,97 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={handleExportExcel}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+              title="Descargar este reporte en formato Excel (.xlsx)"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+              <span className="hidden sm:inline">Descargar Excel</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handlePrint}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
+              title="Imprimir documento o guardar como PDF"
             >
               <Printer className="w-4 h-4" />
               <span>Imprimir / Guardar en PDF</span>
             </button>
+
             <button
               type="button"
               onClick={onClose}
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+              title="Cerrar vista previa"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* ÁREA IMPRIMIBLE DEL DOCUMENTO */}
-        <div className="p-4 sm:p-8 md:p-10 overflow-y-auto bg-slate-50 space-y-6 text-slate-900 text-xs sm:text-sm print:p-0 print:bg-white print:overflow-visible">
+        {/* ÁREA DEL DOCUMENTO: TOTALMENTE DESENCAPSULADA, SIN SOMBRAS NI FONDOS GRISES */}
+        <div className="flex-1 overflow-y-auto bg-white p-6 sm:p-10 md:p-12 text-slate-900 text-xs sm:text-sm w-full print:p-6 print:overflow-visible">
           
-          <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6 print:border-none print:shadow-none print:p-0">
+          <div className="w-full space-y-6">
             
-            {/* CABECERA MEMBRETADA (LOGO CON TAMAÑO AUMENTADO Y TITULO REPORTE DE FALLA) */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b-2 border-slate-900">
-              <div className="flex items-center gap-4">
-                <img
-                  src="https://appdesignproyectos.com/olmedologo.png"
-                  alt="Servicio Técnico Olmedo"
-                  className="h-20 sm:h-24 md:h-28 max-h-28 w-auto object-contain shrink-0"
-                />
-                <div>
-                  <h1 className="text-lg sm:text-2xl font-black text-[#040057] uppercase tracking-tight">
-                    SERVICIO TÉCNICO OLMEDO
-                  </h1>
+            {/* CABECERA MEMBRETADA: LOGO AMPLIO SIN ENCAPSULADO NI CORTES SUPERIORES */}
+            <div className="w-full pb-4 border-b-2 border-[#040057]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                
+                {/* Logotipo amplio con espacio superior e inferior sin líneas que lo corten */}
+                <div className="flex items-center gap-4 sm:gap-6 overflow-visible py-1">
+                  <img
+                    src="https://appdesignproyectos.com/olmedologo.png"
+                    alt="Servicio Técnico Olmedo"
+                    className="h-24 sm:h-28 md:h-32 w-auto object-contain shrink-0"
+                  />
+                  <div>
+                    <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-[#040057] uppercase tracking-tight">
+                      SERVICIO TÉCNICO OLMEDO
+                    </h1>
+                    <p className="text-xs sm:text-sm font-bold text-slate-600 mt-0.5">
+                      Asistencia Mecánica y Eléctrica Especializada para Flotillas
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="text-left sm:text-right bg-slate-50 sm:bg-transparent p-3 sm:p-0 rounded-xl border sm:border-none border-slate-200 shrink-0">
-                <span className="text-[11px] font-black uppercase text-slate-500 block tracking-wider">
-                  REPORTE DE FALLA
-                </span>
-                <span className="text-sm sm:text-base font-black text-[#040057] block">
-                  {order.unitNumber || `Unidad ${order.vehicle.economicNumber}`}
-                </span>
-                <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-900 border border-emerald-300">
-                  Servicio Concluido
-                </span>
-                {isRescue && (
-                  <span className="block mt-1 text-[10px] font-black uppercase text-rose-600">
-                    ⚠️ Rescate
+                {/* Título Oficial: Reporte de Falla */}
+                <div className="text-left sm:text-right shrink-0 pt-2 sm:pt-0">
+                  <span className="text-[11px] font-black uppercase text-slate-500 block tracking-wider">
+                    REPORTE DE FALLA
                   </span>
-                )}
+                  <span className="text-base sm:text-xl font-black text-[#040057] block">
+                    {order.unitNumber || `Unidad ${order.vehicle.economicNumber}`}
+                  </span>
+                  <span className="inline-block mt-1 px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-900 border border-emerald-300">
+                    Servicio Concluido
+                  </span>
+                  {isRescue && (
+                    <span className="block mt-1 text-[11px] font-black uppercase text-rose-600">
+                      ⚠️ Rescate
+                    </span>
+                  )}
+                </div>
+
               </div>
             </div>
 
-            {/* FECHA Y CLIENTE (SIN LÍNEA DE CONTACTO) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            {/* SECCIÓN 1: EMPRESA / CLIENTE REGISTRADO Y FECHA (SIN LÍNEA DE CONTACTO) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-slate-200">
               <div>
-                <span className="text-[10px] font-extrabold uppercase text-slate-400 block">EMPRESA / CLIENTE REGISTRADO:</span>
-                <span className="font-extrabold text-sm sm:text-base text-[#040057] block mt-0.5">
-                  {order.clientCompany || order.clientName || 'Flotillas Express S.A. de C.V.'}
+                <span className="text-[10px] font-extrabold uppercase text-slate-500 block tracking-wider">
+                  EMPRESA / CLIENTE REGISTRADO:
+                </span>
+                <span className="font-black text-base sm:text-lg text-[#040057] block mt-1">
+                  {order.clientCompany || order.clientName || 'GRUPO SATI S.A. DE C.V.'}
                 </span>
               </div>
               <div className="sm:text-right">
-                <span className="text-[10px] font-extrabold uppercase text-slate-400 block">FECHA Y HORA DE EMISIÓN:</span>
-                <span className="font-bold text-xs sm:text-sm text-slate-800 block capitalize">
+                <span className="text-[10px] font-extrabold uppercase text-slate-500 block tracking-wider">
+                  FECHA Y HORA DE EMISIÓN:
+                </span>
+                <span className="font-bold text-xs sm:text-sm text-slate-800 block mt-1 capitalize">
                   {formattedDate}
                 </span>
                 {order.assignedTechnicianName && (
@@ -160,57 +192,57 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
               </div>
             </div>
 
-            {/* FICHA TÉCNICA DE LA UNIDAD (SIN "Y ODÓMETRO", SOLO "KILOMETRAJE", Y SIN "EN RUTA") */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 font-extrabold text-xs text-[#040057] uppercase flex items-center gap-2">
+            {/* SECCIÓN 2: DATOS TÉCNICOS DE LA UNIDAD (SIN "Y ODÓMETRO", SOLO "KILOMETRAJE", Y SIN "EN RUTA") */}
+            <div className="border border-slate-300">
+              <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 font-black text-xs text-[#040057] uppercase flex items-center gap-2 tracking-wide">
                 <Truck className="w-4 h-4 text-indigo-600" />
-                <span>Datos Técnicos de la Unidad</span>
+                <span>DATOS TÉCNICOS DE LA UNIDAD</span>
               </div>
-              <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">No. de Unidad</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">No. de Unidad</span>
                   <span className="font-extrabold text-slate-900 text-sm">
                     {order.unitNumber || `Unidad ${order.vehicle.economicNumber}`}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Placas</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Placas</span>
                   <span className="font-extrabold text-slate-900 text-sm">{order.vehicle.plates}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">No. Económico</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">No. Económico</span>
                   <span className="font-extrabold text-slate-900 text-sm">{order.vehicle.economicNumber}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Kilometraje</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Kilometraje</span>
                   <span className="font-bold text-slate-900 text-sm">
                     {order.vehicle.odometerReading || order.vehicle.mileage || 'No registrado'}
                   </span>
                 </div>
                 <div className="col-span-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Marca, Modelo y Tipo</span>
-                  <span className="font-semibold text-slate-800">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Marca, Modelo y Tipo</span>
+                  <span className="font-bold text-slate-800 text-xs sm:text-sm">
                     {order.vehicle.brandModel || `${order.vehicle.brand || 'Kenworth'} ${order.vehicle.model || 'T680'}`} ({order.vehicle.type?.toUpperCase() || 'TRACTOCAMIÓN'})
                   </span>
                 </div>
                 <div className="col-span-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Tipo de Servicio Solicitado</span>
-                  <span className="font-bold uppercase text-slate-800">
-                    {isRescue ? 'Rescate / Asistencia Vial' : 'Ingreso a Taller Mecánico'}
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Tipo de Servicio Solicitado</span>
+                  <span className="font-extrabold uppercase text-slate-800 text-xs sm:text-sm">
+                    {isRescue ? 'RESCATE / ASISTENCIA VIAL' : 'INGRESO A TALLER MECÁNICO'}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* OPERADOR Y UBICACIÓN (LINK DE TELÉFONO ACTIVO EN OPERADOR Y SIN "REFERENCIAS DEL VEHÍCULO") */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 font-extrabold text-xs text-[#040057] uppercase flex items-center gap-2">
+            {/* SECCIÓN 3: OPERADOR Y UBICACIÓN (LINK DE TELÉFONO ACTIVO EN OPERADOR Y SIN "REFERENCIAS DEL VEHÍCULO") */}
+            <div className="border border-slate-300">
+              <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 font-black text-xs text-[#040057] uppercase flex items-center gap-2 tracking-wide">
                 <MapPin className="w-4 h-4 text-rose-600" />
-                <span>Operador y Ubicación del Incidente</span>
+                <span>OPERADOR Y UBICACIÓN DEL INCIDENTE</span>
               </div>
               <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Operador al Volante:</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Operador al Volante:</span>
                   <div className="font-bold text-slate-900 text-sm mt-0.5">
                     {operatorDetails.name}
                   </div>
@@ -218,8 +250,8 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
                     <div className="mt-1.5">
                       <a
                         href={`tel:${operatorDetails.cleanTel}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 font-extrabold text-xs border border-emerald-300 transition shadow-2xs group cursor-pointer"
-                        title="Hacer llamada telefónica al operador"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 font-black text-xs border border-emerald-300 transition shadow-2xs group cursor-pointer"
+                        title="Hacer llamada telefónica directa al operador"
                       >
                         <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
                         <span className="underline underline-offset-2">{operatorDetails.phone}</span>
@@ -228,8 +260,8 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
                   )}
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Ubicación:</span>
-                  <p className="text-slate-800 font-medium mt-0.5 leading-relaxed">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Ubicación:</span>
+                  <p className="text-slate-800 font-semibold mt-0.5 leading-relaxed text-xs sm:text-sm">
                     {order.vehicle.location}
                   </p>
                   {order.rescueLocationUrl && (
@@ -241,40 +273,43 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
               </div>
             </div>
 
-            {/* FALLA REPORTADA INICIAL */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 font-extrabold text-xs text-[#040057] uppercase">
-                Descripción Detallada de la Falla Reportada por el Cliente
+            {/* SECCIÓN 4: DESCRIPCIÓN DETALLADA DE LA FALLA REPORTADA POR EL CLIENTE */}
+            <div className="border border-slate-300">
+              <div className="bg-slate-100 px-4 py-2 border-b border-slate-300 font-black text-xs text-[#040057] uppercase tracking-wide">
+                DESCRIPCIÓN DETALLADA DE LA FALLA REPORTADA POR EL CLIENTE
               </div>
-              <div className="p-4 text-xs text-slate-900 leading-relaxed font-medium bg-white">
+              <div className="p-4 text-xs sm:text-sm text-slate-900 leading-relaxed font-semibold bg-white">
                 {order.vehicle.failureDescription}
               </div>
             </div>
 
-            {/* OBSERVACIONES AGREGADAS POR EL CLIENTE */}
+            {/* SECCIÓN 5: OBSERVACIONES AGREGADAS POR EL CLIENTE */}
             {order.clientObservationsHistory && order.clientObservationsHistory.length > 0 && (
-              <div className="border border-amber-200 bg-amber-50/50 rounded-xl overflow-hidden">
-                <div className="bg-amber-100/70 px-4 py-2 border-b border-amber-200 font-extrabold text-xs text-amber-950 uppercase">
-                  Historial de Observaciones Adicionales Registradas por el Cliente ({order.clientObservationsHistory.length})
+              <div className="border border-amber-300 bg-amber-50/40">
+                <div className="bg-amber-100/80 px-4 py-2 border-b border-amber-300 font-black text-xs text-amber-950 uppercase tracking-wide">
+                  HISTORIAL DE OBSERVACIONES ADICIONALES REGISTRADAS POR EL CLIENTE ({order.clientObservationsHistory.length})
                 </div>
                 <div className="p-4 space-y-2.5">
                   {order.clientObservationsHistory.map((obs) => (
-                    <div key={obs.id} className="bg-white p-3 rounded-xl border border-amber-200 text-xs text-slate-800 space-y-1">
-                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <div key={obs.id} className="bg-white p-3 border border-amber-200 text-xs text-slate-800 space-y-1">
+                      <div className="flex items-center justify-between text-[10px] text-slate-500">
                         <span className="font-bold text-slate-700">{obs.author}</span>
                         <span>{new Date(obs.timestamp).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</span>
                       </div>
-                      <p className="font-medium text-slate-900">{obs.text}</p>
+                      <p className="font-semibold text-slate-900">{obs.text}</p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* PIE DE PÁGINA: SOLO NOMBRE DEL NEGOCIO (SIN LOGO) */}
-            <div className="pt-8 border-t border-slate-300 text-center">
-              <span className="text-sm font-black text-[#040057] tracking-wider uppercase">
+            {/* PIE DE PÁGINA: SIN LOGO REPETIDO, TEXTO CENTRADO ELEGANTE */}
+            <div className="pt-8 border-t-2 border-[#040057] text-center pb-2">
+              <span className="text-sm font-black text-[#040057] tracking-wider uppercase block">
                 SERVICIO TÉCNICO OLMEDO
+              </span>
+              <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
+                Atención Mecánica Integral • Reporte Oficial emitido por el sistema
               </span>
             </div>
 
