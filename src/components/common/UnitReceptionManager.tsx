@@ -62,6 +62,7 @@ export const UnitReceptionManager: React.FC = () => {
   const [clientContact, setClientContact] = useState('');
   const [clientCompany, setClientCompany] = useState('');
   const [serviceLocation, setServiceLocation] = useState('Taller Central Olmedo - Bahía 1');
+  const [serviceType, setServiceType] = useState<ServiceType>('taller');
 
   // Form Fields - Vehicle
   const [vehicleType, setVehicleType] = useState<VehicleType>('tractocamion');
@@ -199,6 +200,7 @@ export const UnitReceptionManager: React.FC = () => {
     setClientContact(order.clientContact || '');
     setClientCompany(order.clientCompany || '');
     setServiceLocation(order.vehicle.location || 'Taller Central Olmedo - Bahía 1');
+    setServiceType(order.serviceType || 'taller');
     setVehicleType(order.vehicle.type || 'tractocamion');
     setPlates(order.vehicle.plates || '');
     setEconomicNumber(order.vehicle.economicNumber || '');
@@ -231,6 +233,7 @@ export const UnitReceptionManager: React.FC = () => {
     setClientContact(target.clientContact || '');
     setClientCompany(target.clientCompany || '');
     setServiceLocation(target.vehicle.location || 'Taller Central Olmedo - Bahía 1');
+    setServiceType(target.serviceType || 'taller');
     setVehicleType(target.vehicle.type || 'tractocamion');
     setPlates(target.vehicle.plates || '');
     setEconomicNumber(target.vehicle.economicNumber || '');
@@ -320,7 +323,7 @@ export const UnitReceptionManager: React.FC = () => {
       clientName: clientName.trim() || 'Cliente Mostrador / Flotilla',
       clientContact: clientContact.trim() || 'Sin teléfono registrado',
       clientCompany: clientCompany.trim() || undefined,
-      serviceType: 'taller',
+      serviceType,
       priority,
       vehicle: {
         type: vehicleType,
@@ -858,7 +861,7 @@ export const UnitReceptionManager: React.FC = () => {
                 </h2>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
                     Cliente / Razón Social *
@@ -888,7 +891,7 @@ export const UnitReceptionManager: React.FC = () => {
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">
-                    Bahía / Ubicación de Taller *
+                    Bahía / Ubicación *
                   </label>
                   <input
                     type="text"
@@ -898,6 +901,21 @@ export const UnitReceptionManager: React.FC = () => {
                     placeholder="Ej. Taller Central - Bahía 3"
                     className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#040057] bg-white font-medium"
                   />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Tipo de Servicio Solicitado *
+                  </label>
+                  <select
+                    value={serviceType}
+                    onChange={(e) => setServiceType(e.target.value as ServiceType)}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl font-bold text-[#040057] bg-white focus:ring-2 focus:ring-[#040057]"
+                  >
+                    <option value="taller">Ingreso a Taller</option>
+                    <option value="asistencia">Asistencia Vial</option>
+                    <option value="rescate">Rescate</option>
+                  </select>
                 </div>
               </div>
 

@@ -182,6 +182,7 @@ interface AppContextType {
     operatorPhone: string;
     failureDescription: string;
     location: string;
+    serviceType?: import('../types').ServiceType;
     requiresRescue: boolean;
     rescueLocationUrl?: string;
     photos: Array<{ id: string; url: string; title: string; timestamp: string }>;
@@ -1173,6 +1174,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     workPerformedDetail?: string;
     technicianSignature?: string;
     userOperatorName?: string;
+    operatorName?: string;
+    operatorPhone?: string;
+    serviceType?: ServiceType;
     vehicleUpdates?: {
       brand?: string;
       model?: string;
@@ -1183,12 +1187,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       engineModelTransmission?: string;
       engineSeriesTransmission?: string;
       odometerReading?: string;
+      mileage?: string;
+      location?: string;
+      failureDescription?: string;
     };
   }) => {
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
         return {
           ...o,
+          serviceType: reportData.serviceType || o.serviceType,
+          operatorName: reportData.operatorName ?? o.operatorName,
+          operatorPhone: reportData.operatorPhone ?? o.operatorPhone,
           maintenanceNature: reportData.maintenanceNature || o.maintenanceNature || 'correctivo',
           preventiveInspectionNotes: reportData.preventiveInspectionNotes ?? o.preventiveInspectionNotes,
           workPerformedDetail: reportData.workPerformedDetail ?? o.workPerformedDetail,
@@ -1379,6 +1389,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     operatorPhone: string;
     failureDescription: string;
     location: string;
+    serviceType?: ServiceType;
     requiresRescue: boolean;
     rescueLocationUrl?: string;
     photos: Array<{ id: string; url: string; title: string; timestamp: string }>;
@@ -1390,6 +1401,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const folioNum = String(orders.length + 1).padStart(3, '0');
     const newFolio = `OS-2026-${folioNum}`;
 
+    const effectiveServiceType = data.serviceType || (data.requiresRescue ? 'rescate' : 'taller');
+
     const newOrder: ServiceOrder = {
       id: `ord-${Date.now()}`,
       folio: newFolio,
@@ -1397,8 +1410,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clientName: data.clientName || 'Flotillas Express S.A. de C.V.',
       clientContact: `${data.operatorName} (${data.operatorPhone})`,
       clientCompany: data.clientCompany || 'Flotillas Express S.A.',
-      serviceType: data.requiresRescue ? 'rescate' : 'taller',
-      priority: data.requiresRescue ? 'urgente' : 'alta',
+      serviceType: effectiveServiceType,
+      priority: data.requiresRescue || effectiveServiceType === 'rescate' ? 'urgente' : 'alta',
       status: 'por_atender',
       unitNumber: data.unitNumber,
       operatorName: data.operatorName,

@@ -6,6 +6,172 @@ export interface ExportExcelOptions {
   filenamePrefix?: string;
   sheetName?: string;
   businessName?: string;
+  companyName?: string;
+}
+
+/**
+ * Formatea el Tipo de Servicio Solicitado según la captura de Excel del usuario:
+ * - "Ingreso a Taller"
+ * - "Asistencia Vial"
+ * - "Rescate"
+ */
+export function formatTipoServicioSolicitado(order: ServiceOrder): string {
+  if (order.requiresRescue || order.serviceType === 'rescate') {
+    return 'Rescate';
+  }
+  if (order.serviceType === 'asistencia') {
+    return 'Asistencia Vial';
+  }
+  return 'Ingreso a Taller';
+}
+
+/**
+ * Formatea la fecha de creación en formato DD/MM/YYYY idéntico al Excel del usuario
+ */
+export function formatFechaCreacionExcel(dateStr?: string): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch {
+    return dateStr;
+  }
+}
+
+/**
+ * Genera y descarga el archivo Excel (.xlsx) con la estructura EXACTA de la captura de pantalla:
+ * Banner Coral: "Historial de Reporte de falla"
+ * Metadata: Empresa, Fecha Descarga, Estatus de Factura: normal, Año: 2026
+ * Columnas:
+ * 1. Fecha de Creacion
+ * 2. Unidad/Económico
+ * 3. Operador
+ * 4. Kilometraje/Hubodómetro
+ * 5. Tipo de Servicio Solicitado
+ * 6. Falla Reportada
+ * 7. Ubicación
+ */
+export function exportHistorialReporteFallaExcel(
+  ordersToExport: ServiceOrder[],
+  options: {
+    companyName?: string;
+    downloadDate?: string;
+    year?: string;
+    filenamePrefix?: string;
+  } = {}
+): boolean {
+  if (!ordersToExport || ordersToExport.length === 0) {
+    return false;
+  }
+
+  const firstOrder = ordersToExport[0];
+  const companyName = 
+    options.companyName || 
+    firstOrder.clientCompany || 
+    firstOrder.clientName || 
+    'GRUPO SATI S.A. DE C.V.';
+
+  const now = new Date();
+  const dayName = now.toLocaleDateString('es-MX', { weekday: 'long' });
+  const dayNameCap = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+  const monthName = now.toLocaleDateString('es-MX', { month: 'long' });
+  const monthNameCap = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+  const formattedDownloadDate = options.downloadDate || `${dayNameCap} ${now.getDate()} de ${monthNameCap} del ${now.getFullYear()}`;
+  const yearStr = options.year || String(now.getFullYear());
+
+  // Construir matriz bidimensional (AOA) para respetar las filas de banner y metadatos
+  const sheetRows: any[][] = [
+    // Fila 1: Banner Superior
+    ['Historial de Reporte de falla', '', '', '', '', '', ''],
+    // Fila 2: Empresa
+    ['Empresa:', companyName, '', '', '', '', ''],
+    // Fila 3: Fecha Descarga
+    ['Fecha Descarga:', formattedDownloadDate, '', '', '', '', ''],
+    // Fila 4: Estatus de Factura
+    ['Estatus de Factura:', 'normal', '', '', '', '', ''],
+    // Fila 5: Año
+    ['Año:', yearStr, '', '', '', '', ''],
+    // Fila 6: Separador
+    ['', '', '', '', '', '', ''],
+    // Fila 7: Cabeceras de tabla idénticas a la captura
+    [
+      'Fecha de Creacion',
+      'Unidad/Económico',
+      'Operador',
+      'Kilometraje/Hubodómetro',
+      'Tipo de Servicio Solicitado',
+      'Falla Reportada',
+      'Ubicación'
+    ]
+  ];
+
+  // Filas de datos (Filas 8 en adelante)
+  ordersToExport.forEach(o => {
+    const fecha = formatFechaCreacionExcel(o.createdAt);
+    
+    // Unidad / Económico: Priorizar número económico (ej. ECO 01, ECO 023)
+    const economico = o.vehicle?.economicNumber || o.unitNumber || 'S/E';
+    
+    // Operador: Nombre y teléfono si existe
+    const opName = o.operatorName || o.userOperatorName || o.vehicle?.driverContact || 'Operador en turno';
+    const opPhone = o.operatorPhone ? ` (${o.operatorPhone})` : '';
+    const operador = `${opName}${opPhone}`;
+
+    // Kilometraje / Hubodómetro
+    const km = o.vehicle?.odometerReading || o.vehicle?.mileage || 'S/K';
+
+    // Tipo de Servicio Solicitado
+    const tipoServicio = formatTipoServicioSolicitado(o);
+
+    // Falla Reportada
+    const falla = o.vehicle?.failureDescription || o.initialDiagnosis || 'Revisión técnica general';
+
+    // Ubicación
+    const ubicacion = o.vehicle?.location || 'Laborando';
+
+    sheetRows.push([
+      fecha,
+      economico,
+      operador,
+      km,
+      tipoServicio,
+      falla,
+      ubicacion
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+
+  // Combinar celda del banner superior (A1:G1)
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }
+  ];
+
+  // Ancho óptimo de columnas
+  ws['!cols'] = [
+    { wch: 18 }, // Fecha de Creacion
+    { wch: 22 }, // Unidad/Económico
+    { wch: 32 }, // Operador
+    { wch: 25 }, // Kilometraje/Hubodómetro
+    { wch: 28 }, // Tipo de Servicio Solicitado
+    { wch: 48 }, // Falla Reportada
+    { wch: 35 }  // Ubicación
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Historial de Reporte de falla');
+
+  const prefix = options.filenamePrefix || 'Historial_Reporte_Falla';
+  const cleanPrefix = prefix.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const dateStamp = now.toISOString().slice(0, 10);
+  const filename = `Historial_Reporte_Falla_${cleanPrefix}_${dateStamp}.xlsx`;
+
+  XLSX.writeFile(wb, filename);
+  return true;
 }
 
 /**

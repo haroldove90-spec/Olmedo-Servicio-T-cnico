@@ -37,7 +37,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { ServiceOrder, ServiceStatus, EvidencePhoto, VideoEvidence, VehicleType } from '../../types';
+import { ServiceOrder, ServiceStatus, EvidencePhoto, VideoEvidence, VehicleType, ServiceType } from '../../types';
 import { SAMPLE_OPERATORS, OperatorOption } from '../../data/mockData';
 import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
 import { getStatusTextColor } from '../../utils/statusSemaphore';
@@ -187,7 +187,8 @@ export const ClientePortal: React.FC = () => {
   const [liveCameraMode, setLiveCameraMode] = useState<'photo' | 'video'>('photo');
   const [showPhotoWarningModal, setShowPhotoWarningModal] = useState(false);
 
-  // 5. ¿Unidad requiere rescate por no estar operable?
+  // 5. Tipo de Servicio Solicitado y Rescate en Carretera
+  const [requestedServiceType, setRequestedServiceType] = useState<ServiceType>('taller');
   const [requiresRescue, setRequiresRescue] = useState<boolean>(false);
   const [rescueLocationUrl, setRescueLocationUrl] = useState<string>('');
 
@@ -411,6 +412,7 @@ export const ClientePortal: React.FC = () => {
       operatorPhone: operatorPhone.trim() || '55 1234 5678',
       failureDescription: failureDescription.trim(),
       location: location.trim(),
+      serviceType: requestedServiceType,
       requiresRescue,
       rescueLocationUrl: requiresRescue ? rescueLocationUrl.trim() : undefined,
       photos: capturedPhotos,
@@ -422,6 +424,7 @@ export const ClientePortal: React.FC = () => {
     // Resetear formulario
     setFailureDescription('');
     setLocation('');
+    setRequestedServiceType('taller');
     setRequiresRescue(false);
     setRescueLocationUrl('');
     setCapturedPhotos([]);
@@ -1097,57 +1100,79 @@ export const ClientePortal: React.FC = () => {
                 </div>
               </div>
 
-              {/* SELECCIÓN: ¿Unidad requiere rescate por no estar operable? SI - NO */}
+              {/* SELECCIÓN: Tipo de Servicio Solicitado y Condición de Operabilidad */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
                 <label className="block text-xs sm:text-sm font-extrabold text-slate-800">
-                  ¿Unidad requiere rescate por no estar operable? *
+                  Tipo de Servicio Solicitado *
                 </label>
                 
-                <div className="grid grid-cols-2 gap-3 max-w-md">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   
-                  {/* OPCIÓN SÍ */}
+                  {/* OPCIÓN 1: INGRESO A TALLER */}
                   <button
                     type="button"
                     onClick={() => {
+                      setRequestedServiceType('taller');
+                      setRequiresRescue(false);
+                      setRescueLocationUrl('');
+                    }}
+                    className={`p-3.5 rounded-2xl border-2 text-center font-bold text-xs sm:text-sm transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      requestedServiceType === 'taller' && !requiresRescue
+                        ? 'border-[#040057] bg-indigo-50 text-[#040057] shadow-md ring-2 ring-indigo-200'
+                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+                    }`}
+                  >
+                    <span className="text-lg">🏢 Ingreso a Taller</span>
+                    <span className="text-[11px] font-medium text-slate-600">
+                      Unidad puede rodar / Taller o patio
+                    </span>
+                  </button>
+
+                  {/* OPCIÓN 2: ASISTENCIA VIAL */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRequestedServiceType('asistencia');
+                      setRequiresRescue(false);
+                      setRescueLocationUrl('');
+                    }}
+                    className={`p-3.5 rounded-2xl border-2 text-center font-bold text-xs sm:text-sm transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      requestedServiceType === 'asistencia' && !requiresRescue
+                        ? 'border-amber-600 bg-amber-50 text-amber-900 shadow-md ring-2 ring-amber-300'
+                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+                    }`}
+                  >
+                    <span className="text-lg">🛠️ Asistencia Vial</span>
+                    <span className="text-[11px] font-medium text-slate-600">
+                      Atención en sitio / Correctivo ligero
+                    </span>
+                  </button>
+
+                  {/* OPCIÓN 3: RESCATE */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRequestedServiceType('rescate');
                       setRequiresRescue(true);
                       if (!rescueLocationUrl) {
                         setRescueLocationUrl('https://maps.google.com/?q=19.7144,-99.2241');
                       }
                     }}
-                    className={`p-4 rounded-2xl border-2 text-center font-black text-sm sm:text-base transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                      requiresRescue
-                        ? 'border-rose-600 bg-rose-50 text-rose-700 shadow-md ring-2 ring-rose-600/30'
+                    className={`p-3.5 rounded-2xl border-2 text-center font-bold text-xs sm:text-sm transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      requiresRescue || requestedServiceType === 'rescate'
+                        ? 'border-rose-600 bg-rose-50 text-rose-800 shadow-md ring-2 ring-rose-600/30'
                         : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
                     }`}
                   >
-                    <span className="text-xl">🚨 SÍ</span>
+                    <span className="text-lg">🚨 Rescate</span>
                     <span className="text-[11px] font-medium text-rose-800">
-                      Unidad inoperable / Varada en ruta
-                    </span>
-                  </button>
-
-                  {/* OPCIÓN NO */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRequiresRescue(false);
-                      setRescueLocationUrl('');
-                    }}
-                    className={`p-4 rounded-2xl border-2 text-center font-black text-sm sm:text-base transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
-                      !requiresRescue
-                        ? 'border-blue-600 bg-blue-50 text-blue-900 shadow-md ring-2 ring-blue-600/30'
-                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
-                    }`}
-                  >
-                    <span className="text-xl">✅ NO</span>
-                    <span className="text-[11px] font-medium text-blue-800">
-                      Unidad operable / Taller o patio
+                      Unidad varada / Inoperable en carretera
                     </span>
                   </button>
 
                 </div>
 
-                {/* Si selecciona "SI": se podrá ver un campo para que el cliente pegue la ubicación o link de Google Maps */}
+                {/* Si selecciona "Rescate": se podrá ver un campo para que el cliente pegue la ubicación o link de Google Maps */}
                 {requiresRescue ? (
                   <div className="pt-3 border-t border-rose-200 animate-fadeIn space-y-2">
                     <label className="block text-xs font-extrabold text-rose-900">
@@ -1170,7 +1195,7 @@ export const ClientePortal: React.FC = () => {
                   </div>
                 ) : (
                   <p className="text-[11px] text-slate-500 pt-1">
-                    Al seleccionar "NO", la solicitud se registrará como ingreso a taller o asistencia preventiva.
+                    Servicio clasificado como {requestedServiceType === 'asistencia' ? 'Asistencia Vial en ruta' : 'Ingreso programado a Taller Matriz'}.
                   </p>
                 )}
 
