@@ -102,7 +102,7 @@ export function exportHistorialReporteFallaExcel(
       'Fecha de Creacion',
       'Unidad/Económico',
       'Operador',
-      'Kilometraje/Hubodómetro',
+      'Kilometraje',
       'Tipo de Servicio Solicitado',
       'Falla Reportada',
       'Ubicación'

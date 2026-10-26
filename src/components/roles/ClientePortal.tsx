@@ -783,10 +783,10 @@ export const ClientePortal: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Campo para registrar Km / Odómetro */}
+                {/* Campo para registrar Km */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Kilometraje / Odómetro Actual *
+                    Kilometraje Actual *
                   </label>
                   <div className="relative">
                     <Gauge className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
