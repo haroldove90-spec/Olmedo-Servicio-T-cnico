@@ -38,9 +38,11 @@ import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceStatus, EvidencePhoto, VideoEvidence, VehicleType } from '../../types';
 import { SAMPLE_OPERATORS, OperatorOption } from '../../data/mockData';
 import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
+import { getStatusTextColor } from '../../utils/statusSemaphore';
 import { LiveCameraModal } from '../common/LiveCameraModal';
 import { EvidenceLockWarningModal } from '../common/EvidenceLockWarningModal';
 import { ClientReportPdfModal } from '../common/ClientReportPdfModal';
+import { ClientEvidenceViewerModal } from '../common/ClientEvidenceViewerModal';
 import { ConsolidatedReportsLogView } from '../common/ConsolidatedReportsLogView';
 
 type ClientViewMode = 'home' | 'nuevo_reporte' | 'listado_reportes' | 'modificar_reporte';
@@ -63,96 +65,64 @@ export const getOrderProcessInfo = (status: ServiceStatus, assignedTech?: string
       return {
         step: 1,
         totalSteps: 5,
-        label: '1. Reporte Recibido',
-        badge: 'Fase 1 de 5: Reporte Recibido',
-        description: 'Tu solicitud de falla ha sido recibida en taller. En espera de asignación de técnico especialista.',
+        label: 'Por atender (Jefe de taller aun no asigna tecnico)',
+        badge: 'Por atender (Jefe de taller aun no asigna tecnico)',
+        description: 'Jefe de taller aún no asigna técnico a la unidad reportada.',
         isFinished: false,
         color: 'amber'
       };
     case 'asignado':
+    case 'en_proceso':
+    case 'en_diagnostico_trabajo':
       return {
         step: 2,
         totalSteps: 5,
-        label: '2. Técnico Asignado',
-        badge: `Fase 2 de 5: Asignado a ${assignedTech || 'Técnico Especialista'}`,
-        description: `Se asignó al técnico ${assignedTech || 'especialista'} para la atención y despacho de tu unidad.`,
+        label: 'En proceso (cuando tecnico ya fue asigndo)',
+        badge: assignedTech 
+          ? `En proceso (cuando técnico ya fue asignado: ${assignedTech})` 
+          : 'En proceso (cuando tecnico ya fue asigndo)',
+        description: `Técnico especialista ${assignedTech ? `(${assignedTech})` : ''} atendiendo labores operativas en la unidad.`,
         isFinished: false,
         color: 'blue'
       };
-    case 'en_proceso':
-    case 'en_diagnostico_trabajo':
-    case 'evidencias_rechazadas':
-      return {
-        step: 3,
-        totalSteps: 5,
-        label: '3. En Diagnóstico y Reparación',
-        badge: 'Fase 3 de 5: En Diagnóstico y Reparación',
-        description: 'El técnico especialista se encuentra revisando los sistemas mecánicos y realizando las reparaciones necesarias en la unidad.',
-        isFinished: false,
-        color: 'indigo'
-      };
-    case 'evidencias_en_revision':
-      return {
-        step: 3,
-        totalSteps: 5,
-        label: '3. Evidencias en Revisión',
-        badge: 'Fase 3 de 5: Evidencias en Revisión de Calidad',
-        description: 'El técnico documentó fotográficamente la reparación y el dictamen está en revisión operativa para control de calidad.',
-        isFinished: false,
-        color: 'indigo'
-      };
     case 'pendiente_refacciones':
       return {
-        step: 4,
+        step: 3,
         totalSteps: 5,
-        label: '4. Esperando Refacciones',
-        badge: 'Fase 4 de 5: Esperando Suministro de Refacciones',
-        description: 'Se diagnosticaron piezas requeridas. En proceso de suministro y montaje para habilitar la unidad.',
+        label: 'Pendiente por refacciones',
+        badge: 'Pendiente por refacciones',
+        description: 'En espera de suministro y piezas requeridas para continuar la reparación.',
         isFinished: false,
-        color: 'purple'
+        color: 'orange'
       };
     case 'validando_pruebas':
+    case 'evidencias_en_revision':
+    case 'evidencias_rechazadas':
+    case 'cotizacion_pendiente':
       return {
         step: 4,
         totalSteps: 5,
-        label: '4. Pruebas y Validación',
-        badge: 'Fase 4 de 5: Pruebas Operativas y de Rodaje',
-        description: 'Se están realizando pruebas de encendido, calibración y control de calidad final.',
+        label: 'Validando / Pruebas (Gerente revisa evidencia para liberar)',
+        badge: 'Validando / Pruebas (Gerente revisa evidencia para liberar)',
+        description: 'Gerente revisa evidencia fotográfica y pruebas mecánicas para autorizar la liberación de la unidad.',
         isFinished: false,
-        color: 'sky'
+        color: 'purple'
       };
     case 'habilitada':
     case 'liberacion_autorizada':
     case 'unidad_liberada':
-      return {
-        step: 5,
-        totalSteps: 5,
-        label: '5. Servicio Terminado',
-        badge: 'Fase 5 de 5: Servicio Terminado • Unidad Habilitada',
-        description: '¡El trabajo ha concluido con éxito! Unidad probada y habilitada. El reporte oficial en PDF ya está disponible para su descarga.',
-        isFinished: true,
-        color: 'emerald'
-      };
     case 'cerrado':
     case 'facturado':
+    case 'cotizacion_aprobada':
+    default:
       return {
         step: 5,
         totalSteps: 5,
-        label: '5. Concluido y Cerrado',
-        badge: 'Fase 5 de 5: Servicio Terminado y Cerrado',
-        description: 'Servicio concluido, documentado y archivado. Reporte en PDF disponible.',
+        label: 'Habilitada (Se envia notificación al cliente)',
+        badge: 'Habilitada (Se envia notificación al cliente)',
+        description: '¡Servicio concluido! Unidad habilitada y liberada físicamente. Se ha enviado notificación al cliente.',
         isFinished: true,
-        color: 'slate'
-      };
-    default:
-      return {
-        step: 3,
-        totalSteps: 5,
-        label: 'En Proceso',
-        badge: 'En Atención Operativa',
-        description: 'Servicio técnico en desarrollo.',
-        isFinished: false,
-        color: 'blue'
+        color: 'emerald'
       };
   }
 };
@@ -222,9 +192,10 @@ export const ClientePortal: React.FC = () => {
   // ESTADOS DEL LISTADO Y BÚSQUEDA INTELIGENTE
   // ==========================================
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('en_proceso');
+  const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [reportListFormat, setReportListFormat] = useState<'tarjetas' | 'bitacora'>('tarjetas');
   const [viewingPdfOrder, setViewingPdfOrder] = useState<ServiceOrder | null>(null);
+  const [viewingEvidencesOrder, setViewingEvidencesOrder] = useState<ServiceOrder | null>(null);
 
   // ==========================================
   // ESTADO DE MODIFICACIÓN DE REPORTE
@@ -476,20 +447,18 @@ export const ClientePortal: React.FC = () => {
 
     if (!matchesSearch) return false;
 
-    if (statusFilter === 'en_proceso') {
-      const inProcessStatuses = [
-        'en_proceso',
-        'asignado',
-        'en_diagnostico_trabajo',
-        'solicitado',
-        'por_atender',
-        'evidencias_en_revision',
-        'pendiente_refacciones',
-        'validando_pruebas',
-        'evidencias_rechazadas'
-      ];
-      if (!inProcessStatuses.includes(order.status)) return false;
-    } else if (statusFilter === 'concluidos') {
+    if (statusFilter === 'por_atender') {
+      const match = order.status === 'por_atender' || order.status === 'solicitado';
+      if (!match) return false;
+    } else if (statusFilter === 'en_proceso') {
+      const match = order.status === 'en_proceso' || order.status === 'asignado' || order.status === 'en_diagnostico_trabajo';
+      if (!match) return false;
+    } else if (statusFilter === 'pendiente_refacciones') {
+      if (order.status !== 'pendiente_refacciones') return false;
+    } else if (statusFilter === 'validando_pruebas') {
+      const match = order.status === 'validando_pruebas' || order.status === 'evidencias_en_revision' || order.status === 'evidencias_rechazadas';
+      if (!match) return false;
+    } else if (statusFilter === 'habilitada' || statusFilter === 'concluidos') {
       const finishedStatuses = [
         'habilitada',
         'liberacion_autorizada',
@@ -1281,11 +1250,24 @@ export const ClientePortal: React.FC = () => {
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                   aria-label="Filtrar por estatus"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-blue-200 bg-blue-50/70 text-xs sm:text-sm font-bold text-[#040057] focus:ring-2 focus:ring-[#040057] transition cursor-pointer shadow-xs"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-blue-200 bg-white text-xs sm:text-sm font-bold text-[#040057] focus:ring-2 focus:ring-[#040057] transition cursor-pointer shadow-xs"
                 >
-                  <option value="en_proceso">En Proceso / Diagnóstico</option>
-                  <option value="concluidos">Servicios Terminados (PDF Listo)</option>
-                  <option value="todos">Todos los Reportes</option>
+                  <option value="todos">Todos los Reportes (Cualquier estatus)</option>
+                  <option value="por_atender" className="text-amber-700 font-bold">
+                    Por atender (Jefe de taller aun no asigna tecnico)
+                  </option>
+                  <option value="en_proceso" className="text-blue-700 font-bold">
+                    En proceso (cuando tecnico ya fue asigndo)
+                  </option>
+                  <option value="pendiente_refacciones" className="text-orange-700 font-bold">
+                    Pendiente por refacciones
+                  </option>
+                  <option value="validando_pruebas" className="text-purple-700 font-bold">
+                    Validando / Pruebas (Gerente revisa evidencia para liberar)
+                  </option>
+                  <option value="habilitada" className="text-emerald-700 font-bold">
+                    Habilitada (Se envia notificación al cliente)
+                  </option>
                 </select>
               </div>
             </div>
@@ -1359,34 +1341,48 @@ export const ClientePortal: React.FC = () => {
                 const isRescue = order.requiresRescue || order.serviceType === 'rescate';
 
                 // Helpers de formato de estatus visual según la imagen solicitada
+                // Helpers de formato de estatus visual según la solicitud oficial
                 const getStatusPill = (st: ServiceStatus) => {
                   switch (st) {
                     case 'por_atender':
                     case 'solicitado':
-                      return { text: 'Por Atender', color: 'bg-amber-100 text-amber-900 border-amber-300' };
+                      return { 
+                        text: 'Por atender (Jefe de taller aun no asigna tecnico)', 
+                        color: 'bg-amber-50 text-amber-700 border-amber-300 font-extrabold' 
+                      };
                     case 'en_proceso':
                     case 'asignado':
                     case 'en_diagnostico_trabajo':
-                      return { text: 'En Proceso / Diagnóstico', color: 'bg-blue-100 text-blue-900 border-blue-300' };
+                      return { 
+                        text: 'En proceso (cuando tecnico ya fue asigndo)', 
+                        color: 'bg-blue-50 text-blue-700 border-blue-300 font-extrabold' 
+                      };
                     case 'pendiente_refacciones':
-                      return { text: 'Pendiente Refacciones', color: 'bg-purple-100 text-purple-900 border-purple-300' };
+                      return { 
+                        text: 'Pendiente por refacciones', 
+                        color: 'bg-orange-50 text-orange-700 border-orange-300 font-extrabold' 
+                      };
                     case 'validando_pruebas':
                     case 'evidencias_en_revision':
-                      return { text: 'Validando / Pruebas', color: 'bg-indigo-100 text-indigo-900 border-indigo-300' };
+                    case 'evidencias_rechazadas':
+                      return { 
+                        text: 'Validando / Pruebas (Gerente revisa evidencia para liberar)', 
+                        color: 'bg-purple-50 text-purple-700 border-purple-300 font-extrabold' 
+                      };
                     case 'habilitada':
                     case 'liberacion_autorizada':
                     case 'unidad_liberada':
-                      return { text: 'Habilitada / Lista', color: 'bg-emerald-100 text-emerald-900 border-emerald-300' };
                     case 'cerrado':
                     case 'facturado':
-                      return { text: 'Cerrado / Concluido', color: 'bg-slate-200 text-slate-800 border-slate-400' };
                     default:
-                      return { text: st, color: 'bg-slate-100 text-slate-700 border-slate-300' };
+                      return { 
+                        text: 'Habilitada (Se envia notificación al cliente)', 
+                        color: 'bg-emerald-50 text-emerald-700 border-emerald-300 font-extrabold' 
+                      };
                   }
                 };
 
                 const statusInfo = getStatusPill(order.status);
-
                 const processInfo = getOrderProcessInfo(order.status, order.assignedTechnicianName);
 
                 return (
@@ -1406,14 +1402,8 @@ export const ClientePortal: React.FC = () => {
                           <span className="text-slate-700 font-bold">{order.vehicle.plates}</span>
                         </span>
                         
-                        {/* Badge de fase actual del proceso */}
-                        <span className={`px-3 py-1 rounded-full text-xs font-black border ${
-                          processInfo.isFinished
-                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                            : 'bg-blue-100 text-blue-900 border-blue-300'
-                        }`}>
-                          {processInfo.badge}
-                        </span>
+                        {/* Badge de Estatus Oficial con Texto en Colores */}
+                        <StatusSemaphoreBadge status={order.status} size="md" />
 
                         {isRescue ? (
                           <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[11px] font-black uppercase flex items-center gap-1 shadow-xs animate-pulse">
@@ -1446,14 +1436,14 @@ export const ClientePortal: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Línea de 5 pasos */}
+                      {/* Línea de 5 pasos con textos coloreados según su etapa */}
                       <div className="grid grid-cols-5 gap-1.5 sm:gap-2 pt-1">
                         {[
-                          { num: 1, title: 'Reportado' },
-                          { num: 2, title: 'Asignado' },
-                          { num: 3, title: 'En Trabajo' },
-                          { num: 4, title: 'Pruebas' },
-                          { num: 5, title: 'Terminado' }
+                          { num: 1, title: 'Por atender', colorClass: 'text-amber-700', activeBg: 'bg-amber-500 ring-amber-300' },
+                          { num: 2, title: 'En proceso', colorClass: 'text-blue-700', activeBg: 'bg-blue-600 ring-blue-300' },
+                          { num: 3, title: 'Pendiente refacciones', colorClass: 'text-orange-700', activeBg: 'bg-orange-500 ring-orange-300' },
+                          { num: 4, title: 'Validando / Pruebas', colorClass: 'text-purple-700', activeBg: 'bg-purple-600 ring-purple-300' },
+                          { num: 5, title: 'Habilitada', colorClass: 'text-emerald-700', activeBg: 'bg-emerald-600 ring-emerald-300' }
                         ].map((stepItem) => {
                           const isDone = stepItem.num < processInfo.step;
                           const isCurrent = stepItem.num === processInfo.step;
@@ -1466,19 +1456,20 @@ export const ClientePortal: React.FC = () => {
                                     isDone
                                       ? 'bg-emerald-500'
                                       : isCurrent
-                                      ? (processInfo.isFinished ? 'bg-emerald-500 ring-2 ring-emerald-300' : 'bg-blue-600 ring-2 ring-blue-300 animate-pulse')
+                                      ? `${stepItem.activeBg} ring-2 animate-pulse`
                                       : 'bg-slate-200'
                                   }`}
                                 />
                               </div>
                               <span
-                                className={`text-[9.5px] sm:text-xs font-bold uppercase truncate max-w-full ${
+                                className={`text-[9.5px] sm:text-xs font-black uppercase truncate max-w-full ${
                                   isCurrent
-                                    ? 'text-[#040057] font-black'
+                                    ? `${stepItem.colorClass} underline underline-offset-2`
                                     : isDone
                                     ? 'text-emerald-700 font-extrabold'
-                                    : 'text-slate-400'
+                                    : 'text-slate-400 font-semibold'
                                 }`}
+                                title={stepItem.title}
                               >
                                 {stepItem.title}
                               </span>
@@ -1487,12 +1478,17 @@ export const ClientePortal: React.FC = () => {
                         })}
                       </div>
 
-                      {/* Detalle descriptivo de la etapa actual */}
-                      <div className="flex items-start gap-2 pt-1 border-t border-slate-200/80 text-xs text-slate-700">
-                        <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                        <p className="font-semibold leading-relaxed">
-                          {processInfo.description}
-                        </p>
+                      {/* Detalle descriptivo de la etapa actual con texto en colores */}
+                      <div className="flex items-start gap-2 pt-2 border-t border-slate-200/80 text-xs">
+                        <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5">
+                          <div className={`font-black text-xs sm:text-sm ${getStatusTextColor(order.status)}`}>
+                            {processInfo.label}
+                          </div>
+                          <p className="font-semibold text-slate-600 leading-relaxed">
+                            {processInfo.description}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
@@ -1508,12 +1504,32 @@ export const ClientePortal: React.FC = () => {
                           <User className="w-3.5 h-3.5 text-slate-400" />
                           <span>{order.operatorName || order.clientContact}</span>
                         </div>
-                        {order.operatorPhone && (
-                          <div className="text-emerald-700 font-semibold flex items-center gap-1">
-                            <Phone className="w-3 h-3 text-emerald-600" />
+                        {order.operatorPhone ? (
+                          <a
+                            href={`tel:${order.operatorPhone.replace(/[^0-9+]/g, '')}`}
+                            className="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1 text-xs hover:underline cursor-pointer"
+                            title="Llamar al operador"
+                          >
+                            <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
                             <span>{order.operatorPhone}</span>
-                          </div>
-                        )}
+                          </a>
+                        ) : (() => {
+                          const phoneMatch = (order.operatorName || '').match(/\(([\d\s\-+().]{7,})\)/);
+                          if (phoneMatch) {
+                            const ph = phoneMatch[1].trim();
+                            return (
+                              <a
+                                href={`tel:${ph.replace(/[^0-9+]/g, '')}`}
+                                className="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1 text-xs hover:underline cursor-pointer"
+                                title="Llamar al operador"
+                              >
+                                <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
+                                <span>{ph}</span>
+                              </a>
+                            );
+                          }
+                          return null;
+                        })()}
                         <div className="text-slate-600 font-medium flex items-start gap-1 pt-0.5">
                           <MapPin className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
                           <span className="line-clamp-2">{order.vehicle.location}</span>
@@ -1548,22 +1564,32 @@ export const ClientePortal: React.FC = () => {
 
                     </div>
 
-                    {/* Evidencias adjuntas (miniaturas) */}
+                    {/* Evidencias adjuntas (miniaturas interactivas para abrir modal) */}
                     {((order.evidences && order.evidences.length > 0) || (order.videoEvidences && order.videoEvidences.length > 0)) && (
-                      <div className="flex items-center gap-2 overflow-x-auto py-1">
-                        <span className="text-[11px] font-bold text-slate-400 shrink-0">Evidencias:</span>
+                      <div 
+                        onClick={() => setViewingEvidencesOrder(order)}
+                        className="flex items-center gap-2 overflow-x-auto py-1 cursor-pointer group"
+                        title="Haz click para ver las evidencias fotográficas y videos"
+                      >
+                        <span className="text-[11px] font-bold text-indigo-700 group-hover:underline flex items-center gap-1 shrink-0">
+                          <Camera className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Evidencias ({((order.evidences?.length || 0) + (order.videoEvidences?.length || 0))}):</span>
+                        </span>
                         {order.evidences.slice(0, 4).map((ev, i) => (
-                          <div key={i} className="w-14 h-10 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shrink-0 relative">
+                          <div key={i} className="w-14 h-10 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shrink-0 relative group-hover:opacity-85 transition">
                             <img src={ev.url} alt="ev" className="w-full h-full object-cover" />
                             <Camera className="w-2.5 h-2.5 text-white absolute bottom-1 right-1" />
                           </div>
                         ))}
                         {order.videoEvidences?.map((vid, i) => (
-                          <div key={i} className="w-16 h-10 rounded-xl bg-slate-900 border border-slate-200 text-white flex items-center justify-center gap-1 text-[9px] font-bold shrink-0">
+                          <div key={i} className="w-16 h-10 rounded-xl bg-slate-900 border border-slate-200 text-white flex items-center justify-center gap-1 text-[9px] font-bold shrink-0 group-hover:opacity-85 transition">
                             <Video className="w-3 h-3 text-rose-500" />
                             <span>{vid.duration || 15}s</span>
                           </div>
                         ))}
+                        <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 group-hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 shrink-0 transition">
+                          Ver galería
+                        </span>
                       </div>
                     )}
 
@@ -1585,33 +1611,46 @@ export const ClientePortal: React.FC = () => {
                       </div>
                     )}
 
-                    {/* ACCIONES: Descargar PDF (solo si el servicio ha concluido) y Modificar Reporte */}
+                    {/* ACCIONES: Ver Evidencias (solicitado por usuario), Descargar PDF y Modificar Reporte */}
                     <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
-                      {processInfo.isFinished ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Botón Ver Evidencias en cada tarjeta de Mis Reportes */}
                         <button
                           type="button"
-                          onClick={() => setViewingPdfOrder(order)}
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
+                          onClick={() => setViewingEvidencesOrder(order)}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#040057] font-extrabold text-xs sm:text-sm border border-indigo-200 transition cursor-pointer shadow-2xs hover:scale-[1.01]"
+                          title="Ver evidencias fotográficas y videos de este reporte de falla"
                         >
-                          <FileText className="w-4 h-4 text-emerald-300" />
-                          <span>Descargar Reporte en PDF</span>
+                          <Camera className="w-4 h-4 text-indigo-600" />
+                          <span>Ver Evidencias ({((order.evidences?.length || 0) + (order.videoEvidences?.length || 0))})</span>
                         </button>
-                      ) : (
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+
+                        {processInfo.isFinished ? (
                           <button
                             type="button"
-                            disabled
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs sm:text-sm border border-slate-200 cursor-not-allowed opacity-80"
-                            title="No se podrá descargar el PDF hasta que el proceso no se haya terminado (Fase 5)."
+                            onClick={() => setViewingPdfOrder(order)}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#040057] hover:bg-[#070085] text-white font-bold text-xs sm:text-sm shadow-md transition cursor-pointer"
                           >
-                            <Lock className="w-4 h-4 text-slate-400" />
-                            <span>Descargar Reporte en PDF (Bloqueado)</span>
+                            <FileText className="w-4 h-4 text-emerald-300" />
+                            <span>Descargar Reporte en PDF</span>
                           </button>
-                          <span className="text-[11px] text-amber-700 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
-                            🔒 Disponible al concluir servicio
-                          </span>
-                        </div>
-                      )}
+                        ) : (
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <button
+                              type="button"
+                              disabled
+                              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs sm:text-sm border border-slate-200 cursor-not-allowed opacity-80"
+                              title="No se podrá descargar el PDF hasta que el proceso no se haya terminado (Fase 5)."
+                            >
+                              <Lock className="w-4 h-4 text-slate-400" />
+                              <span>Descargar Reporte en PDF (Bloqueado)</span>
+                            </button>
+                            <span className="text-[11px] text-amber-700 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                              🔒 Disponible al concluir servicio
+                            </span>
+                          </div>
+                        )}
+                      </div>
 
                       <button
                         type="button"
@@ -1814,6 +1853,12 @@ export const ClientePortal: React.FC = () => {
       <ClientReportPdfModal
         order={viewingPdfOrder}
         onClose={() => setViewingPdfOrder(null)}
+      />
+
+      {/* MODAL OFICIAL PARA VISUALIZACIÓN DE EVIDENCIAS FOTOGRÁFICAS Y VIDEOS */}
+      <ClientEvidenceViewerModal
+        order={viewingEvidencesOrder}
+        onClose={() => setViewingEvidencesOrder(null)}
       />
 
     </div>

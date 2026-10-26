@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { ServiceOrder } from '../types';
+import { getStatusSemaphore } from './statusSemaphore';
 
 export interface ExportExcelOptions {
   filenamePrefix?: string;
@@ -70,7 +71,7 @@ export function exportOrdersToExcel(
       'Folio de Orden': o.folio,
       'No. Reporte': o.reportNumber || 'S/N',
       'Fecha Creación': formattedCreation,
-      'Estatus': o.status.toUpperCase(),
+      'Estatus': getStatusSemaphore(o.status).label,
       'Tipo Servicio': o.serviceType ? o.serviceType.toUpperCase() : 'TALLER',
       'Prioridad': o.priority ? o.priority.toUpperCase() : 'NORMAL',
       'Cliente': o.clientCompany || o.clientName || 'Sin especificar',
@@ -149,7 +150,7 @@ export function exportOrdersToExcel(
     { wch: 14 }, // Folio
     { wch: 14 }, // No. Reporte
     { wch: 18 }, // Fecha Creación
-    { wch: 15 }, // Estatus
+    { wch: 55 }, // Estatus
     { wch: 14 }, // Tipo Servicio
     { wch: 12 }, // Prioridad
     { wch: 28 }, // Cliente

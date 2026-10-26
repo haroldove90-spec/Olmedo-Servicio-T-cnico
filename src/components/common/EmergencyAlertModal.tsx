@@ -265,26 +265,59 @@ export const EmergencyAlertModal: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
               Actualizar Estatus de la Solicitud Directamente:
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {[
-                { id: 'por_atender', label: 'Por Atender', color: 'bg-amber-100 text-amber-900 border-amber-300' },
-                { id: 'en_proceso', label: 'En Proceso', color: 'bg-blue-100 text-blue-900 border-blue-300' },
-                { id: 'pendiente_refacciones', label: 'Pend. Refacciones', color: 'bg-purple-100 text-purple-900 border-purple-300' },
-                { id: 'validando_pruebas', label: 'Validando Pruebas', color: 'bg-indigo-100 text-indigo-900 border-indigo-300' },
-                { id: 'habilitada', label: 'Habilitada / Lista', color: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
-                { id: 'cerrado', label: 'Cerrado', color: 'bg-slate-200 text-slate-800 border-slate-400' },
+                { 
+                  id: 'por_atender', 
+                  label: 'Por atender (Jefe de taller aun no asigna tecnico)', 
+                  textColor: 'text-amber-700',
+                  activeStyle: 'bg-amber-50 text-amber-800 border-amber-300 ring-2 ring-amber-400' 
+                },
+                { 
+                  id: 'en_proceso', 
+                  label: 'En proceso (cuando tecnico ya fue asigndo)', 
+                  textColor: 'text-blue-700',
+                  activeStyle: 'bg-blue-50 text-blue-800 border-blue-300 ring-2 ring-blue-400' 
+                },
+                { 
+                  id: 'pendiente_refacciones', 
+                  label: 'Pendiente por refacciones', 
+                  textColor: 'text-orange-700',
+                  activeStyle: 'bg-orange-50 text-orange-800 border-orange-300 ring-2 ring-orange-400' 
+                },
+                { 
+                  id: 'validando_pruebas', 
+                  label: 'Validando / Pruebas (Gerente revisa evidencia para liberar)', 
+                  textColor: 'text-purple-700',
+                  activeStyle: 'bg-purple-50 text-purple-800 border-purple-300 ring-2 ring-purple-400' 
+                },
+                { 
+                  id: 'habilitada', 
+                  label: 'Habilitada (Se envia notificación al cliente)', 
+                  textColor: 'text-emerald-700',
+                  activeStyle: 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-400' 
+                },
               ].map(st => (
                 <button
                   key={st.id}
                   type="button"
                   onClick={() => handleStatusChange(st.id as ServiceStatus)}
-                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition text-center cursor-pointer ${
+                  className={`px-3 py-2 rounded-xl text-xs font-black border transition text-left cursor-pointer flex items-center gap-2 ${
                     selectedStatus === st.id 
-                      ? `${st.color} ring-2 ring-[#040057] shadow-xs` 
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                      ? `${st.activeStyle} shadow-xs` 
+                      : `bg-white ${st.textColor} border-slate-200 hover:bg-slate-50`
                   }`}
                 >
-                  {st.label}
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${
+                    st.id === 'por_atender' ? 'bg-amber-500' :
+                    st.id === 'en_proceso' ? 'bg-blue-600' :
+                    st.id === 'pendiente_refacciones' ? 'bg-orange-500' :
+                    st.id === 'validando_pruebas' ? 'bg-purple-600' :
+                    'bg-emerald-600'
+                  }`} />
+                  <span className={selectedStatus === st.id ? 'font-black' : st.textColor}>
+                    {st.label}
+                  </span>
                 </button>
               ))}
             </div>

@@ -1,12 +1,13 @@
 import { ServiceStatus } from '../types';
 
-export type SemaphoreColor = 'verde' | 'amarillo' | 'rojo';
+export type SemaphoreColor = 'verde' | 'amarillo' | 'azul' | 'naranja' | 'purpura' | 'rojo';
 
 export interface SemaphoreStatusDetail {
   color: SemaphoreColor;
   label: string;
   shortLabel: string;
   dotColor: string; // Tailwind circle color
+  textColor: string; // Tailwind text color
   pulse: boolean;
   badgeClass: string;
   borderClass: string;
@@ -14,210 +15,215 @@ export interface SemaphoreStatusDetail {
 }
 
 /**
- * Determina el color del semáforo y formato visual para cada estatus de servicio
- * 🟢 Verde: Concluido, Liberación Autorizada, Unidad Entregada, Facturado, Cotización Aprobada
- * 🟡 Amarillo: En Diagnóstico, En Proceso, Evidencias en Revisión, Cotización Pendiente, Asignado
- * 🔴 Rojo: Evidencias Rechazadas / Observadas (Requiere atención urgente inmediata) o Solicitudes Urgentes
+ * 5 Estatus Oficiales de Reportes de Falla solicitados por el negocio:
+ * 1. Por atender (Jefe de taller aun no asigna tecnico) -> Ámbar / Dorado
+ * 2. En proceso (cuando tecnico ya fue asigndo) -> Azul
+ * 3. Pendiente por refacciones -> Naranja
+ * 4. Validando / Pruebas (Gerente revisa evidencia para liberar) -> Púrpura / Morado
+ * 5. Habilitada (Se envia notificación al cliente) -> Verde Esmeralda
  */
 export const CLIENT_STATUS_OPTIONS: Array<{
   id: 'por_atender' | 'en_proceso' | 'pendiente_refacciones' | 'validando_pruebas' | 'habilitada';
   label: string;
+  shortLabel: string;
   sublabel: string;
   color: SemaphoreColor;
+  textColor: string;
   badgeClass: string;
   dotColor: string;
 }> = [
   {
     id: 'por_atender',
-    label: 'Por atender',
-    sublabel: 'Jefe de taller aún no asigna técnico',
+    label: 'Por atender (Jefe de taller aun no asigna tecnico)',
+    shortLabel: 'Por atender',
+    sublabel: 'Jefe de taller aun no asigna tecnico',
     color: 'amarillo',
-    badgeClass: 'bg-amber-50 text-amber-900 border-amber-300 font-bold',
+    textColor: 'text-amber-700',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-300 font-extrabold',
     dotColor: 'bg-amber-500',
   },
   {
     id: 'en_proceso',
-    label: 'En proceso',
-    sublabel: 'Cuando técnico ya fue asignado',
-    color: 'amarillo',
-    badgeClass: 'bg-blue-50 text-blue-900 border-blue-300 font-bold',
+    label: 'En proceso (cuando tecnico ya fue asigndo)',
+    shortLabel: 'En proceso',
+    sublabel: 'cuando tecnico ya fue asigndo',
+    color: 'azul',
+    textColor: 'text-blue-700',
+    badgeClass: 'bg-blue-50 text-blue-700 border-blue-300 font-extrabold',
     dotColor: 'bg-blue-600',
   },
   {
     id: 'pendiente_refacciones',
     label: 'Pendiente por refacciones',
+    shortLabel: 'Pendiente por refacciones',
     sublabel: 'En espera de suministro de partes',
-    color: 'amarillo',
-    badgeClass: 'bg-orange-50 text-orange-900 border-orange-300 font-bold',
+    color: 'naranja',
+    textColor: 'text-orange-700',
+    badgeClass: 'bg-orange-50 text-orange-700 border-orange-300 font-extrabold',
     dotColor: 'bg-orange-500',
   },
   {
     id: 'validando_pruebas',
-    label: 'Validando / Pruebas',
+    label: 'Validando / Pruebas (Gerente revisa evidencia para liberar)',
+    shortLabel: 'Validando / Pruebas',
     sublabel: 'Gerente revisa evidencia para liberar',
-    color: 'amarillo',
-    badgeClass: 'bg-purple-50 text-purple-900 border-purple-300 font-bold',
+    color: 'purpura',
+    textColor: 'text-purple-700',
+    badgeClass: 'bg-purple-50 text-purple-700 border-purple-300 font-extrabold',
     dotColor: 'bg-purple-600',
   },
   {
     id: 'habilitada',
-    label: 'Habilitada',
-    sublabel: 'Se envía notificación al cliente al liberar',
+    label: 'Habilitada (Se envia notificación al cliente)',
+    shortLabel: 'Habilitada',
+    sublabel: 'Se envia notificación al cliente',
     color: 'verde',
-    badgeClass: 'bg-emerald-50 text-emerald-900 border-emerald-300 font-bold',
+    textColor: 'text-emerald-700',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-300 font-extrabold',
     dotColor: 'bg-emerald-600',
   },
 ];
 
 /**
- * Determina el color del semáforo y formato visual para cada estatus de servicio
+ * Obtiene la clase de color de texto según el estatus
+ */
+export function getStatusTextColor(status: ServiceStatus | string): string {
+  switch (status) {
+    case 'por_atender':
+    case 'solicitado':
+      return 'text-amber-700';
+    case 'en_proceso':
+    case 'asignado':
+    case 'en_diagnostico_trabajo':
+      return 'text-blue-700';
+    case 'pendiente_refacciones':
+      return 'text-orange-700';
+    case 'validando_pruebas':
+    case 'evidencias_en_revision':
+    case 'evidencias_rechazadas':
+      return 'text-purple-700';
+    case 'habilitada':
+    case 'liberacion_autorizada':
+    case 'unidad_liberada':
+    case 'cerrado':
+    case 'facturado':
+      return 'text-emerald-700';
+    default:
+      return 'text-slate-700';
+  }
+}
+
+/**
+ * Determina el color y formato visual para cada estatus de servicio
  */
 export function getStatusSemaphore(
-  status: ServiceStatus, 
+  status: ServiceStatus | string, 
   priority?: 'baja' | 'media' | 'alta' | 'urgente',
-  quotationStatus?: 'borrador' | 'enviada' | 'aprobada' | 'rechazada'
+  _quotationStatus?: 'borrador' | 'enviada' | 'aprobada' | 'rechazada'
 ): SemaphoreStatusDetail {
-  // Las 5 Opciones Principales Solicitadas por el Cliente
-  if (status === 'por_atender') {
+  // 1. Por atender (Jefe de taller aun no asigna tecnico)
+  if (status === 'por_atender' || status === 'solicitado') {
     return {
       color: priority === 'urgente' ? 'rojo' : 'amarillo',
-      label: 'Por atender (Jefe de taller aún no asigna técnico)',
+      label: 'Por atender (Jefe de taller aun no asigna tecnico)',
       shortLabel: 'Por atender',
       dotColor: priority === 'urgente' ? 'bg-rose-600' : 'bg-amber-500',
+      textColor: priority === 'urgente' ? 'text-rose-700' : 'text-amber-700',
       pulse: priority === 'urgente',
       badgeClass: priority === 'urgente' 
-        ? 'bg-rose-50 text-rose-800 border-rose-300 font-bold' 
-        : 'bg-amber-50 text-amber-900 border-amber-300 font-bold',
+        ? 'bg-rose-50 text-rose-700 border-rose-300 font-extrabold' 
+        : 'bg-amber-50 text-amber-700 border-amber-300 font-extrabold',
       borderClass: 'border-amber-300',
-      categoryText: '🟡 Por atender: En espera de asignación',
+      categoryText: '🟡 Por atender: Jefe de taller aun no asigna tecnico',
     };
   }
 
-  if (status === 'en_proceso') {
+  // 2. En proceso (cuando tecnico ya fue asigndo)
+  if (
+    status === 'en_proceso' || 
+    status === 'asignado' || 
+    status === 'en_diagnostico_trabajo'
+  ) {
     return {
-      color: 'amarillo',
-      label: 'En proceso (Cuando técnico ya fue asignado)',
+      color: 'azul',
+      label: 'En proceso (cuando tecnico ya fue asigndo)',
       shortLabel: 'En proceso',
       dotColor: 'bg-blue-600',
+      textColor: 'text-blue-700',
       pulse: false,
-      badgeClass: 'bg-blue-50 text-blue-900 border-blue-300 font-bold',
+      badgeClass: 'bg-blue-50 text-blue-700 border-blue-300 font-extrabold',
       borderClass: 'border-blue-300',
-      categoryText: '🔵 En proceso: Cuadrilla técnica atendiendo',
+      categoryText: '🔵 En proceso: cuando tecnico ya fue asigndo',
     };
   }
 
+  // 3. Pendiente por refacciones
   if (status === 'pendiente_refacciones') {
     return {
-      color: 'amarillo',
+      color: 'naranja',
       label: 'Pendiente por refacciones',
-      shortLabel: 'Pendiente refacciones',
+      shortLabel: 'Pendiente por refacciones',
       dotColor: 'bg-orange-500',
+      textColor: 'text-orange-700',
       pulse: true,
-      badgeClass: 'bg-orange-50 text-orange-900 border-orange-300 font-bold',
+      badgeClass: 'bg-orange-50 text-orange-700 border-orange-300 font-extrabold',
       borderClass: 'border-orange-300',
       categoryText: '🟠 Pendiente por refacciones: Insumos requeridos',
     };
   }
 
-  if (status === 'validando_pruebas') {
+  // 4. Validando / Pruebas (Gerente revisa evidencia para liberar)
+  if (
+    status === 'validando_pruebas' || 
+    status === 'evidencias_en_revision' || 
+    status === 'evidencias_rechazadas' ||
+    status === 'cotizacion_pendiente'
+  ) {
     return {
-      color: 'amarillo',
+      color: 'purpura',
       label: 'Validando / Pruebas (Gerente revisa evidencia para liberar)',
       shortLabel: 'Validando / Pruebas',
       dotColor: 'bg-purple-600',
-      pulse: false,
-      badgeClass: 'bg-purple-50 text-purple-900 border-purple-300 font-bold',
+      textColor: 'text-purple-700',
+      pulse: status === 'evidencias_rechazadas',
+      badgeClass: 'bg-purple-50 text-purple-700 border-purple-300 font-extrabold',
       borderClass: 'border-purple-300',
-      categoryText: '🟣 Validando / Pruebas: Revisión de evidencia',
+      categoryText: '🟣 Validando / Pruebas: Gerente revisa evidencia para liberar',
     };
   }
 
-  if (status === 'habilitada') {
-    return {
-      color: 'verde',
-      label: 'Habilitada (Se envía notificación al cliente al liberar)',
-      shortLabel: 'Habilitada',
-      dotColor: 'bg-emerald-600',
-      pulse: false,
-      badgeClass: 'bg-emerald-50 text-emerald-900 border-emerald-300 font-bold',
-      borderClass: 'border-emerald-300',
-      categoryText: '🟢 Habilitada: Unidad operativa y liberada',
-    };
-  }
-
-  // Caso 1: 🔴 ROJO - Corrección Inmediata / Observado / Urgente detenido
-  if (status === 'evidencias_rechazadas' || quotationStatus === 'rechazada') {
-    return {
-      color: 'rojo',
-      label: status === 'evidencias_rechazadas' 
-        ? 'Evidencias Observadas / Corrección Inmediata' 
-        : 'Cotización Rechazada por Cliente',
-      shortLabel: 'Observación Urgente',
-      dotColor: 'bg-rose-600',
-      pulse: true,
-      badgeClass: 'bg-rose-50 text-rose-800 border-rose-300 font-bold',
-      borderClass: 'border-rose-400',
-      categoryText: '🔴 Rojo: Atención Inmediata Requerida',
-    };
-  }
-
-  // Solicitud Urgente aún sin asignar -> Rojo
-  if (priority === 'urgente' && status === 'solicitado') {
-    return {
-      color: 'rojo',
-      label: 'Auxilio Urgente (Sin Asignar)',
-      shortLabel: 'Urgente',
-      dotColor: 'bg-rose-600',
-      pulse: true,
-      badgeClass: 'bg-rose-50 text-rose-800 border-rose-300 font-bold',
-      borderClass: 'border-rose-400',
-      categoryText: '🔴 Rojo: Solicitud Crítica en Espera',
-    };
-  }
-
-  // Caso 2: 🟢 VERDE - Concluido, Liberado, Aprobado o Facturado
+  // 5. Habilitada (Se envia notificación al cliente)
   if (
+    status === 'habilitada' ||
     status === 'liberacion_autorizada' ||
     status === 'unidad_liberada' ||
-    status === 'cotizacion_aprobada' ||
-    status === 'facturado' ||
     status === 'cerrado' ||
-    quotationStatus === 'aprobada'
+    status === 'facturado' ||
+    status === 'cotizacion_aprobada'
   ) {
-    let lbl = 'Liberación Autorizada';
-    if (status === 'unidad_liberada') lbl = 'Unidad Entregada / Liberada';
-    if (status === 'cotizacion_aprobada') lbl = 'Cotización Aprobada por Cliente';
-    if (status === 'facturado') lbl = 'Servicio Facturado y Cerrado';
-    if (status === 'cerrado') lbl = 'Orden Concluida';
-
     return {
       color: 'verde',
-      label: lbl,
-      shortLabel: 'Concluido / Liberado',
-      dotColor: 'bg-emerald-500',
+      label: 'Habilitada (Se envia notificación al cliente)',
+      shortLabel: 'Habilitada',
+      dotColor: 'bg-emerald-600',
+      textColor: 'text-emerald-700',
       pulse: false,
-      badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold',
+      badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-300 font-extrabold',
       borderClass: 'border-emerald-300',
-      categoryText: '🟢 Verde: Concluido / Liberado / Facturado',
+      categoryText: '🟢 Habilitada: Se envia notificación al cliente',
     };
   }
 
-  // Caso 3: 🟡 AMARILLO - En Proceso Operativo, Diagnóstico, Revisión o Por Cotizar
-  let yellowLabel = 'En Proceso Operativo';
-  if (status === 'solicitado') yellowLabel = 'Por atender (Jefe de taller aún no asigna técnico)';
-  if (status === 'asignado') yellowLabel = 'En proceso (Cuando técnico ya fue asignado)';
-  if (status === 'en_diagnostico_trabajo') yellowLabel = 'En Diagnóstico y Trabajo Mecánico';
-  if (status === 'evidencias_en_revision') yellowLabel = 'Validando / Pruebas (Gerente revisa evidencia)';
-  if (status === 'cotizacion_pendiente') yellowLabel = 'Cotización Pendiente de Autorización';
-
+  // Fallback por defecto
   return {
     color: 'amarillo',
-    label: yellowLabel,
-    shortLabel: 'En Proceso',
+    label: 'Por atender (Jefe de taller aun no asigna tecnico)',
+    shortLabel: 'Por atender',
     dotColor: 'bg-amber-500',
+    textColor: 'text-amber-700',
     pulse: false,
-    badgeClass: 'bg-amber-50 text-amber-900 border-amber-300 font-medium',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-300 font-extrabold',
     borderClass: 'border-amber-300',
-    categoryText: '🟡 Amarillo: En Proceso / En Taller',
+    categoryText: 'Por atender',
   };
 }

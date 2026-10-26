@@ -37,6 +37,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceType, Technician, ServiceStatus } from '../../types';
 import { StatusSemaphoreBadge } from '../common/StatusSemaphoreBadge';
+import { getStatusTextColor } from '../../utils/statusSemaphore';
 import { UnitReceptionManager } from '../common/UnitReceptionManager';
 import { MetricsDashboard } from '../common/MetricsDashboard';
 import { NotificationsModule } from '../common/NotificationsModule';
@@ -605,16 +606,23 @@ export const JefeTallerPortal: React.FC = () => {
                           <select
                             value={order.status}
                             onChange={(e) => updateOrderStatus(order.id, e.target.value as ServiceStatus, 'Actualizado por Jefe de Taller')}
-                            className="px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 bg-white"
+                            className={`px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-black bg-white shadow-2xs transition-colors ${getStatusTextColor(order.status)}`}
                           >
-                            <option value="por_atender">Por Atender</option>
-                            <option value="asignado">Asignado</option>
-                            <option value="en_diagnostico_trabajo">En Diagnóstico</option>
-                            <option value="en_proceso">En Proceso</option>
-                            <option value="pendiente_refacciones">Pendiente Refacciones</option>
-                            <option value="validando_pruebas">Validando / Pruebas</option>
-                            <option value="habilitada">Habilitada</option>
-                            <option value="cerrado">Cerrado</option>
+                            <option value="por_atender" className="text-amber-700 font-bold">
+                              Por atender (Jefe de taller aun no asigna tecnico)
+                            </option>
+                            <option value="en_proceso" className="text-blue-700 font-bold">
+                              En proceso (cuando tecnico ya fue asigndo)
+                            </option>
+                            <option value="pendiente_refacciones" className="text-orange-700 font-bold">
+                              Pendiente por refacciones
+                            </option>
+                            <option value="validando_pruebas" className="text-purple-700 font-bold">
+                              Validando / Pruebas (Gerente revisa evidencia para liberar)
+                            </option>
+                            <option value="habilitada" className="text-emerald-700 font-bold">
+                              Habilitada (Se envia notificación al cliente)
+                            </option>
                           </select>
                         </div>
                       </div>
