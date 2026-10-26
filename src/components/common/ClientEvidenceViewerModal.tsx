@@ -13,7 +13,8 @@ import {
   ZoomIn,
   Clock,
   User,
-  ChevronRight
+  ChevronRight,
+  Lock
 } from 'lucide-react';
 import { ServiceOrder, EvidencePhoto, VideoEvidence } from '../../types';
 
@@ -27,6 +28,35 @@ export const ClientEvidenceViewerModal: React.FC<ClientEvidenceViewerModalProps>
   const [activeFilter, setActiveFilter] = useState<'todos' | 'fotos' | 'videos' | 'antes' | 'correctivo'>('todos');
 
   if (!order) return null;
+
+  const isHabilitada = order.status === 'habilitada' || 
+    order.status === 'liberacion_autorizada' || 
+    order.status === 'unidad_liberada' || 
+    order.status === 'cerrado' || 
+    order.status === 'facturado';
+
+  if (!isHabilitada) {
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-900/85 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+        <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 max-w-md w-full text-center space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+            <Lock className="w-7 h-7" />
+          </div>
+          <h3 className="font-black text-lg text-[#040057]">Evidencias Protegidas</h3>
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            Las evidencias fotográficas y videos de la <strong>{order.unitNumber || order.vehicle.economicNumber}</strong> solo están disponibles para consulta cuando el estatus cambie a <strong className="text-emerald-700">Habilitada</strong>.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl bg-[#040057] text-white font-bold text-xs cursor-pointer hover:bg-[#070085] transition"
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const photos: EvidencePhoto[] = order.evidences || [];
   const videos: VideoEvidence[] = order.videoEvidences || [];

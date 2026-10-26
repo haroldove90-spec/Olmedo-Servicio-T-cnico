@@ -1246,15 +1246,6 @@ export const ClientePortal: React.FC = () => {
                   </h2>
                 </div>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setViewMode('nuevo_reporte')}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition cursor-pointer shrink-0"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>+ Nuevo Reporte</span>
-              </button>
             </div>
 
             {/* BUSCADOR INTELIGENTE REQUERIDO */}
@@ -1297,7 +1288,7 @@ export const ClientePortal: React.FC = () => {
               </div>
             </div>
 
-            {/* Alternar formato: Tarjetas vs Bitácora Consolidada del Cliente */}
+            {/* Alternar formato: Todos los reportes (Tarjetas) vs Bitácora Consolidada del Cliente */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
               <span className="text-xs font-bold text-slate-500">
                 Formato de visualización del listado:
@@ -1313,7 +1304,7 @@ export const ClientePortal: React.FC = () => {
                   }`}
                 >
                   <LayoutGrid className="w-3.5 h-3.5" />
-                  <span>Vista Tarjetas</span>
+                  <span>Todos los reportes</span>
                 </button>
 
                 <button
@@ -1409,6 +1400,7 @@ export const ClientePortal: React.FC = () => {
 
                 const statusInfo = getStatusPill(order.status);
                 const processInfo = getOrderProcessInfo(order.status, order.assignedTechnicianName);
+                const isHabilitada = order.status === 'habilitada' || processInfo.isFinished;
 
                 return (
                   <div
@@ -1589,31 +1581,40 @@ export const ClientePortal: React.FC = () => {
 
                     </div>
 
-                    {/* Evidencias adjuntas (miniaturas interactivas para abrir modal) */}
-                    {((order.evidences && order.evidences.length > 0) || (order.videoEvidences && order.videoEvidences.length > 0)) && (
-                      <div 
-                        onClick={() => setViewingEvidencesOrder(order)}
-                        className="flex items-center gap-2 overflow-x-auto py-1 cursor-pointer group"
-                        title="Haz click para ver las evidencias fotográficas y videos"
-                      >
-                        <span className="text-[11px] font-bold text-indigo-700 group-hover:underline flex items-center gap-1 shrink-0">
-                          <Camera className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Evidencias ({((order.evidences?.length || 0) + (order.videoEvidences?.length || 0))}):</span>
-                        </span>
-                        {order.evidences.slice(0, 4).map((ev, i) => (
-                          <div key={i} className="w-14 h-10 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shrink-0 relative group-hover:opacity-85 transition">
-                            <img src={ev.url} alt="ev" className="w-full h-full object-cover" />
-                            <Camera className="w-2.5 h-2.5 text-white absolute bottom-1 right-1" />
-                          </div>
-                        ))}
-                        {order.videoEvidences?.map((vid, i) => (
-                          <div key={i} className="w-16 h-10 rounded-xl bg-slate-900 border border-slate-200 text-white flex items-center justify-center gap-1 text-[9px] font-bold shrink-0 group-hover:opacity-85 transition">
-                            <Video className="w-3 h-3 text-rose-500" />
-                            <span>{vid.duration || 15}s</span>
-                          </div>
-                        ))}
-                        <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 group-hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 shrink-0 transition">
-                          Ver galería
+                    {/* Evidencias adjuntas (SOLO SE PERMITE VER CUANDO EL ESTATUS ESTÁ EN HABILITADA) */}
+                    {isHabilitada ? (
+                      ((order.evidences && order.evidences.length > 0) || (order.videoEvidences && order.videoEvidences.length > 0)) && (
+                        <div 
+                          onClick={() => setViewingEvidencesOrder(order)}
+                          className="flex items-center gap-2 overflow-x-auto py-1 cursor-pointer group"
+                          title="Haz click para ver las evidencias fotográficas y videos"
+                        >
+                          <span className="text-[11px] font-bold text-indigo-700 group-hover:underline flex items-center gap-1 shrink-0">
+                            <Camera className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Evidencias ({((order.evidences?.length || 0) + (order.videoEvidences?.length || 0))}):</span>
+                          </span>
+                          {order.evidences.slice(0, 4).map((ev, i) => (
+                            <div key={i} className="w-14 h-10 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shrink-0 relative group-hover:opacity-85 transition">
+                              <img src={ev.url} alt="ev" className="w-full h-full object-cover" />
+                              <Camera className="w-2.5 h-2.5 text-white absolute bottom-1 right-1" />
+                            </div>
+                          ))}
+                          {order.videoEvidences?.map((vid, i) => (
+                            <div key={i} className="w-16 h-10 rounded-xl bg-slate-900 border border-slate-200 text-white flex items-center justify-center gap-1 text-[9px] font-bold shrink-0 group-hover:opacity-85 transition">
+                              <Video className="w-3 h-3 text-rose-500" />
+                              <span>{vid.duration || 15}s</span>
+                            </div>
+                          ))}
+                          <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 group-hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 shrink-0 transition">
+                            Ver galería
+                          </span>
+                        </div>
+                      )
+                    ) : (
+                      <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 text-xs">
+                        <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span className="font-semibold text-[11px] text-slate-600">
+                          Evidencias protegidas: disponibles para visualización únicamente al cambiar estatus a <strong className="text-emerald-700">Habilitada</strong>.
                         </span>
                       </div>
                     )}
@@ -1639,16 +1640,28 @@ export const ClientePortal: React.FC = () => {
                     {/* ACCIONES DEL REPORTE: Ver Evidencias, Excel, Ver PDF, Imprimir y Modificar */}
                     <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
                       <div className="flex flex-wrap items-center gap-2">
-                        {/* 1. Botón Ver Evidencias */}
-                        <button
-                          type="button"
-                          onClick={() => setViewingEvidencesOrder(order)}
-                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#040057] font-extrabold text-xs border border-indigo-200 transition cursor-pointer shadow-2xs hover:scale-[1.01]"
-                          title="Ver evidencias fotográficas y videos de este reporte de falla"
-                        >
-                          <Camera className="w-4 h-4 text-indigo-600" />
-                          <span>Ver Evidencias ({((order.evidences?.length || 0) + (order.videoEvidences?.length || 0))})</span>
-                        </button>
+                        {/* 1. Botón Ver Evidencias (solo cuando el estatus es Habilitada) */}
+                        {isHabilitada ? (
+                          <button
+                            type="button"
+                            onClick={() => setViewingEvidencesOrder(order)}
+                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#040057] font-extrabold text-xs border border-indigo-200 transition cursor-pointer shadow-2xs hover:scale-[1.01]"
+                            title="Ver evidencias fotográficas y videos de este reporte de falla"
+                          >
+                            <Camera className="w-4 h-4 text-indigo-600" />
+                            <span>Ver Evidencias ({((order.evidences?.length || 0) + (order.videoEvidences?.length || 0))})</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs border border-slate-200 cursor-not-allowed opacity-80"
+                            title="Las evidencias solo se pueden ver cuando la unidad pase a estatus Habilitada"
+                          >
+                            <Lock className="w-4 h-4 text-slate-400" />
+                            <span>Evidencias (Bloqueadas hasta Habilitada)</span>
+                          </button>
+                        )}
 
                         {/* 2. Botón Descargar en Excel (.xlsx) con tablas estructuradas */}
                         <button
