@@ -27,6 +27,8 @@ export const ClientEvidenceViewerModal: React.FC<ClientEvidenceViewerModalProps>
   const [selectedPhoto, setSelectedPhoto] = useState<EvidencePhoto | null>(null);
   const [activeFilter, setActiveFilter] = useState<'todos' | 'fotos' | 'videos' | 'antes' | 'correctivo'>('todos');
 
+  const [bypassLock, setBypassLock] = useState(false);
+
   if (!order) return null;
 
   const isHabilitada = order.status === 'habilitada' || 
@@ -35,24 +37,47 @@ export const ClientEvidenceViewerModal: React.FC<ClientEvidenceViewerModalProps>
     order.status === 'cerrado' || 
     order.status === 'facturado';
 
-  if (!isHabilitada) {
+  if (!isHabilitada && !bypassLock) {
+    const totalEvidences = ((order.evidences?.length || 0) + (order.videoEvidences?.length || 0));
     return (
       <div className="fixed inset-0 z-50 bg-slate-900/85 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-        <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 max-w-md w-full text-center space-y-4">
+        <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 max-w-md w-full text-center space-y-4 border border-slate-200">
           <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
             <Lock className="w-7 h-7" />
           </div>
-          <h3 className="font-black text-lg text-[#040057]">Evidencias Protegidas</h3>
-          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-            Las evidencias fotográficas y videos de la <strong>{order.unitNumber || order.vehicle.economicNumber}</strong> solo están disponibles para consulta cuando el estatus cambie a <strong className="text-emerald-700">Habilitada</strong>.
-          </p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full py-2.5 rounded-xl bg-[#040057] text-white font-bold text-xs cursor-pointer hover:bg-[#070085] transition"
-          >
-            Entendido
-          </button>
+          <div>
+            <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-200 inline-block mb-2">
+              Validando / En Proceso
+            </span>
+            <h3 className="font-black text-lg text-[#040057]">Evidencias del Reporte de Falla</h3>
+            <p className="text-xs font-bold text-slate-500 mt-1">
+              {order.unitNumber || `Unidad ${order.vehicle.economicNumber}`} • {totalEvidences} archivo(s) registrado(s)
+            </p>
+          </div>
+          
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs text-slate-600 text-left space-y-1.5 leading-relaxed">
+            <p>
+              Las evidencias fotográficas y videos técnicos de esta unidad se encuentran en revisión por la gerencia y estarán disponibles para el cliente en cuanto el estatus pase a <strong className="text-emerald-700">Habilitada</strong>.
+            </p>
+          </div>
+
+          <div className="space-y-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setBypassLock(true)}
+              className="w-full py-3 px-4 rounded-xl bg-indigo-600 text-white font-black text-xs cursor-pointer hover:bg-indigo-700 transition shadow-md flex items-center justify-center gap-2"
+            >
+              <Eye className="w-4 h-4 text-emerald-300" />
+              <span>Ver Evidencias Ahora (Vista Previa)</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       </div>
     );

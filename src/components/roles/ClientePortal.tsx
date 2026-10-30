@@ -34,7 +34,8 @@ import {
   LayoutGrid,
   Activity,
   Printer,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Eye
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ServiceOrder, ServiceStatus, EvidencePhoto, VideoEvidence, VehicleType, ServiceType } from '../../types';
@@ -1636,10 +1637,20 @@ export const ClientePortal: React.FC = () => {
                         </div>
                       )
                     ) : (
-                      <div className="flex items-center gap-2 py-2 px-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 text-xs">
-                        <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span className="font-semibold text-[11px] text-slate-600">
-                          Evidencias protegidas: disponibles para visualización únicamente al cambiar estatus a <strong className="text-emerald-700">Habilitada</strong>.
+                      <div 
+                        onClick={() => setViewingEvidencesOrder(order)}
+                        className="flex items-center justify-between py-2.5 px-3.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-xs cursor-pointer transition group shadow-2xs"
+                        title="Haz clic para ver las evidencias o consultar estado de validación"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Camera className="w-4 h-4 text-amber-700 shrink-0" />
+                          <span className="font-semibold text-[11px] text-amber-900">
+                            Evidencias ({((order.evidences?.length || 0) + (order.videoEvidences?.length || 0))}): disponibles para el cliente al cambiar a <strong className="text-emerald-700 font-black">Habilitada</strong>.
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-black uppercase text-[#040057] group-hover:underline flex items-center gap-1 shrink-0 bg-white px-2.5 py-1 rounded-lg border border-amber-300 shadow-2xs">
+                          <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Ver Evidencias</span>
                         </span>
                       </div>
                     )}
@@ -1665,28 +1676,26 @@ export const ClientePortal: React.FC = () => {
                     {/* ACCIONES DEL REPORTE: Ver Evidencias, Excel, Ver PDF, Imprimir y Modificar */}
                     <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
                       <div className="flex flex-wrap items-center gap-2">
-                        {/* 1. Botón Ver Evidencias (solo cuando el estatus es Habilitada) */}
-                        {isHabilitada ? (
-                          <button
-                            type="button"
-                            onClick={() => setViewingEvidencesOrder(order)}
-                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#040057] font-extrabold text-xs border border-indigo-200 transition cursor-pointer shadow-2xs hover:scale-[1.01]"
-                            title="Ver evidencias fotográficas y videos de este reporte de falla"
-                          >
-                            <Camera className="w-4 h-4 text-indigo-600" />
-                            <span>Ver Evidencias ({((order.evidences?.length || 0) + (order.videoEvidences?.length || 0))})</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled
-                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs border border-slate-200 cursor-not-allowed opacity-80"
-                            title="Las evidencias solo se pueden ver cuando la unidad pase a estatus Habilitada"
-                          >
-                            <Lock className="w-4 h-4 text-slate-400" />
-                            <span>Evidencias (Bloqueadas hasta Habilitada)</span>
-                          </button>
-                        )}
+                        {/* 1. Botón Ver Evidencias (SIEMPRE VISIBLE CON EL TEXTO EXACTO "Ver Evidencias") */}
+                        <button
+                          type="button"
+                          onClick={() => setViewingEvidencesOrder(order)}
+                          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-extrabold text-xs transition cursor-pointer shadow-2xs hover:scale-[1.01] ${
+                            isHabilitada
+                              ? 'bg-[#040057] hover:bg-[#070085] text-white shadow-xs'
+                              : 'bg-indigo-50 hover:bg-indigo-100 text-[#040057] border border-indigo-200'
+                          }`}
+                          title="Ver evidencias fotográficas y videos de este reporte de falla"
+                        >
+                          <Camera className={`w-4 h-4 ${isHabilitada ? 'text-emerald-300' : 'text-indigo-600'}`} />
+                          <span>Ver Evidencias ({((order.evidences?.length || 0) + (order.videoEvidences?.length || 0))})</span>
+                          {!isHabilitada && (
+                            <span className="ml-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-black rounded-md flex items-center gap-0.5 border border-amber-200">
+                              <Lock className="w-2.5 h-2.5 text-amber-700" />
+                              Validando
+                            </span>
+                          )}
+                        </button>
 
                         {/* 2. Botón Descargar en Excel (.xlsx) con tablas estructuradas */}
                         <button
