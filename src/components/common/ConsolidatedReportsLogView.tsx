@@ -251,7 +251,7 @@ export const ConsolidatedReportsLogView: React.FC<ConsolidatedReportsLogViewProp
           </div>
           <div>
             <h4 className="font-black text-sm sm:text-base text-[#040057]">
-              Módulo de Bitácora Técnica Consolidada
+              Módulo de Reportes de Falla
             </h4>
             <p className="text-xs text-slate-500">
               {filteredOrders.length} registros • Visualización en tarjetas • Exportación oficial en Excel y PDF
@@ -263,20 +263,6 @@ export const ConsolidatedReportsLogView: React.FC<ConsolidatedReportsLogViewProp
         {/* Botones de acción */}
         <div className="flex flex-wrap items-center gap-2.5">
           
-          {/* Botón Copiar para WhatsApp */}
-          <button
-            type="button"
-            onClick={handleCopyText}
-            className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
-              copied
-                ? 'bg-emerald-600 text-white ring-2 ring-emerald-300'
-                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-            }`}
-            title="Copiar contenido de la bitácora estructurado para enviar por WhatsApp"
-          >
-            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            <span>{copied ? '¡Copiado!' : 'Copiar Texto para WhatsApp'}</span>
-          </button>
 
           {/* Botón Ver / Descargar PDF en Tablas */}
           <button
