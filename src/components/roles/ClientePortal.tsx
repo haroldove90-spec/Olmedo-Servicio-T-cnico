@@ -1313,41 +1313,6 @@ export const ClientePortal: React.FC = () => {
                 </select>
               </div>
             </div>
-
-            {/* Alternar formato: Todos los reportes (Tarjetas) vs Bitácora Consolidada del Cliente */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
-              <span className="text-xs font-bold text-slate-500">
-                Formato de visualización del listado:
-              </span>
-              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setReportListFormat('tarjetas')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    reportListFormat === 'tarjetas'
-                      ? 'bg-[#040057] text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  <span>Todos los reportes</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setReportListFormat('bitacora')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    reportListFormat === 'bitacora'
-                      ? 'bg-[#040057] text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Reporte de falla</span>
-                </button>
-              </div>
-            </div>
-
           </div>
 
           {/* VISTA SEGÚN FORMATO SELECCIONADO */}
