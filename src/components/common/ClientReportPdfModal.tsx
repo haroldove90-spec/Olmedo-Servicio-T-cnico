@@ -140,9 +140,6 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
                     <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-[#040057] uppercase tracking-tight">
                       SERVICIO TÉCNICO OLMEDO
                     </h1>
-                    <p className="text-xs sm:text-sm font-bold text-slate-600 mt-0.5">
-                      Asistencia Mecánica y Eléctrica Especializada para Flotillas
-                    </p>
                   </div>
                 </div>
 
@@ -307,9 +304,6 @@ export const ClientReportPdfModal: React.FC<ClientReportPdfModalProps> = ({ orde
             <div className="pt-8 border-t-2 border-[#040057] text-center pb-2">
               <span className="text-sm font-black text-[#040057] tracking-wider uppercase block">
                 SERVICIO TÉCNICO OLMEDO
-              </span>
-              <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
-                Atención Mecánica Integral • Reporte Oficial emitido por el sistema
               </span>
             </div>
 
