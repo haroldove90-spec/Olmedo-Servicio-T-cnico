@@ -47,7 +47,7 @@ import { EvidenceLockWarningModal } from '../common/EvidenceLockWarningModal';
 import { ClientReportPdfModal } from '../common/ClientReportPdfModal';
 import { ClientEvidenceViewerModal } from '../common/ClientEvidenceViewerModal';
 import { ConsolidatedReportsLogView } from '../common/ConsolidatedReportsLogView';
-import { exportOrdersToExcel } from '../../utils/excelExport';
+import { exportOrdersToExcel, exportHistorialReporteFallaExcel } from '../../utils/excelExport';
 
 type ClientViewMode = 'home' | 'nuevo_reporte' | 'listado_reportes' | 'modificar_reporte';
 
@@ -521,6 +521,30 @@ export const ClientePortal: React.FC = () => {
       addToast('success', 'Excel Generado', `Se descargó el reporte de la unidad ${order.unitNumber || order.vehicle.economicNumber} en Excel (.xlsx).`);
     } else {
       addToast('error', 'Error', 'No se pudo generar el archivo Excel.');
+    }
+  };
+
+  // Descarga del Historial Completo de Reportes de Falla en Excel (.xlsx) con tablas completas
+  const handleExportHistorialExcel = () => {
+    const ordersToExport = filteredOrders.length > 0 ? filteredOrders : orders;
+    const clientCompany = ordersToExport.find(o => o.clientCompany || o.clientName)?.clientCompany || 
+                          ordersToExport[0]?.clientCompany || 
+                          ordersToExport[0]?.clientName || 
+                          'GRUPO SATI S.A. DE C.V.';
+
+    const success = exportHistorialReporteFallaExcel(ordersToExport, {
+      companyName: clientCompany,
+      filenamePrefix: 'Historial_Reporte_de_falla'
+    });
+
+    if (success) {
+      addToast(
+        'success',
+        'Historial Exportado',
+        `Se descargó el Historial de Reporte de falla (${ordersToExport.length} registros) en Excel (.xlsx) con el formato oficial.`
+      );
+    } else {
+      addToast('error', 'Error', 'No hay reportes disponibles para exportar.');
     }
   };
 
@@ -1272,6 +1296,17 @@ export const ClientePortal: React.FC = () => {
                   </h2>
                 </div>
               </div>
+
+              {/* BOTÓN PARA EXPORTAR HISTORIAL EN EXCEL (ARRIBA DEL CAMPO "TODOS LOS REPORTES") */}
+              <button
+                type="button"
+                onClick={handleExportHistorialExcel}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-black transition shadow-sm hover:shadow-md cursor-pointer shrink-0"
+                title="Descargar el Historial de Reporte de falla en Excel (.xlsx) con tablas completas"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+                <span>Exportar Historial en Excel (.xlsx)</span>
+              </button>
             </div>
 
             {/* BUSCADOR INTELIGENTE REQUERIDO */}
